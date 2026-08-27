@@ -14,7 +14,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [internal]
+    networks:
+      - internal
 
   redis:
     image: redis:7-alpine
@@ -24,7 +25,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
-    networks: [internal]
+    networks:
+      - internal
 
   backend:
     build: ./backend
@@ -39,13 +41,25 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/healthz/').status == 200 else sys.exit(1)"]
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request,sys
+          req=urllib.request.Request(
+              "http://localhost:8000/healthz/",
+              headers={"X-Forwarded-Proto":"https","Host":"trugc.com.tr"}
+          )
+          sys.exit(0 if urllib.request.urlopen(req, timeout=8).status==200 else 1)
       interval: 15s
-      timeout: 5s
+      timeout: 10s
       retries: 10
       start_period: 20s
-    expose: ["8000"]
-    networks: [internal]
+    expose:
+      - "8000"
+    networks:
+      - internal
 
   celery_worker:
     build: ./backend
@@ -55,15 +69,10 @@ services:
     volumes:
       - media_data:/app/media
     depends_on:
-      # Same image as `backend`, so it runs the same entrypoint.sh
-      # (migrate/collectstatic/seed_groups) on boot — waiting for `backend`
-      # to be healthy first (not just db/redis) means migrations have
-      # already been safely applied once against a fresh database, instead
-      # of both containers racing to migrate/insert-permissions concurrently
-      # (a genuine IntegrityError race observed against a cold empty DB).
       backend:
         condition: service_healthy
-    networks: [internal]
+    networks:
+      - internal
 
   celery_beat:
     build: ./backend
@@ -73,7 +82,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-    networks: [internal]
+    networks:
+      - internal
 
   frontend:
     build:
@@ -86,13 +96,21 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))",
+        ]
       interval: 15s
       timeout: 5s
       retries: 10
       start_period: 20s
-    expose: ["3000"]
-    networks: [internal]
+    expose:
+      - "3000"
+    networks:
+      - internal
 
   caddy:
     image: caddy:2-alpine
@@ -110,7 +128,8 @@ services:
     depends_on:
       - frontend
       - backend
-    networks: [internal]
+    networks:
+      - internal
 
 networks:
   internal:
