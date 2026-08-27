@@ -152,7 +152,7 @@ function MarqueeTrack({ videos, direction }: { videos: FeedVideo[]; direction: "
         <div
           className={cn(
             "flex w-max gap-4 [will-change:transform] sm:gap-5",
-            direction === "right" ? "animate-[marquee-reverse_38s_linear_infinite]" : "animate-[marquee_38s_linear_infinite]",
+            direction === "right" ? "animate-[marquee-reverse_22s_linear_infinite]" : "animate-[marquee_22s_linear_infinite]",
           )}
           style={{ animationPlayState: paused ? "paused" : "running" }}
         >
