@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Volume2, VolumeX } from "lucide-react";
-import { useState } from "react";
 import { Reveal } from "@/components/Motion/Reveal";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+type CardHeight = "tall" | "medium" | "short";
 
 interface FeedVideo {
   id: string;
@@ -14,17 +15,34 @@ interface FeedVideo {
   category: string;
   caption: string;
   priceLabel: string;
+  height: CardHeight;
 }
 
-const VIDEOS: FeedVideo[] = [
-  { id: "coffee", src: "/videos/coffee.mp4", category: "Kahve", caption: "Kahve markaları için lezzetli b-roll içerikler", priceLabel: "750 ₺'den başlayan fiyatlarla" },
-  { id: "cosmetics", src: "/videos/cosmetics.mp4", category: "Kozmetik", caption: "Makyaj ve kozmetik ürün tanıtımları", priceLabel: "900 ₺'den başlayan fiyatlarla" },
-  { id: "skincare", src: "/videos/skincare.mp4", category: "Cilt Bakımı", caption: "Cilt bakım rutini içerikleri", priceLabel: "850 ₺'den başlayan fiyatlarla" },
-  { id: "pets", src: "/videos/pets.mp4", category: "Evcil Hayvan", caption: "Evcil hayvan markaları için samimi içerikler", priceLabel: "600 ₺'den başlayan fiyatlarla" },
-  { id: "lifestyle", src: "/videos/lifestyle.mp4", category: "Lifestyle", caption: "Yaşam tarzı ve günlük estetik içerikler", priceLabel: "700 ₺'den başlayan fiyatlarla" },
-  { id: "phone", src: "/videos/phone.mp4", category: "Teknoloji", caption: "Telefon ve teknoloji ürünleri için içerikler", priceLabel: "950 ₺'den başlayan fiyatlarla" },
-  { id: "daily-life", src: "/videos/daily-life.mp4", category: "Günlük Yaşam", caption: "Günlük yaşamdan otantik anlar", priceLabel: "650 ₺'den başlayan fiyatlarla" },
-  { id: "fashion", src: "/videos/fashion.mp4", category: "Moda", caption: "Moda ve stil odaklı içerik üretimi", priceLabel: "800 ₺'den başlayan fiyatlarla" },
+const HEIGHT_CLASS: Record<CardHeight, string> = {
+  tall: "aspect-[9/16]",
+  medium: "aspect-[4/5]",
+  short: "aspect-[3/4]",
+};
+
+// Sütunlara dağıtılmış videolar — her sütun farklı yükseklik örüntüsüyle
+// Pinterest tarzı bir masonry hissi verir (bkz. HEIGHT_CLASS).
+const COLUMNS: FeedVideo[][] = [
+  [
+    { id: "coffee", src: "/videos/coffee.mp4", category: "Kahve", caption: "Kahve markaları için lezzetli b-roll içerikler", priceLabel: "750 ₺'den başlayan fiyatlarla", height: "tall" },
+    { id: "cosmetics", src: "/videos/cosmetics.mp4", category: "Kozmetik", caption: "Makyaj ve kozmetik ürün tanıtımları", priceLabel: "900 ₺'den başlayan fiyatlarla", height: "short" },
+  ],
+  [
+    { id: "skincare", src: "/videos/skincare.mp4", category: "Cilt Bakımı", caption: "Cilt bakım rutini içerikleri", priceLabel: "850 ₺'den başlayan fiyatlarla", height: "short" },
+    { id: "pets", src: "/videos/pets.mp4", category: "Evcil Hayvan", caption: "Evcil hayvan markaları için samimi içerikler", priceLabel: "600 ₺'den başlayan fiyatlarla", height: "tall" },
+  ],
+  [
+    { id: "lifestyle", src: "/videos/lifestyle.mp4", category: "Lifestyle", caption: "Yaşam tarzı ve günlük estetik içerikler", priceLabel: "700 ₺'den başlayan fiyatlarla", height: "medium" },
+    { id: "phone", src: "/videos/phone.mp4", category: "Teknoloji", caption: "Telefon ve teknoloji ürünleri için içerikler", priceLabel: "950 ₺'den başlayan fiyatlarla", height: "tall" },
+  ],
+  [
+    { id: "daily-life", src: "/videos/daily-life.mp4", category: "Günlük Yaşam", caption: "Günlük yaşamdan otantik anlar", priceLabel: "650 ₺'den başlayan fiyatlarla", height: "tall" },
+    { id: "fashion", src: "/videos/fashion.mp4", category: "Moda", caption: "Moda ve stil odaklı içerik üretimi", priceLabel: "800 ₺'den başlayan fiyatlarla", height: "medium" },
+  ],
 ];
 
 function VideoCard({ video }: { video: FeedVideo }) {
@@ -54,7 +72,10 @@ function VideoCard({ video }: { video: FeedVideo }) {
   return (
     <div
       ref={containerRef}
-      className="group relative aspect-[9/16] w-[220px] shrink-0 snap-center overflow-hidden rounded-3xl bg-muted shadow-sm sm:w-[240px]"
+      className={cn(
+        "group relative w-full shrink-0 overflow-hidden rounded-3xl bg-muted shadow-sm transition-shadow duration-300 hover:shadow-2xl hover:shadow-violet-600/20",
+        HEIGHT_CLASS[video.height],
+      )}
     >
       <video
         ref={videoRef}
@@ -63,7 +84,7 @@ function VideoCard({ video }: { video: FeedVideo }) {
         loop
         playsInline
         preload="metadata"
-        className="h-full w-full object-cover"
+        className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
       />
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/0" />
@@ -109,14 +130,22 @@ export function VideoFeed() {
 
       <div
         className={cn(
-          "no-scrollbar mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-2",
+          "no-scrollbar mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 sm:gap-5",
           "[mask-image:linear-gradient(to_right,transparent,black_2%,black_98%,transparent)]",
         )}
       >
-        {VIDEOS.map((video, i) => (
-          <Reveal key={video.id} variant="scale" delay={i * 0.05} className="shrink-0">
-            <VideoCard video={video} />
-          </Reveal>
+        {COLUMNS.map((column, colIndex) => (
+          <div
+            key={colIndex}
+            className={cn(
+              "flex w-[42vw] shrink-0 snap-center flex-col gap-4 sm:w-[220px] sm:gap-5",
+              colIndex % 2 === 1 && "mt-10 sm:mt-16",
+            )}
+          >
+            {column.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
         ))}
       </div>
     </section>

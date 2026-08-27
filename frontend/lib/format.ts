@@ -1,3 +1,13 @@
+// Sabit USD → TRY kuru. Yalnızca köken olarak USD cinsinden yazılmış statik
+// pazarlama içeriği (fiyatlandırma planları, örnek dashboard rakamları) için
+// kullanılır — backend'den gelen gerçek creator/marka/işlem tutarları zaten
+// TRY cinsindendir ve bu kurla çarpılmamalıdır.
+export const USD_TO_TRY_RATE = 40;
+
+export function convertUsdToTry(usd: number): number {
+  return usd * USD_TO_TRY_RATE;
+}
+
 export function formatCompactNumber(value: number): string {
   return new Intl.NumberFormat("tr-TR", { notation: "compact", maximumFractionDigits: 1 }).format(
     value,

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Reveal } from "@/components/Motion/Reveal";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, convertUsdToTry } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Fiyatlandırma — TRUGC" };
@@ -133,7 +133,7 @@ export default function FiyatlandirmaPage() {
                 <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
                 <div className="mt-5 flex items-baseline gap-1">
                   <span className="text-4xl font-semibold tracking-tight">
-                    {plan.price === 0 ? "Ücretsiz" : formatCurrency(plan.price)}
+                    {plan.price === 0 ? "Ücretsiz" : formatCurrency(convertUsdToTry(plan.price))}
                   </span>
                   {plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
                 </div>

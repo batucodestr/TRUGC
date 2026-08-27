@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, MessageSquare, Users, Wallet } from "lucide-react";
 import { CountUp } from "@/components/shared/count-up";
 import { Reveal } from "@/components/Motion/Reveal";
+import { convertUsdToTry } from "@/lib/format";
 
 const BARS = [38, 62, 45, 80, 58, 92, 70];
 
@@ -95,7 +96,7 @@ export function DashboardPreview() {
         >
           <p className="text-xs text-muted-foreground">Toplam ödeme</p>
           <p className="mt-1 text-xl font-semibold">
-            <CountUp value={128400} suffix=" ₺" />
+            <CountUp value={convertUsdToTry(128400)} suffix=" ₺" />
           </p>
           <p className="mt-1 text-[11px] text-emerald-500">Bu ay ödenen</p>
         </motion.div>
