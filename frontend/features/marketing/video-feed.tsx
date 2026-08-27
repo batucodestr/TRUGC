@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
 import Link from "next/link";
 import { ArrowRight, Volume2, VolumeX } from "lucide-react";
 import { Reveal } from "@/components/Motion/Reveal";
@@ -24,37 +24,34 @@ const HEIGHT_CLASS: Record<CardHeight, string> = {
   short: "aspect-[3/4]",
 };
 
-// Sütunlara dağıtılmış videolar — her sütun farklı yükseklik örüntüsüyle
-// Pinterest tarzı bir masonry hissi verir (bkz. HEIGHT_CLASS).
-const COLUMNS: FeedVideo[][] = [
-  [
-    { id: "coffee", src: "/videos/coffee.mp4", category: "Kahve", caption: "Kahve markaları için lezzetli b-roll içerikler", priceLabel: "750 ₺'den başlayan fiyatlarla", height: "tall" },
-    { id: "cosmetics", src: "/videos/cosmetics.mp4", category: "Kozmetik", caption: "Makyaj ve kozmetik ürün tanıtımları", priceLabel: "900 ₺'den başlayan fiyatlarla", height: "short" },
-  ],
-  [
-    { id: "skincare", src: "/videos/skincare.mp4", category: "Cilt Bakımı", caption: "Cilt bakım rutini içerikleri", priceLabel: "850 ₺'den başlayan fiyatlarla", height: "short" },
-    { id: "pets", src: "/videos/pets.mp4", category: "Evcil Hayvan", caption: "Evcil hayvan markaları için samimi içerikler", priceLabel: "600 ₺'den başlayan fiyatlarla", height: "tall" },
-  ],
-  [
-    { id: "lifestyle", src: "/videos/lifestyle.mp4", category: "Lifestyle", caption: "Yaşam tarzı ve günlük estetik içerikler", priceLabel: "700 ₺'den başlayan fiyatlarla", height: "medium" },
-    { id: "phone", src: "/videos/phone.mp4", category: "Teknoloji", caption: "Telefon ve teknoloji ürünleri için içerikler", priceLabel: "950 ₺'den başlayan fiyatlarla", height: "tall" },
-  ],
-  [
-    { id: "daily-life", src: "/videos/daily-life.mp4", category: "Günlük Yaşam", caption: "Günlük yaşamdan otantik anlar", priceLabel: "650 ₺'den başlayan fiyatlarla", height: "tall" },
-    { id: "fashion", src: "/videos/fashion.mp4", category: "Moda", caption: "Moda ve stil odaklı içerik üretimi", priceLabel: "800 ₺'den başlayan fiyatlarla", height: "medium" },
-  ],
+const TOP_TRACK: FeedVideo[] = [
+  { id: "coffee", src: "/videos/coffee.mp4", category: "Kahve", caption: "Kahve markaları için lezzetli b-roll içerikler", priceLabel: "750 ₺'den başlayan fiyatlarla", height: "tall" },
+  { id: "cosmetics", src: "/videos/cosmetics.mp4", category: "Kozmetik", caption: "Makyaj ve kozmetik ürün tanıtımları", priceLabel: "900 ₺'den başlayan fiyatlarla", height: "short" },
+  { id: "skincare", src: "/videos/skincare.mp4", category: "Cilt Bakımı", caption: "Cilt bakım rutini içerikleri", priceLabel: "850 ₺'den başlayan fiyatlarla", height: "medium" },
+  { id: "pets", src: "/videos/pets.mp4", category: "Evcil Hayvan", caption: "Evcil hayvan markaları için samimi içerikler", priceLabel: "600 ₺'den başlayan fiyatlarla", height: "tall" },
 ];
 
-function VideoCard({ video }: { video: FeedVideo }) {
+const BOTTOM_TRACK: FeedVideo[] = [
+  { id: "lifestyle", src: "/videos/lifestyle.mp4", category: "Lifestyle", caption: "Yaşam tarzı ve günlük estetik içerikler", priceLabel: "700 ₺'den başlayan fiyatlarla", height: "short" },
+  { id: "phone", src: "/videos/phone.mp4", category: "Teknoloji", caption: "Telefon ve teknoloji ürünleri için içerikler", priceLabel: "950 ₺'den başlayan fiyatlarla", height: "tall" },
+  { id: "daily-life", src: "/videos/daily-life.mp4", category: "Günlük Yaşam", caption: "Günlük yaşamdan otantik anlar", priceLabel: "650 ₺'den başlayan fiyatlarla", height: "medium" },
+  { id: "fashion", src: "/videos/fashion.mp4", category: "Moda", caption: "Moda ve stil odaklı içerik üretimi", priceLabel: "800 ₺'den başlayan fiyatlarla", height: "short" },
+];
+
+function VideoCard({ video, viewportRef }: { video: FeedVideo; viewportRef: RefObject<HTMLDivElement | null> }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const [muted, setMuted] = useState(true);
 
   useEffect(() => {
     const videoEl = videoRef.current;
-    const container = containerRef.current;
-    if (!videoEl || !container) return;
+    const cardEl = cardRef.current;
+    const root = viewportRef.current;
+    if (!videoEl || !cardEl || !root) return;
 
+    // root'u sayfa viewport'u yerine track'in kırpan (overflow-hidden) kutusu
+    // olarak veriyoruz, böylece kart CSS transform ile track dışına
+    // kaydığında da (sayfa açısından hâlâ "görünür" olsa bile) duraklatılır.
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -63,17 +60,17 @@ function VideoCard({ video }: { video: FeedVideo }) {
           videoEl.pause();
         }
       },
-      { threshold: 0.6 },
+      { root, threshold: 0.4 },
     );
-    observer.observe(container);
+    observer.observe(cardEl);
     return () => observer.disconnect();
-  }, []);
+  }, [viewportRef]);
 
   return (
     <div
-      ref={containerRef}
+      ref={cardRef}
       className={cn(
-        "group relative w-full shrink-0 overflow-hidden rounded-3xl bg-muted shadow-sm transition-shadow duration-300 hover:shadow-2xl hover:shadow-violet-600/20",
+        "group relative w-[170px] shrink-0 select-none overflow-hidden rounded-3xl bg-muted shadow-sm transition-shadow duration-300 hover:shadow-2xl hover:shadow-violet-600/20 sm:w-[200px]",
         HEIGHT_CLASS[video.height],
       )}
     >
@@ -84,6 +81,7 @@ function VideoCard({ video }: { video: FeedVideo }) {
         loop
         playsInline
         preload="metadata"
+        draggable={false}
         className="h-full w-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
       />
 
@@ -102,9 +100,66 @@ function VideoCard({ video }: { video: FeedVideo }) {
         {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
       </button>
 
-      <div className="absolute inset-x-0 bottom-0 p-4">
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 p-4">
         <p className="text-sm font-medium leading-snug text-white">{video.caption}</p>
         <p className="mt-1 text-xs text-white/75">{video.priceLabel}</p>
+      </div>
+    </div>
+  );
+}
+
+function MarqueeTrack({ videos, direction }: { videos: FeedVideo[]; direction: "left" | "right" }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const dragStart = useRef({ pointerX: 0, baseX: 0 });
+
+  function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    dragStart.current = { pointerX: e.clientX, baseX: dragX };
+    setDragging(true);
+    setPaused(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    const delta = e.clientX - dragStart.current.pointerX;
+    setDragX(dragStart.current.baseX + delta);
+  }
+
+  function endDrag(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!dragging) return;
+    setDragging(false);
+    setPaused(false);
+    e.currentTarget.releasePointerCapture(e.pointerId);
+  }
+
+  const doubled = [...videos, ...videos];
+
+  return (
+    <div
+      ref={viewportRef}
+      className="touch-pan-y relative w-full cursor-grab overflow-hidden active:cursor-grabbing"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => !dragging && setPaused(false)}
+    >
+      <div style={{ transform: `translateX(${dragX}px)` }}>
+        <div
+          className={cn(
+            "flex w-max gap-4 [will-change:transform] sm:gap-5",
+            direction === "right" ? "animate-[marquee-reverse_38s_linear_infinite]" : "animate-[marquee_38s_linear_infinite]",
+          )}
+          style={{ animationPlayState: paused ? "paused" : "running" }}
+        >
+          {doubled.map((video, i) => (
+            <VideoCard key={`${video.id}-${i}`} video={video} viewportRef={viewportRef} />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -130,23 +185,12 @@ export function VideoFeed() {
 
       <div
         className={cn(
-          "no-scrollbar mt-10 flex snap-x snap-mandatory gap-4 overflow-x-auto pb-4 sm:gap-5",
-          "[mask-image:linear-gradient(to_right,transparent,black_2%,black_98%,transparent)]",
+          "mt-10 space-y-4 sm:space-y-5",
+          "[mask-image:linear-gradient(to_right,transparent,black_4%,black_96%,transparent)]",
         )}
       >
-        {COLUMNS.map((column, colIndex) => (
-          <div
-            key={colIndex}
-            className={cn(
-              "flex w-[42vw] shrink-0 snap-center flex-col gap-4 sm:w-[220px] sm:gap-5",
-              colIndex % 2 === 1 && "mt-10 sm:mt-16",
-            )}
-          >
-            {column.map((video) => (
-              <VideoCard key={video.id} video={video} />
-            ))}
-          </div>
-        ))}
+        <MarqueeTrack videos={TOP_TRACK} direction="right" />
+        <MarqueeTrack videos={BOTTOM_TRACK} direction="left" />
       </div>
     </section>
   );
