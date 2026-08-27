@@ -151,3 +151,5 @@ Checks Postgres (`pg_isready`), Redis (`PING`), backend (`/healthz/` — verifie
 - **CORS errors in the browser console**: `CORS_ALLOWED_ORIGINS`/`CSRF_TRUSTED_ORIGINS` on the backend must include the exact origin the frontend is served from (protocol + host + port).
 - **Verification/password-reset emails never arrive**: `EMAIL_HOST` is empty by default in dev (console backend — check `docker compose logs backend` for the printed email instead). Set real SMTP creds in production.
 - **Uploaded media 404s through Caddy**: confirm the `media_data` volume is mounted into both `backend` (`/app/media`) and `caddy` (`/srv/media`) — see `docker-compose.yml`.
+
+2026 TRUGC Tüm hakları saklıdır.
