@@ -1,0 +1,10 @@
+from .base import *  # noqa: F401,F403
+
+DEBUG = True
+ALLOWED_HOSTS = ["*"]
+
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False
+SECURE_SSL_REDIRECT = False
+
+EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"

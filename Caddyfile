@@ -1,0 +1,46 @@
+{
+    # Replace with your admin email for ACME/TLS notifications in production.
+    email admin@{$DOMAIN}
+}
+
+{$DOMAIN} {
+    encode zstd gzip
+
+    handle_path /static/* {
+        root * /srv/static
+        file_server
+    }
+
+    handle_path /media/* {
+        root * /srv/media
+        file_server
+    }
+
+    # Backend: REST API (mounted at /api/v1/, NOT /api/ — the frontend owns
+    # /api/auth/* itself as Next.js route handlers, see app/api/auth/*),
+    # Django admin, Swagger/Redoc docs, health check, and the Channels
+    # WebSocket endpoint (/ws/*) — reverse_proxy forwards the Upgrade/
+    # Connection headers automatically, no extra directives needed.
+    @backend path /api/v1/* /admin/* /healthz/* /ws/*
+    handle @backend {
+        reverse_proxy backend:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-Host {host}
+        }
+    }
+
+    # Everything else: the Next.js frontend (also carries WebSocket upgrades
+    # transparently — Caddy's reverse_proxy forwards the Upgrade/Connection
+    # headers automatically, no extra directives needed).
+    reverse_proxy frontend:3000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+    }
+
+    header {
+        -Server
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "same-origin"
+    }
+}
