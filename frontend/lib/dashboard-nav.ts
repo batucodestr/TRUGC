@@ -62,6 +62,7 @@ export const ADMIN_NAV: DashboardNavItem[] = [
   { label: "Sistem", href: "/manage/system", icon: Activity },
   { label: "Roller & Yetkiler", href: "/manage/roles", icon: KeyRound },
   { label: "Loglar", href: "/manage/logs", icon: ScrollText },
+  { label: "Ayarlar", href: "/manage/settings", icon: Settings },
 ];
 
 export const NAV_BY_ROLE: Record<UserRole, DashboardNavItem[]> = {
