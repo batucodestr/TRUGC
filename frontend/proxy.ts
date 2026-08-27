@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-// Route protection. This Next.js version (16.x) renamed the `middleware.ts`
-// file convention to `proxy.ts` (function must be named/exported `proxy`,
-// not `middleware`) — see node_modules/next/dist/docs/.../file-conventions/proxy.md.
-// This is edge-level UX gating only (redirect away from an obviously
-// signed-out state); the real authorization boundary is the Django API,
-// which rejects any request without a valid access token or with the wrong
-// role regardless of what this proxy does.
+// Route koruması. Bu Next.js sürümü (16.x), `middleware.ts` dosya kuralının
+// adını `proxy.ts` olarak değiştirdi (fonksiyon `middleware` değil `proxy`
+// olarak adlandırılıp export edilmeli) — bkz.
+// node_modules/next/dist/docs/.../file-conventions/proxy.md.
+// Bu yalnızca edge seviyesinde bir UX kontrolüdür (açıkça çıkış yapılmış bir
+// durumdan uzaklaştırma); gerçek yetkilendirme sınırı, bu proxy ne yaparsa
+// yapsın geçerli bir access token'ı olmayan veya yanlış role sahip her isteği
+// reddeden Django API'sidir.
 
 const SESSION_COOKIE = "trugc_session";
 
@@ -32,14 +33,15 @@ function readSession(request: NextRequest): SessionCookie | null {
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // /manage is the hidden admin entry point — never linked from public UI.
-  // Gated on the real is_staff flag (not just role === "admin"), since role is
-  // a business-logic label while is_staff is the actual Django authorization
-  // flag — superusers always have is_staff=True too, and moderators (who
-  // share this same panel, just with fewer modules — see backend's
-  // IsAdminRole|IsModerator pattern on every /manage-serving endpoint) are
-  // staff without being superusers. This is edge-level UX gating only; the
-  // real boundary is enforced per-endpoint on the backend.
+  // /manage gizli admin giriş noktasıdır — hiçbir zaman genel arayüzden
+  // bağlantı verilmez. Yalnızca role === "admin" değil, gerçek is_staff
+  // bayrağına göre kontrol edilir; çünkü role bir iş mantığı etiketiyken
+  // is_staff asıl Django yetkilendirme bayrağıdır — superuser'lar da her
+  // zaman is_staff=True'ya sahiptir ve moderatörler (aynı paneli, yalnızca
+  // daha az modülle paylaşırlar — her /manage endpoint'indeki backend'in
+  // IsAdminRole|IsModerator kalıbına bakın) superuser olmadan staff'tır.
+  // Bu yalnızca edge seviyesinde bir UX kontrolüdür; gerçek sınır backend'de
+  // endpoint bazında uygulanır.
   if (pathname.startsWith("/manage")) {
     const session = readSession(request);
     if (!session?.user?.role) {
@@ -66,7 +68,7 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // /dashboard (the role picker) is open to any authenticated session.
+  // /dashboard (rol seçici), kimliği doğrulanmış her oturuma açıktır.
   const segment = pathname.split("/")[2];
   const requiredRole = segment ? ROLE_PREFIX[segment] : undefined;
 

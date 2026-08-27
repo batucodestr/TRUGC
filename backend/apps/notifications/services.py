@@ -1,4 +1,4 @@
-"""Thin service layer so other apps can create notifications without importing views/serializers."""
+"""Diğer uygulamaların views/serializers import etmeden bildirim oluşturabilmesi için ince bir servis katmanı."""
 from .models import Notification, NotificationType
 
 

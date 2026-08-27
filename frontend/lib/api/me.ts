@@ -1,6 +1,7 @@
-// Small helper for pages (often Server Components, which can't use the
-// useAuth() client hook) that just need the current user's display name —
-// e.g. a dashboard greeting — without pulling in the full profile shape.
+// Yalnızca mevcut kullanıcının görünen adına ihtiyaç duyan sayfalar için
+// (genellikle useAuth() istemci hook'unu kullanamayan Server Component'ler)
+// küçük bir yardımcı — ör. bir dashboard karşılaması — tüm profil şeklini
+// çekmeden.
 import { apiClient } from "@/lib/api";
 import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 

@@ -1,10 +1,12 @@
-// Reviews API layer — wraps the real Django REST endpoints (see lib/endpoints.ts)
-// and normalizes snake_case backend shapes into the app's camelCase `Review` type.
+// Değerlendirmeler API katmanı — gerçek Django REST endpoint'lerini sarar
+// (bkz. lib/endpoints.ts) ve snake_case backend şekillerini uygulamanın
+// camelCase `Review` tipine normalize eder.
 //
-// Known limitation: ReviewViewSet filters by `reviewee` (a User pk), but
-// CreatorSerializer (apps/creators/serializers.py) exposes both the Creator profile's
-// own pk and, separately, `user_id` (the underlying User id) — pass `user_id` here,
-// not the Creator's own `id`, when looking up a creator's reviews.
+// Bilinen kısıtlama: ReviewViewSet `reviewee`'ye (bir User pk) göre filtreler,
+// ancak CreatorSerializer (apps/creators/serializers.py) hem Creator
+// profilinin kendi pk'sini hem de ayrıca `user_id`'yi (altta yatan User id'si)
+// sunar — bir creator'ın değerlendirmelerini ararken Creator'ın kendi `id`'si
+// değil, buradaki `user_id`'yi geçirin.
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 import type { Review } from "@/types";

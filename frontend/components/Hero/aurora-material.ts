@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { shaderMaterial } from "@react-three/drei";
 import { extend } from "@react-three/fiber";
 
-// Compact Ashima/webgl-noise 3D simplex noise — battle-tested, no external deps.
+// Kompakt Ashima/webgl-noise 3D simplex noise — kanıtlanmış, harici bağımlılık yok.
 const SIMPLEX_NOISE_GLSL = /* glsl */ `
   vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
   vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }

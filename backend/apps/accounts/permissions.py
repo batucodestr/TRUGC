@@ -1,4 +1,4 @@
-"""Reusable, composable DRF permission classes shared across every app."""
+"""Her uygulama tarafından paylaşılan, yeniden kullanılabilir ve birleştirilebilir DRF yetki sınıfları."""
 from rest_framework.permissions import SAFE_METHODS, BasePermission
 
 from .models import Role
@@ -10,27 +10,27 @@ def _has_role(request, role):
 
 
 class IsCreator(BasePermission):
-    """Allows access only to users with the Creator role."""
+    """Yalnızca Creator rolüne sahip kullanıcılara erişim izni verir."""
 
-    message = "Only creators can perform this action."
+    message = "Bu işlemi yalnızca creator'lar gerçekleştirebilir."
 
     def has_permission(self, request, view):
         return _has_role(request, Role.CREATOR)
 
 
 class IsBrand(BasePermission):
-    """Allows access only to users with the Brand role."""
+    """Yalnızca Marka rolüne sahip kullanıcılara erişim izni verir."""
 
-    message = "Only brands can perform this action."
+    message = "Bu işlemi yalnızca markalar gerçekleştirebilir."
 
     def has_permission(self, request, view):
         return _has_role(request, Role.BRAND)
 
 
 class IsModerator(BasePermission):
-    """Allows access only to moderators (or staff/superusers)."""
+    """Yalnızca moderatörlere (veya staff/superuser'lara) erişim izni verir."""
 
-    message = "Only moderators can perform this action."
+    message = "Bu işlemi yalnızca moderatörler gerçekleştirebilir."
 
     def has_permission(self, request, view):
         user = request.user
@@ -42,9 +42,9 @@ class IsModerator(BasePermission):
 
 
 class IsAdminRole(BasePermission):
-    """Allows access only to admins (or superusers)."""
+    """Yalnızca adminlere (veya superuser'lara) erişim izni verir."""
 
-    message = "Only admins can perform this action."
+    message = "Bu işlemi yalnızca adminler gerçekleştirebilir."
 
     def has_permission(self, request, view):
         user = request.user
@@ -52,9 +52,9 @@ class IsAdminRole(BasePermission):
 
 
 class IsVerified(BasePermission):
-    """Requires the authenticated user to have completed verification."""
+    """Giriş yapmış kullanıcının doğrulamayı tamamlamış olmasını gerektirir."""
 
-    message = "Your account must be verified to perform this action."
+    message = "Bu işlemi gerçekleştirmek için hesabınızın onaylanmış olması gerekir."
 
     def has_permission(self, request, view):
         user = request.user
@@ -63,13 +63,14 @@ class IsVerified(BasePermission):
 
 class IsOwner(BasePermission):
     """
-    Generic object-level permission: grants access only to the owner of an object.
+    Genel nesne düzeyinde yetki: erişimi yalnızca nesnenin sahibine verir.
 
-    Looks up ``view.owner_field`` (default: ``"user"``) on the object, supporting
-    dotted paths (e.g. ``"brand.user"``) so it can be reused across apps whose
-    models reach the owning user through a related object.
-    Read-only (SAFE_METHODS) requests are always allowed; object retrieval
-    permission is still gated by the view's queryset/get_permissions.
+    Nesne üzerinde ``view.owner_field``'a bakar (varsayılan: ``"user"``), noktalı
+    yolları destekler (ör. ``"brand.user"``); böylece sahip kullanıcıya ilişkili
+    bir nesne üzerinden ulaşan modellere sahip uygulamalar arasında yeniden
+    kullanılabilir. Salt okunur (SAFE_METHODS) isteklere her zaman izin verilir;
+    nesneyi getirme yetkisi yine de view'ın queryset/get_permissions'ı tarafından
+    kontrol edilir.
     """
 
     owner_field_default = "user"
@@ -88,7 +89,7 @@ class IsOwner(BasePermission):
 
 
 class IsOwnerOrReadOnly(IsOwner):
-    """Alias kept for readability at call sites."""
+    """Çağrı noktalarında okunabilirlik için tutulan bir takma ad (alias)."""
 
 
 class ReadOnly(BasePermission):

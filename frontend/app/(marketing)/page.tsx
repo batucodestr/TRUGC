@@ -1,5 +1,6 @@
 import { Hero } from "@/components/Hero/Hero";
 import { LogoMarquee } from "@/components/Logos/LogoMarquee";
+import { VideoFeed } from "@/features/marketing/video-feed";
 import { FeaturedCreators } from "@/features/marketing/featured-creators";
 import { DashboardPreview } from "@/features/marketing/dashboard-preview";
 import { FeaturedBrands } from "@/features/marketing/featured-brands";
@@ -15,6 +16,7 @@ export default function HomePage() {
     <>
       <Hero />
       <LogoMarquee />
+      <VideoFeed />
       <FeaturedCreators />
       <DashboardPreview />
       <FeaturedBrands />

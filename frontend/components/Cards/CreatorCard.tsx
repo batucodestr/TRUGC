@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { TiltCard } from "@/components/Motion/TiltCard";
 import { formatCompactNumber, formatCurrency } from "@/lib/format";
+import { CATEGORY_LABEL_TR, COUNTRY_LABEL_TR } from "@/lib/constants";
 import type { Creator } from "@/types";
 
 export function CreatorCard({ creator }: { creator: Creator }) {
@@ -45,7 +46,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
               {creator.tier === "elite" && (
                 <Badge className="border-none bg-gradient-brand text-white shadow">Elite</Badge>
               )}
-              {creator.tier === "top" && <Badge className="border-none bg-black/70 text-white backdrop-blur">Top rated</Badge>}
+              {creator.tier === "top" && <Badge className="border-none bg-black/70 text-white backdrop-blur">En çok tercih edilen</Badge>}
             </div>
 
             {otherPlatforms.length > 0 && (
@@ -61,7 +62,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
             {/* View profile — fades and lifts in over the image, clear of the avatar row below */}
             <div className="absolute inset-x-0 top-0 flex h-[calc(100%-3.75rem)] translate-y-2 items-center justify-center opacity-0 transition-all duration-300 ease-out group-hover:translate-y-0 group-hover:opacity-100">
               <span className="flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-xs font-semibold text-violet-700 shadow-lg">
-                View profile <ArrowUpRight className="h-3.5 w-3.5" />
+                Profili görüntüle <ArrowUpRight className="h-3.5 w-3.5" />
               </span>
             </div>
 
@@ -83,7 +84,8 @@ export function CreatorCard({ creator }: { creator: Creator }) {
                   </p>
                   {(creator.city ?? creator.country) && (
                     <p className="flex items-center gap-1 text-xs text-white/80">
-                      <MapPin className="h-3 w-3" /> {creator.city ?? creator.country}
+                      <MapPin className="h-3 w-3" />{" "}
+                      {creator.city ?? (creator.country ? (COUNTRY_LABEL_TR[creator.country as keyof typeof COUNTRY_LABEL_TR] ?? creator.country) : "")}
                     </p>
                   )}
                 </div>
@@ -95,7 +97,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
             <div className="flex flex-wrap gap-1.5">
               {creator.categories.slice(0, 2).map((cat) => (
                 <Badge key={cat} variant="secondary" className="rounded-full font-normal">
-                  {cat}
+                  {CATEGORY_LABEL_TR[cat] ?? cat}
                 </Badge>
               ))}
             </div>
@@ -105,7 +107,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
                 <div className="flex items-center gap-1.5 text-muted-foreground">
                   <PlatformIcon platform={topSocial.platform} className="h-4 w-4" />
                   <span className="font-medium text-foreground">{formatCompactNumber(topSocial.followers)}</span>
-                  followers
+                  takipçi
                 </div>
               )}
               {creator.rating != null && (
@@ -119,7 +121,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
 
             {creator.startingPrice != null && (
               <div className="flex items-center justify-between border-t border-border/70 pt-3">
-                <span className="text-xs text-muted-foreground">Starting at</span>
+                <span className="text-xs text-muted-foreground">Başlangıç fiyatı</span>
                 <span className="text-base font-semibold text-foreground">{formatCurrency(creator.startingPrice)}</span>
               </div>
             )}

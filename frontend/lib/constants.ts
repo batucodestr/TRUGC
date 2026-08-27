@@ -30,8 +30,8 @@ export const CATEGORY_ICON_LABEL: Record<CreatorCategory, string> = {
   Parenting: "🍼",
 };
 
-// Internal data keys stay in English (mock data, filtering, URL params);
-// this is purely the Turkish label shown to users.
+// Dahili veri anahtarları İngilizce kalır (mock veri, filtreleme, URL
+// parametreleri); bu yalnızca kullanıcılara gösterilen Türkçe etikettir.
 export const CATEGORY_LABEL_TR: Record<CreatorCategory, string> = {
   Fashion: "Moda",
   Beauty: "Güzellik",
@@ -72,7 +72,27 @@ export const COUNTRIES = [
   "Japan",
   "South Korea",
   "Sweden",
-];
+] as const;
+
+// Dahili filtre değerleri İngilizce kalır (API sorgu parametreleri); bu
+// yalnızca kullanıcılara gösterilen Türkçe etikettir, CATEGORY_LABEL_TR ile aynı desen.
+export const COUNTRY_LABEL_TR: Record<(typeof COUNTRIES)[number], string> = {
+  "United States": "Amerika Birleşik Devletleri",
+  "United Kingdom": "Birleşik Krallık",
+  Canada: "Kanada",
+  Australia: "Avustralya",
+  Germany: "Almanya",
+  France: "Fransa",
+  Spain: "İspanya",
+  Netherlands: "Hollanda",
+  Brazil: "Brezilya",
+  Mexico: "Meksika",
+  Turkey: "Türkiye",
+  "United Arab Emirates": "Birleşik Arap Emirlikleri",
+  Japan: "Japonya",
+  "South Korea": "Güney Kore",
+  Sweden: "İsveç",
+};
 
 export const NAV_LINKS = [
   { label: "İçerik Üreticileri Keşfet", href: "/creators" },

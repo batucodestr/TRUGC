@@ -7,14 +7,15 @@ import { SmoothScroll } from "@/components/Motion/SmoothScroll";
 import { AuthProvider } from "@/components/Auth/AuthProvider";
 import "./globals.css";
 
-// The app is backed by a live Django API (marketplace listings, campaigns,
-// auth-gated dashboards) rather than content that's safe to bake into a
-// static build — per-user dashboard data must never be prerendered into a
-// shared static file, and public listings change too often for a stale
-// build-time snapshot to be acceptable. This also means `next build` never
-// needs the backend to be reachable at image-build time (only at runtime),
-// which matters for Docker builds that don't have network access to sibling
-// compose services.
+// Uygulama, statik bir build'e gömülmesi güvenli içerik yerine canlı bir
+// Django API'sine dayanır (marketplace listeleri, kampanyalar, kimlik
+// doğrulama gerektiren dashboard'lar) — kullanıcı başına dashboard verisi
+// asla paylaşılan statik bir dosyaya önceden render edilmemelidir ve genel
+// listeler, bayat bir build-zamanı anlık görüntüsünün kabul edilebilir
+// olamayacağı kadar sık değişir. Bu aynı zamanda `next build`'in imaj build
+// anında (yalnızca çalışma zamanında) backend'e erişilebilir olmasına asla
+// ihtiyaç duymadığı anlamına gelir; bu da kardeş compose servislerine ağ
+// erişimi olmayan Docker build'leri için önemlidir.
 export const dynamic = "force-dynamic";
 
 const geistSans = Geist({

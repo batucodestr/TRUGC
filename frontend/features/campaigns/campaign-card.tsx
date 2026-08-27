@@ -6,7 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { CampaignStatusBadge } from "./campaign-status-badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { CATEGORY_LABEL_TR } from "@/lib/constants";
 import type { Campaign } from "@/types";
+import type { CreatorCategory } from "@/types";
 
 export function CampaignCard({ campaign }: { campaign: Campaign }) {
   return (
@@ -51,11 +53,11 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 text-xs text-muted-foreground">
             {campaign.applicantsCount != null && (
               <span className="flex items-center gap-1">
-                <Users className="h-3.5 w-3.5" /> {campaign.applicantsCount} applied
+                <Users className="h-3.5 w-3.5" /> {campaign.applicantsCount} başvuru
               </span>
             )}
             <span className="flex items-center gap-1">
-              <CalendarClock className="h-3.5 w-3.5" /> Due {formatDate(campaign.applicationDeadline)}
+              <CalendarClock className="h-3.5 w-3.5" /> Son tarih {formatDate(campaign.applicationDeadline)}
             </span>
             {campaign.location && (
               <span className="flex items-center gap-1">
@@ -66,7 +68,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
 
           <div className="flex items-center justify-between border-t border-border/70 pt-3">
             <Badge variant="secondary" className="rounded-full font-normal">
-              {campaign.categories[0] ?? "General"}
+              {campaign.categories[0] ? (CATEGORY_LABEL_TR[campaign.categories[0] as CreatorCategory] ?? campaign.categories[0]) : "Genel"}
             </Badge>
             <span className="text-sm font-semibold">
               {formatCurrency(campaign.budgetMin, { compact: true })}–{formatCurrency(campaign.budgetMax, { compact: true })}

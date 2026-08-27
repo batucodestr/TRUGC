@@ -27,7 +27,7 @@ class CompanySize(models.TextChoices):
 
 
 class Brand(models.Model):
-    """A brand/company profile owned by a user with role=brand."""
+    """role=brand olan bir kullanıcıya ait marka/şirket profili."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="brand")
     company_name = models.CharField(max_length=255, db_index=True)

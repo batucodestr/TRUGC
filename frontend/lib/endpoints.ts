@@ -1,13 +1,14 @@
-// Central registry of Django REST API routes, mirroring backend/config/api_urls.py
-// and each app's urls.py. Nothing in this file talks to the network — it just
-// names the endpoints so `lib/api.ts`/`lib/auth.ts`/`lib/api/*.ts` never
-// hardcode a URL string inline.
+// Django REST API rotalarının merkezi kayıt defteri; backend/config/api_urls.py
+// ve her uygulamanın urls.py'sini yansıtır. Bu dosyadaki hiçbir şey ağla
+// konuşmaz — yalnızca endpoint'leri isimlendirir, böylece
+// `lib/api.ts`/`lib/auth.ts`/`lib/api/*.ts` asla satır içinde sabit bir URL
+// dizesi kullanmaz.
 //
-// Paths here are relative to the API root — `NEXT_PUBLIC_API_BASE_URL`
-// (client) and `DJANGO_API_URL` (server) already include the `/api/v1`
-// prefix (see .env.example), so it must NOT be repeated here — that
-// produced a real `/api/v1/api/v1/...` 404 bug on every apiClient call
-// until this was caught via a full page-load smoke test.
+// Buradaki yollar API köküne görelidir — `NEXT_PUBLIC_API_BASE_URL` (istemci)
+// ve `DJANGO_API_URL` (sunucu) zaten `/api/v1` önekini içerir (bkz.
+// .env.example), bu yüzden burada TEKRARLANMAMALIDIR — bu, tam bir sayfa
+// yükleme smoke test'iyle yakalanana kadar her apiClient çağrısında gerçek
+// bir `/api/v1/api/v1/...` 404 hatasına yol açmıştı.
 const API_BASE = "";
 
 export const AUTH_ENDPOINTS = {

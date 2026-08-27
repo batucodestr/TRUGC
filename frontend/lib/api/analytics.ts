@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 
-// Shapes mirror backend/apps/analytics/serializers.py exactly
+// Şekiller, backend/apps/analytics/serializers.py'yi tam olarak yansıtır
 // (BrandDashboardSerializer / CreatorDashboardSerializer / AdminDashboardSerializer).
 
 export interface BrandDashboard {

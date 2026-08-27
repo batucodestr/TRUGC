@@ -9,7 +9,7 @@ from .serializers import BrandSerializer
 
 
 class BrandListView(generics.ListAPIView):
-    """Public directory of brands, filterable by industry."""
+    """Sektöre göre filtrelenebilen genel marka dizini."""
 
     queryset = Brand.objects.select_related("user").all()
     serializer_class = BrandSerializer
@@ -21,7 +21,7 @@ class BrandListView(generics.ListAPIView):
 
 
 class BrandDetailView(generics.RetrieveAPIView):
-    """Public brand profile page."""
+    """Genel marka profil sayfası."""
 
     queryset = Brand.objects.select_related("user").all()
     serializer_class = BrandSerializer
@@ -30,7 +30,7 @@ class BrandDetailView(generics.RetrieveAPIView):
 
 
 class MyBrandView(generics.RetrieveUpdateAPIView):
-    """The authenticated brand user's own company profile."""
+    """Giriş yapmış marka kullanıcısının kendi şirket profili."""
 
     serializer_class = BrandSerializer
     permission_classes = [permissions.IsAuthenticated, IsBrandOwner]
@@ -43,7 +43,7 @@ class MyBrandView(generics.RetrieveUpdateAPIView):
 
 
 class BrandAdminDetailView(generics.RetrieveUpdateAPIView):
-    """Admin/moderator edit access to any brand's profile from /manage."""
+    """/manage üzerinden herhangi bir marka profiline admin/moderatör düzenleme erişimi."""
 
     queryset = Brand.objects.select_related("user").all()
     serializer_class = BrandSerializer

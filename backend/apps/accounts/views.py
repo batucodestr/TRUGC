@@ -35,7 +35,7 @@ from .serializers import (
 
 
 class RegisterView(generics.CreateAPIView):
-    """Register a new Creator or Brand account."""
+    """Yeni bir Creator veya Marka hesabı kaydeder."""
 
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
@@ -51,7 +51,7 @@ class RegisterView(generics.CreateAPIView):
 
 
 class LoginView(TokenObtainPairView):
-    """Obtain a JWT pair. Response includes the user's role."""
+    """Bir JWT çifti alır. Yanıt, kullanıcının rolünü de içerir."""
 
     serializer_class = CustomTokenObtainPairSerializer
     permission_classes = [permissions.AllowAny]
@@ -59,7 +59,7 @@ class LoginView(TokenObtainPairView):
 
 
 class LogoutView(APIView):
-    """Blacklists the provided refresh token."""
+    """Verilen refresh token'ı kara listeye alır."""
 
     permission_classes = [permissions.IsAuthenticated]
 
@@ -77,7 +77,7 @@ class LogoutView(APIView):
 
 
 class MeView(generics.RetrieveUpdateAPIView):
-    """Retrieve or update the authenticated user's account."""
+    """Giriş yapmış kullanıcının hesabını getirir veya günceller."""
 
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -87,7 +87,7 @@ class MeView(generics.RetrieveUpdateAPIView):
 
 
 class ProfileView(generics.RetrieveUpdateAPIView):
-    """Retrieve or update the authenticated user's profile."""
+    """Giriş yapmış kullanıcının profilini getirir veya günceller."""
 
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -110,7 +110,7 @@ class ChangePasswordView(APIView):
 
 
 class VerificationSubmitView(generics.UpdateAPIView):
-    """Submit identity verification documents for review."""
+    """İnceleme için kimlik doğrulama belgelerini gönderir."""
 
     serializer_class = VerificationSubmitSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -120,7 +120,7 @@ class VerificationSubmitView(generics.UpdateAPIView):
 
 
 class PasswordResetRequestView(APIView):
-    """Sends a password reset link if the email exists. Never reveals whether it does."""
+    """E-posta adresi mevcutsa şifre sıfırlama bağlantısı gönderir. Adresin var olup olmadığını asla ifşa etmez."""
 
     permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
@@ -135,7 +135,7 @@ class PasswordResetRequestView(APIView):
 
 
 class PasswordResetConfirmView(APIView):
-    """Sets a new password given a valid uid/token pair from the reset email."""
+    """Sıfırlama e-postasındaki geçerli uid/token çiftiyle yeni bir şifre belirler."""
 
     permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
@@ -148,7 +148,7 @@ class PasswordResetConfirmView(APIView):
 
 
 class ResendVerificationEmailView(APIView):
-    """Resends the email-confirmation link to the authenticated (but unverified) user."""
+    """Giriş yapmış ama e-postası doğrulanmamış kullanıcıya doğrulama bağlantısını yeniden gönderir."""
 
     permission_classes = [permissions.IsAuthenticated]
     throttle_scope = "auth"
@@ -161,7 +161,7 @@ class ResendVerificationEmailView(APIView):
 
 
 class VerifyEmailView(APIView):
-    """Confirms a user's email address given the uid/token pair from the verification email."""
+    """Doğrulama e-postasındaki uid/token çiftiyle kullanıcının e-posta adresini onaylar."""
 
     permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
@@ -174,7 +174,7 @@ class VerifyEmailView(APIView):
 
 
 class UserListView(generics.ListAPIView):
-    """Admin directory of every platform user. Powers the admin dashboard's user-management screen."""
+    """Platformdaki tüm kullanıcıların admin dizini. Admin panelindeki kullanıcı yönetimi ekranını besler."""
 
     queryset = User.objects.select_related("profile", "verification").all()
     serializer_class = UserSerializer
@@ -186,7 +186,7 @@ class UserListView(generics.ListAPIView):
 
 
 class PendingVerificationListView(generics.ListAPIView):
-    """Moderator queue of identity-verification submissions awaiting review."""
+    """İncelemeyi bekleyen kimlik doğrulama başvurularının moderatör kuyruğu."""
 
     serializer_class = VerificationQueueSerializer
     permission_classes = [permissions.IsAuthenticated, IsModerator]
@@ -196,7 +196,7 @@ class PendingVerificationListView(generics.ListAPIView):
 
 
 class VerificationReviewView(APIView):
-    """Moderator approval/rejection of a pending identity-verification submission."""
+    """Bekleyen bir kimlik doğrulama başvurusunun moderatör tarafından onaylanması/reddedilmesi."""
 
     permission_classes = [permissions.IsAuthenticated, IsModerator]
 
@@ -236,7 +236,7 @@ class VerificationReviewView(APIView):
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Admin: view/edit/delete a single platform user."""
+    """Admin: tek bir platform kullanıcısını görüntüle/düzenle/sil."""
 
     queryset = User.objects.select_related("profile", "verification").all()
     serializer_class = UserSerializer
@@ -251,7 +251,7 @@ VALID_USER_ACTIONS = {"verify", "unverify", "suspend", "activate", "ban", "unban
 
 
 class UserAdminActionView(APIView):
-    """Single-user moderation actions: verify / suspend / activate / ban / unban / change_role / delete."""
+    """Tek kullanıcı için moderasyon işlemleri: doğrula / askıya al / etkinleştir / yasakla / yasağı kaldır / rol değiştir / sil."""
 
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
 
@@ -299,7 +299,7 @@ class UserAdminActionView(APIView):
 
 
 class UserBulkActionView(APIView):
-    """Bulk moderation: {action, ids: [...], role?}."""
+    """Toplu moderasyon: {action, ids: [...], role?}."""
 
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
 
@@ -335,7 +335,7 @@ class UserBulkActionView(APIView):
 
 
 class AdminActionLogListView(generics.ListAPIView):
-    """Audit trail for /manage — every admin mutation, newest first."""
+    """/manage için denetim kaydı — her admin işlemi, en yeniden en eskiye."""
 
     queryset = AdminActionLog.objects.select_related("actor").all()
     serializer_class = AdminActionLogSerializer
@@ -355,8 +355,9 @@ def _serialize_group(group):
 
 
 class RoleGroupListView(APIView):
-    """Roles & Permissions screen: list Django auth Groups (Creators/Brands/Moderators/Admins,
-    seeded by manage.py seed_groups) and every available Permission, plus create a new Group."""
+    """Roller ve Yetkiler ekranı: Django auth Group'larını (manage.py seed_groups ile
+    oluşturulan Creators/Brands/Moderators/Admins) ve mevcut tüm Permission'ları listeler,
+    ayrıca yeni bir Group oluşturur."""
 
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
@@ -385,7 +386,7 @@ class RoleGroupListView(APIView):
 
 
 class RoleGroupDetailView(APIView):
-    """Update a group's assigned permissions, or delete the group."""
+    """Bir grubun atanmış yetkilerini günceller veya grubu siler."""
 
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
@@ -408,7 +409,7 @@ PROCESS_STARTED_AT = timezone.now()
 
 
 class SystemStatusView(APIView):
-    """Admin-only platform health snapshot for the /manage dashboard's system-status panel."""
+    """/manage panelindeki sistem durumu ekranı için sadece admin'e açık platform sağlık özeti."""
 
     permission_classes = [permissions.IsAuthenticated, IsAdminRole]
 
@@ -441,9 +442,9 @@ class SystemStatusView(APIView):
             checks["celery"] = f"error: {exc}"
             worker_count = 0
 
-        # Any request reaching this view has already been routed through Caddy
-        # (it's the only container with published ports) — a response is
-        # therefore live proof Caddy itself is up.
+        # Bu view'a ulaşan her istek zaten Caddy üzerinden yönlendirilmiştir
+        # (yayınlanmış portu olan tek container Caddy'dir) — dolayısıyla bir
+        # yanıt alınması, Caddy'nin ayakta olduğunun canlı kanıtıdır.
         checks["caddy"] = "ok"
 
         from apps.brands.models import Brand

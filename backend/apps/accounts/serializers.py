@@ -44,9 +44,10 @@ class VerificationQueueUserSerializer(serializers.ModelSerializer):
 
 
 class VerificationQueueSerializer(serializers.ModelSerializer):
-    """Used by the moderator queue (list + review), unlike `VerificationStatusSerializer`
-    (used for a user's own verification status) this exposes the row `id` the
-    review endpoint's URL needs, plus enough user info to render the queue."""
+    """Moderatör kuyruğu tarafından kullanılır (listeleme + inceleme); kullanıcının
+    kendi doğrulama durumu için kullanılan `VerificationStatusSerializer`'ın aksine,
+    bu inceleme endpoint'inin URL'sinin ihtiyaç duyduğu satır `id`'sini ve kuyruğu
+    oluşturmak için yeterli kullanıcı bilgisini sunar."""
 
     user = VerificationQueueUserSerializer(read_only=True)
 
@@ -121,7 +122,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
-    """Adds role and verification info to the token response payload."""
+    """Token yanıt verisine rol ve doğrulama bilgisini ekler."""
 
     def validate(self, attrs):
         data = super().validate(attrs)

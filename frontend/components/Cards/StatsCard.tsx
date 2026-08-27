@@ -13,7 +13,7 @@ interface StatsCardProps {
   className?: string;
 }
 
-/** Parses a display value like "$482K" or "2352" into count-up parts; falls back to a static label if it can't. */
+/** "₺482B" veya "2352" gibi bir görüntü değerini count-up parçalarına ayrıştırır; ayrıştıramazsa statik bir etikete geri döner. */
 function parseCountable(value: string): { prefix: string; number: number; suffix: string } | null {
   const match = value.match(/^([^\d-]*)([\d,.]+)(.*)$/);
   if (!match) return null;

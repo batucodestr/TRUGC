@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { CATEGORIES, COUNTRIES, CATEGORY_LABEL_TR } from "@/lib/constants";
+import { CATEGORIES, COUNTRIES, CATEGORY_LABEL_TR, COUNTRY_LABEL_TR } from "@/lib/constants";
 import { formatCompactNumber, formatCurrency } from "@/lib/format";
 import type { CreatorCategory, SocialPlatform } from "@/types";
 import { cn } from "@/lib/utils";
@@ -126,7 +126,7 @@ export function FilterSidebar({ value, onChange, className }: FilterSidebarProps
             <SelectItem value="all">Tüm ülkeler</SelectItem>
             {COUNTRIES.map((c) => (
               <SelectItem key={c} value={c}>
-                {c}
+                {COUNTRY_LABEL_TR[c]}
               </SelectItem>
             ))}
           </SelectContent>

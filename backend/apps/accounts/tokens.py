@@ -2,8 +2,9 @@ from django.contrib.auth.tokens import PasswordResetTokenGenerator
 
 
 class EmailVerificationTokenGenerator(PasswordResetTokenGenerator):
-    """Same HMAC scheme as password reset, salted differently and invalidated
-    once ``email_verified`` flips, so a used/expired link cannot be replayed."""
+    """Şifre sıfırlamayla aynı HMAC şeması, farklı şekilde salt'lanmış ve
+    ``email_verified`` değiştiği anda geçersiz kılınır; böylece kullanılmış/süresi
+    dolmuş bir bağlantı tekrar oynatılamaz."""
 
     key_salt = "apps.accounts.tokens.EmailVerificationTokenGenerator"
 

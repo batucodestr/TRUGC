@@ -1,5 +1,6 @@
-// Creators API layer — wraps the real Django REST endpoints (see lib/endpoints.ts)
-// and normalizes snake_case backend shapes into the app's camelCase `Creator` type.
+// Creator'lar API katmanı — gerçek Django REST endpoint'lerini sarar (bkz.
+// lib/endpoints.ts) ve snake_case backend şekillerini uygulamanın camelCase
+// `Creator` tipine normalize eder.
 import { apiClient, ApiError } from "@/lib/api";
 import { ENDPOINTS, creatorAdminDetail, creatorDetail, myPackageDetail } from "@/lib/endpoints";
 import type { Creator, CreatorCategory, CreatorPackage, PortfolioItem, SocialPlatform, SocialStat } from "@/types";
@@ -226,13 +227,13 @@ export async function getCreator(id: string): Promise<Creator | undefined> {
 }
 
 export async function listFeaturedCreators(count = 8): Promise<Creator[]> {
-  // No "featured" concept on the backend — surface verified creators first, most recent.
+  // Backend'de bir "öne çıkan" kavramı yok — önce doğrulanmış, en yeni creator'ları göster.
   const all = await listCreators();
   const verified = all.filter((c) => c.verified);
   return (verified.length ? verified : all).slice(0, count);
 }
 
-// --- My packages (creator-owned pricing offers) -------------------------
+// --- Paketlerim (creator'a ait fiyatlandırma teklifleri) -------------------------
 
 export interface PackageInput {
   title: string;

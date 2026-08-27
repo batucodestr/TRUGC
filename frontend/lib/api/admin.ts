@@ -10,10 +10,10 @@ interface Paginated<T> {
   results: T[];
 }
 
-// --- Users -------------------------------------------------------------
+// --- Kullanıcılar -------------------------------------------------------------
 //
-// Backed by GET /api/v1/auth/users/ (UserListView, IsAdminRole-only).
-// Mirrors accounts/serializers.py UserSerializer:
+// GET /api/v1/auth/users/ tarafından desteklenir (UserListView, yalnızca IsAdminRole).
+// accounts/serializers.py UserSerializer'ı yansıtır:
 // { id, email, role, is_verified, email_verified, is_active, is_banned,
 //   ban_reason, date_joined, last_login, profile: {...}, verification: {...} }
 interface ApiUser {
@@ -129,11 +129,11 @@ export async function bulkUserAction(
   return apiClient.post(ENDPOINTS.userBulkAction, { action, ids: ids.map(Number), ...extra });
 }
 
-// --- Verifications -------------------------------------------------------
+// --- Doğrulamalar -------------------------------------------------------
 //
-// Backed by PendingVerificationListView (GET, paginated) and
-// VerificationReviewView (POST), both using accounts/serializers.py
-// VerificationQueueSerializer:
+// PendingVerificationListView (GET, sayfalanmış) ve VerificationReviewView
+// (POST) tarafından desteklenir; ikisi de accounts/serializers.py
+// VerificationQueueSerializer'ı kullanır:
 //   fields = ["id", "user": {id, email, role}, "status", "document", "notes", "submitted_at", "reviewed_at"]
 export interface ApiVerificationStatus {
   id: number;
@@ -159,10 +159,11 @@ export async function reviewVerification(
   return apiClient.post(verificationReview(id), { decision, notes });
 }
 
-// --- Message moderation ---------------------------------------------------
+// --- Mesaj moderasyonu ---------------------------------------------------
 //
-// Backed by GET /api/v1/messages/admin/conversations/ (AdminConversationListView,
-// IsAdminRole-only) — platform-wide oversight, not scoped to the caller.
+// GET /api/v1/messages/admin/conversations/ tarafından desteklenir
+// (AdminConversationListView, yalnızca IsAdminRole) — çağırana özel değil,
+// platform genelinde denetim sağlar.
 export interface AdminConversation {
   id: string;
   participants: { id: number; email: string; role: string }[];
@@ -223,9 +224,9 @@ export async function deleteMessage(id: string): Promise<void> {
   await apiClient.delete(adminMessageDetail(id));
 }
 
-// --- System status ---------------------------------------------------------
+// --- Sistem durumu ---------------------------------------------------------
 //
-// Backed by GET /api/v1/auth/admin/system-status/ (SystemStatusView, IsAdminRole-only).
+// GET /api/v1/auth/admin/system-status/ tarafından desteklenir (SystemStatusView, yalnızca IsAdminRole).
 export interface SystemStatus {
   status: "ok" | "degraded";
   checks: { database: string; redis: string; celery: string; caddy: string };
@@ -262,9 +263,9 @@ export async function getSystemStatus(): Promise<SystemStatus> {
   };
 }
 
-// --- Audit log ---------------------------------------------------------
+// --- Denetim kaydı ---------------------------------------------------------
 //
-// Backed by GET /api/v1/auth/admin/logs/ (AdminActionLogListView).
+// GET /api/v1/auth/admin/logs/ tarafından desteklenir (AdminActionLogListView).
 export interface AdminLogEntry {
   id: number;
   actorEmail: string | null;
@@ -304,11 +305,12 @@ export async function listAdminLogs(params: { page?: number; action?: string } =
   };
 }
 
-// --- Roles & permissions -------------------------------------------------
+// --- Roller ve yetkiler -------------------------------------------------
 //
-// Backed by GET/POST /api/v1/auth/admin/roles/ and PATCH/DELETE .../{id}/
-// (RoleGroupListView / RoleGroupDetailView) — wraps Django's built-in
-// Group/Permission models (the same Groups seeded by manage.py seed_groups).
+// GET/POST /api/v1/auth/admin/roles/ ve PATCH/DELETE .../{id}/ tarafından
+// desteklenir (RoleGroupListView / RoleGroupDetailView) — Django'nun yerleşik
+// Group/Permission modellerini sarar (manage.py seed_groups ile oluşturulan
+// aynı Group'lar).
 export interface RolePermission {
   id: number;
   codename: string;

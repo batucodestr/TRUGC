@@ -42,7 +42,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 
 class ApplicationStatusUpdateSerializer(serializers.ModelSerializer):
-    """Used by the owning brand to accept/reject an application."""
+    """Sahibi olan markanın bir başvuruyu kabul/red etmesi için kullanılır."""
 
     class Meta:
         model = Application

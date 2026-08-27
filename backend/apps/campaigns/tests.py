@@ -41,8 +41,8 @@ class CampaignTests(APITestCase):
         self.assertEqual(Campaign.objects.first().brand, self.brand_user.brand)
 
     def test_brand_cannot_edit_others_campaign(self):
-        # Published so it's visible to other brands (list/retrieve scope) - this isolates
-        # the ownership check from the visibility check covered by the test below.
+        # Diğer markalara görünür olması için yayınlandı (list/retrieve kapsamı) —
+        # bu, sahiplik kontrolünü aşağıdaki testte ele alınan görünürlük kontrolünden izole eder.
         campaign = Campaign.objects.create(
             brand=self.brand_user.brand, status=CampaignStatus.PUBLISHED, **self._model_payload()
         )

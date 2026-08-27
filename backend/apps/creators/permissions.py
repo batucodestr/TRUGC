@@ -2,12 +2,12 @@ from apps.accounts.permissions import IsOwner
 
 
 class IsCreatorOwner(IsOwner):
-    """A creator can only edit its own profile, social accounts, and portfolio items."""
+    """Bir creator yalnızca kendi profilini, sosyal medya hesaplarını ve portföy öğelerini düzenleyebilir."""
 
     owner_field_default = "user"
 
 
 class IsCreatorOwnerViaCreator(IsOwner):
-    """For nested resources (social accounts, portfolio items) reached via `.creator.user`."""
+    """`.creator.user` üzerinden ulaşılan iç içe kaynaklar (sosyal medya hesapları, portföy öğeleri) için."""
 
     owner_field_default = "creator.user"

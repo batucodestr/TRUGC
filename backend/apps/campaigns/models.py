@@ -18,7 +18,7 @@ class CampaignStatus(models.TextChoices):
 
 
 class Campaign(models.Model):
-    """A brand's request for creator-generated content/promotion."""
+    """Bir markanın creator tarafından üretilen içerik/tanıtım talebi."""
 
     brand = models.ForeignKey(
         "brands.Brand", on_delete=models.CASCADE, related_name="campaigns"
@@ -59,7 +59,7 @@ class Campaign(models.Model):
 
 
 class CampaignRequirement(models.Model):
-    """A single structured deliverable expected from creators (e.g. '2 Instagram Reels')."""
+    """Creator'lardan beklenen tek bir yapılandırılmış teslimat (ör. '2 Instagram Reels')."""
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="deliverables")
     description = models.CharField(max_length=255)
@@ -76,7 +76,7 @@ class CampaignRequirement(models.Model):
 
 
 class CampaignMedia(models.Model):
-    """Reference/brief media attached to a campaign (mood boards, product shots, briefs)."""
+    """Bir kampanyaya eklenen referans/brief medyası (mood board'lar, ürün fotoğrafları, brief'ler)."""
 
     campaign = models.ForeignKey(Campaign, on_delete=models.CASCADE, related_name="media_files")
     file = models.FileField(

@@ -5,7 +5,7 @@ from django_redis import get_redis_connection
 
 
 def healthz(request):
-    """Liveness/readiness probe for Docker healthchecks and scripts/healthcheck.sh."""
+    """Docker healthcheck'leri ve scripts/healthcheck.sh için liveness/readiness probu."""
     checks = {}
 
     try:

@@ -5,7 +5,7 @@ from apps.common.validators import message_attachment_extension_validator, valid
 
 
 class Conversation(models.Model):
-    """A conversation between exactly two parties, optionally scoped to a campaign."""
+    """Tam olarak iki taraf arasındaki bir konuşma, isteğe bağlı olarak bir kampanyayla ilişkilendirilebilir."""
 
     participants = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name="conversations")
     campaign = models.ForeignKey(

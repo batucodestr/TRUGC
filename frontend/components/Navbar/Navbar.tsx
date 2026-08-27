@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import type { Notification } from "@/types";
 
 const SCROLL_THRESHOLD = 24;
-// No WebSockets on the backend — poll for new notifications instead.
+// Backend'de WebSocket yok — bunun yerine yeni bildirimleri polle.
 const NOTIFICATIONS_POLL_MS = 30_000;
 
 export function Navbar() {

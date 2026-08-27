@@ -72,7 +72,7 @@ class CreatorDashboardView(APIView):
 
 
 def _registration_trend(days=30):
-    """Real per-day signup counts for the last `days` days, zero-filled (no fake interpolation)."""
+    """Son `days` gün için günlük gerçek kayıt sayıları, sıfırla doldurulmuş (sahte enterpolasyon yok)."""
     since = timezone.now() - datetime.timedelta(days=days - 1)
     rows = (
         User.objects.filter(date_joined__gte=since)
@@ -119,7 +119,7 @@ def _admin_dashboard_data():
 
 
 class AdminDashboardView(APIView):
-    """Platform-wide metrics for admins/moderators."""
+    """Adminler/moderatörler için platform genelindeki metrikler."""
 
     permission_classes = [IsAuthenticated, (IsAdminRole | IsModerator)]
 
@@ -128,7 +128,7 @@ class AdminDashboardView(APIView):
 
 
 class AdminAnalyticsExportView(APIView):
-    """CSV export of the 30-day registration trend for the /manage analytics screen."""
+    """/manage analitik ekranı için 30 günlük kayıt trendinin CSV dışa aktarımı."""
 
     permission_classes = [IsAuthenticated, (IsAdminRole | IsModerator)]
 

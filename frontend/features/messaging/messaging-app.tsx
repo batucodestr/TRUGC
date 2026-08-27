@@ -16,10 +16,10 @@ interface MessagingAppProps {
 }
 
 const CONVERSATIONS_POLL_MS = 15_000;
-// Safety-net poll for the active conversation — the WebSocket is the primary
-// transport for new messages; this only catches anything it might have
-// missed (a dropped frame during a reconnect window, an attachment sent over
-// REST which the WS consumer doesn't broadcast).
+// Aktif konuşma için güvenlik ağı polling'i — WebSocket, yeni mesajlar için
+// birincil taşıyıcıdır; bu yalnızca kaçırmış olabileceği şeyleri yakalar
+// (yeniden bağlanma sırasında düşen bir frame, WS consumer'ın yayınlamadığı
+// REST üzerinden gönderilmiş bir ek).
 const MESSAGES_FALLBACK_POLL_MS = 30_000;
 
 export function MessagingApp({ initialConversations, initialMessages }: MessagingAppProps) {
@@ -45,8 +45,8 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null;
   const activeMessages = activeId ? (messagesByConvo[activeId] ?? []) : [];
 
-  // Poll the conversation list for new/updated conversations (unaffected by
-  // which single conversation the WebSocket below is subscribed to).
+  // Yeni/güncellenen konuşmalar için konuşma listesini polle (aşağıdaki
+  // WebSocket'in hangi tek konuşmaya abone olduğundan etkilenmez).
   useEffect(() => {
     let cancelled = false;
     const poll = () => {
@@ -63,8 +63,8 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
     };
   }, [currentUserEmail]);
 
-  // One WebSocket connection per active conversation — real-time messages,
-  // typing indicator, read receipts, and online presence for its peer.
+  // Aktif konuşma başına bir WebSocket bağlantısı — gerçek zamanlı mesajlar,
+  // yazıyor göstergesi, okundu bilgisi ve karşı taraf için çevrimiçi durumu.
   useEffect(() => {
     setPeerTyping(false);
     setSocketOpen(false);
@@ -107,7 +107,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
     };
   }, [activeId, currentUserEmail]);
 
-  // Fallback poll — only does anything meaningful while the socket isn't open.
+  // Yedek polling — yalnızca socket açık değilken anlamlı bir şey yapar.
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
@@ -136,8 +136,8 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
     (text: string, attachment?: File) => {
       if (!activeId) return;
 
-      // Attachments have no WebSocket path (the consumer only handles plain
-      // text) — send those over REST with the existing optimistic-UI flow.
+      // Eklerin bir WebSocket yolu yoktur (consumer yalnızca düz metni işler)
+      // — bunları mevcut optimistic-UI akışıyla REST üzerinden gönder.
       if (attachment) {
         const optimistic: ChatMessage = {
           id: `${activeId}-msg-${Date.now()}`,
@@ -163,17 +163,17 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
         return;
       }
 
-      // Plain text: push over the socket. It's broadcast back to us too
-      // (see backend/apps/messaging/consumers.py::chat_message), so no
-      // optimistic placeholder is needed — the real message appears as soon
-      // as the round trip completes, typically well under 100ms.
+      // Düz metin: socket üzerinden gönder. Bize de geri yayınlanır
+      // (bkz. backend/apps/messaging/consumers.py::chat_message), bu yüzden
+      // optimistic bir yer tutucuya gerek yoktur — gerçek mesaj, gidiş-dönüş
+      // tamamlanır tamamlanmaz görünür, genellikle 100ms'nin çok altında.
       if (socketRef.current && socketOpen) {
         socketRef.current.sendMessage(text);
         return;
       }
 
-      // Socket not connected (still reconnecting) — fall back to REST so the
-      // message isn't silently dropped.
+      // Socket bağlı değil (hâlâ yeniden bağlanıyor) — mesajın sessizce
+      // kaybolmaması için REST'e geri dön.
       sendMessage(activeId, text, currentUserEmail)
         .then((saved) => {
           setMessagesByConvo((prev) => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), saved] }));
@@ -184,8 +184,8 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
   );
 
   function handleReact(messageId: string, emoji: string) {
-    // No reaction concept on the backend — this is a purely client-side/ephemeral
-    // toggle that gets overwritten by the next poll of the conversation.
+    // Backend'de bir tepki (reaction) kavramı yok — bu tamamen istemci
+    // tarafında/geçici bir anahtardır ve konuşmanın bir sonraki polling'inde üzerine yazılır.
     if (!activeId) return;
     setMessagesByConvo((prev) => ({
       ...prev,

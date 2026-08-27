@@ -1,7 +1,7 @@
-// Static marketing-site copy (pricing plans, testimonials, FAQ). This is real
-// content the site ships with, not API-fallback/demo data — there's no
-// backend concept of "pricing plans" or "testimonials" to fetch, so this
-// lives here rather than behind an API call.
+// Statik pazarlama sitesi içeriği (fiyatlandırma planları, referanslar, SSS).
+// Bu, sitenin birlikte geldiği gerçek içeriktir; API-fallback/demo verisi
+// değildir — backend'de "fiyatlandırma planları" veya "referanslar" diye bir
+// kavram olmadığından bu içerik bir API çağrısının arkasında değil burada yaşar.
 import type { FaqItem, PricingPlan, Testimonial } from "@/types";
 
 export const PRICING_PLANS: PricingPlan[] = [
@@ -9,79 +9,79 @@ export const PRICING_PLANS: PricingPlan[] = [
     id: "starter",
     name: "Starter",
     price: 0,
-    period: "month",
-    description: "For brands testing the waters with influencer marketing.",
-    features: ["Up to 2 active campaigns", "Basic creator search", "Standard messaging", "Community support"],
-    ctaLabel: "Get started",
+    period: "ay",
+    description: "Influencer pazarlamasına yeni başlayan markalar için.",
+    features: ["2 aktif kampanyaya kadar", "Temel creator arama", "Standart mesajlaşma", "Topluluk desteği"],
+    ctaLabel: "Ücretsiz başla",
   },
   {
     id: "growth",
     name: "Growth",
     price: 149,
-    period: "month",
-    description: "For brands scaling creator partnerships every month.",
+    period: "ay",
+    description: "Her ay yeni creator iş birlikleri kuran büyüyen markalar için.",
     features: [
-      "Unlimited active campaigns",
-      "Advanced filters & analytics",
-      "Priority creator matching",
-      "Dedicated account support",
-      "Campaign performance reports",
+      "Sınırsız aktif kampanya",
+      "Gelişmiş filtreler ve analitik",
+      "Öncelikli creator eşleştirme",
+      "Özel hesap desteği",
+      "Kampanya performans raporları",
     ],
     highlighted: true,
-    ctaLabel: "Start free trial",
+    ctaLabel: "Ücretsiz deneyin",
   },
   {
     id: "enterprise",
     name: "Enterprise",
     price: 499,
-    period: "month",
-    description: "For agencies and large teams running high-volume campaigns.",
+    period: "ay",
+    description: "Yüksek hacimli kampanyalar yürüten ajanslar ve büyük ekipler için.",
     features: [
-      "Everything in Growth",
-      "Multi-seat team access",
-      "Custom contracts & invoicing",
-      "API access",
-      "White-glove onboarding",
+      "Growth planındaki her şey",
+      "Çoklu kullanıcı erişimi",
+      "Özel sözleşme ve faturalandırma",
+      "API erişimi",
+      "Uçtan uca kurulum desteği",
     ],
-    ctaLabel: "Contact sales",
+    ctaLabel: "Satış ekibiyle görüşün",
   },
 ];
 
 export const TESTIMONIALS: Testimonial[] = [
   {
     id: "t1",
-    name: "Jenna Wu",
-    role: "Head of Growth",
-    company: "Lumo Skincare",
+    name: "Zeynep Aydın",
+    role: "Büyüme Direktörü",
+    company: "Lumo Cilt Bakımı",
     avatarUrl: "https://i.pravatar.cc/150?img=32",
-    quote: "We 3x'd our creator output in the first month. The matching quality is unreal compared to what we used before.",
+    quote: "İlk ayda creator içerik üretimimizi 3 katına çıkardık. Eşleştirme kalitesi, daha önce kullandığımız hiçbir şeyle kıyaslanamaz.",
     rating: 5,
   },
   {
     id: "t2",
-    name: "Marcus Reid",
-    role: "Founder",
+    name: "Emre Kaya",
+    role: "Kurucu",
     company: "Nomad Gear",
     avatarUrl: "https://i.pravatar.cc/150?img=51",
-    quote: "Finally a platform that doesn't feel like a spreadsheet. Our team actually enjoys running campaigns now.",
+    quote: "Sonunda bir Excel tablosu gibi hissettirmeyen bir platform bulduk. Ekibimiz artık kampanya yürütmekten gerçekten keyif alıyor.",
     rating: 5,
   },
   {
     id: "t3",
-    name: "Ava Bennett",
+    name: "Ayşe Demir",
     role: "Creator",
-    company: "@avabennett",
+    company: "@aysedemir",
     avatarUrl: "https://i.pravatar.cc/150?img=5",
-    quote: "I've booked more brand deals in two months here than in a year of cold outreach. Payments are always on time.",
+    quote: "İki ayda burada soğuk iletişimle bir yılda bulduğumdan daha fazla marka iş birliği yakaladım. Ödemeler her zaman zamanında geliyor.",
     rating: 5,
   },
   {
     id: "t4",
-    name: "Priya Shah",
-    role: "Marketing Director",
-    company: "Fresca Foods",
+    name: "Priya Şah",
+    role: "Pazarlama Direktörü",
+    company: "Fresca Gıda",
     avatarUrl: "https://i.pravatar.cc/150?img=45",
-    quote: "The analytics alone are worth it. We can finally tie creator content to real conversion numbers.",
+    quote: "Yalnızca analitik özelliği bile buna değer. Artık creator içeriklerini gerçek dönüşüm rakamlarıyla ilişkilendirebiliyoruz.",
     rating: 4,
   },
 ];

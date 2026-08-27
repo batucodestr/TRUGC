@@ -1,5 +1,6 @@
-// Notifications API layer — wraps the real Django REST endpoints (see lib/endpoints.ts)
-// and normalizes snake_case backend shapes into the app's camelCase `Notification` type.
+// Bildirimler API katmanı — gerçek Django REST endpoint'lerini sarar (bkz.
+// lib/endpoints.ts) ve snake_case backend şekillerini uygulamanın camelCase
+// `Notification` tipine normalize eder.
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS, notificationDetail } from "@/lib/endpoints";
 import type { Notification } from "@/types";
@@ -48,9 +49,9 @@ export async function markAllNotificationsRead(): Promise<void> {
   await apiClient.post<{ detail: string }>(`${ENDPOINTS.notifications}mark_all_read/`, {});
 }
 
-// --- Admin broadcast -------------------------------------------------------
+// --- Admin yayını -------------------------------------------------------------
 //
-// Backed by POST /api/v1/notifications/admin/broadcast/ (AdminBroadcastView).
+// POST /api/v1/notifications/admin/broadcast/ tarafından desteklenir (AdminBroadcastView).
 export interface BroadcastInput {
   title: string;
   body: string;

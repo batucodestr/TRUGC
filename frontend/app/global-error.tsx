@@ -3,13 +3,13 @@
 import { useEffect } from "react";
 import "./globals.css";
 
-// Catastrophic-failure boundary: replaces the ENTIRE document (Next.js
-// requires this file to render its own <html>/<body>) when something breaks
-// badly enough that even the root layout couldn't render — including if a
-// provider in app/layout.tsx (AuthProvider, MotionProvider, ...) is itself
-// the cause. Deliberately self-contained: plain elements only, no shadcn
-// Button/Link/ErrorShell, so this screen doesn't depend on the same
-// component tree that just failed.
+// Felaket düzeyinde hata sınırı: kök layout'un bile render edilemeyeceği
+// kadar kötü bir şey bozulduğunda TÜM belgeyi değiştirir (Next.js bu
+// dosyanın kendi <html>/<body>'sini render etmesini gerektirir) — buna
+// app/layout.tsx'teki bir provider'ın (AuthProvider, MotionProvider, ...)
+// nedenin kendisi olması durumu da dahildir. Bilinçli olarak kendi kendine
+// yeterli: yalnızca düz elemanlar, shadcn Button/Link/ErrorShell yok; böylece
+// bu ekran az önce başarısız olan aynı component ağacına bağımlı olmaz.
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
     console.error(error);

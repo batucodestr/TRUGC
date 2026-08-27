@@ -15,8 +15,9 @@ from .serializers import CampaignMediaSerializer, CampaignRequirementSerializer,
 
 class CampaignViewSet(viewsets.ModelViewSet):
     """
-    Public users see only published campaigns. Brand owners additionally see
-    all of their own campaigns regardless of status. Moderators/admins see everything.
+    Genel kullanıcılar yalnızca yayınlanmış kampanyaları görür. Marka sahipleri
+    ayrıca durumdan bağımsız olarak kendi tüm kampanyalarını görür.
+    Moderatörler/adminler her şeyi görür.
     """
 
     serializer_class = CampaignSerializer
@@ -66,7 +67,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def bulk(self, request):
-        """Admin-only bulk moderation: {action: 'unpublish'|'close'|'delete', ids: [...]}."""
+        """Yalnızca admin için toplu moderasyon: {action: 'unpublish'|'close'|'delete', ids: [...]}."""
         op = request.data.get("action")
         ids = request.data.get("ids") or []
         campaigns = Campaign.objects.filter(id__in=ids)
@@ -86,7 +87,7 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
 
 class CampaignMediaViewSet(viewsets.ModelViewSet):
-    """Manage media attachments for a campaign owned by the authenticated brand."""
+    """Giriş yapmış markaya ait bir kampanyanın medya eklerini yönetir."""
 
     serializer_class = CampaignMediaSerializer
     permission_classes = [permissions.IsAuthenticated, IsBrand]
@@ -104,7 +105,7 @@ class CampaignMediaViewSet(viewsets.ModelViewSet):
 
 
 class CampaignRequirementViewSet(viewsets.ModelViewSet):
-    """Manage structured deliverables for a campaign owned by the authenticated brand."""
+    """Giriş yapmış markaya ait bir kampanyanın yapılandırılmış teslimatlarını yönetir."""
 
     serializer_class = CampaignRequirementSerializer
     permission_classes = [permissions.IsAuthenticated, IsBrand]

@@ -200,7 +200,7 @@ class VerificationModerationTests(APITestCase):
 
 
 class ErrorEnvelopeTests(APITestCase):
-    """Locks in the consistent { error, code, message } contract every error response must follow."""
+    """Her hata yanıtının uyması gereken tutarlı { error, code, message } sözleşmesini sabitler."""
 
     def setUp(self):
         self.user = User.objects.create_user(email="creator@example.com", password="StrongPass123", role=Role.CREATOR)

@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 
-// BFF route: the only place that ever sees the Django refresh token. It logs
-// in against Django, stores the refresh token in an httpOnly cookie, and
-// hands the client the access token both in the JSON body (kept in memory
-// only, for client-side apiClient calls — see lib/token-store.ts) and as a
-// second, short-lived httpOnly cookie (for lib/api.ts's server-side reads —
-// Server Components render before any client JS runs, so the in-memory
-// token doesn't exist yet for them). A client-side XSS payload reading
-// document.cookie/localStorage still can't exfiltrate the long-lived
-// refresh token, since that cookie alone stays httpOnly-only, never in the body.
+// BFF route'u: Django refresh token'ını görecek tek yer. Django'ya karşı
+// giriş yapar, refresh token'ı httpOnly bir cookie'de saklar ve access
+// token'ı istemciye hem JSON gövdesinde (yalnızca bellekte tutulur, istemci
+// taraflı apiClient çağrıları için — bkz. lib/token-store.ts) hem de ikinci,
+// kısa ömürlü bir httpOnly cookie olarak verir (lib/api.ts'nin sunucu
+// taraflı okumaları için — Server Component'ler herhangi bir istemci JS'i
+// çalışmadan önce render edilir, bu yüzden bellek içi token onlar için henüz
+// mevcut değildir). document.cookie/localStorage'ı okuyan istemci taraflı bir
+// XSS saldırısı, yine de uzun ömürlü refresh token'ı sızdıramaz, çünkü o
+// cookie tek başına yalnızca-httpOnly kalır, asla gövdede yer almaz.
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL ?? "http://localhost:8000/api/v1";
 const REFRESH_COOKIE = "trugc_refresh";

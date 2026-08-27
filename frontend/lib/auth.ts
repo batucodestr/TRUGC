@@ -1,11 +1,13 @@
-// Authentication layer. Talks to the real Django JWT backend via the
-// app/api/auth/* route handlers for anything touching the refresh token.
+// Kimlik doğrulama katmanı. Refresh token'a dokunan her şey için gerçek
+// Django JWT backend'iyle app/api/auth/* route handler'ları üzerinden konuşur.
 //
-// Session storage: a client-readable, non-sensitive cookie (`trugc_session`)
-// holds only `{ user }` (never a token) so `proxy.ts` can gate protected
-// routes without a client-side redirect flash. The actual access token lives
-// in memory only (lib/token-store.ts); the refresh token lives in an httpOnly
-// cookie set by the /api/auth/* route handlers and is never readable by JS.
+// Oturum saklama: istemci tarafından okunabilen, hassas olmayan bir cookie
+// (`trugc_session`) yalnızca `{ user }`'ı tutar (asla bir token değil), böylece
+// `proxy.ts` istemci taraflı bir yönlendirme titremesi olmadan korumalı
+// rotaları kontrol edebilir. Gerçek access token yalnızca bellekte yaşar
+// (lib/token-store.ts); refresh token, /api/auth/* route handler'ları
+// tarafından ayarlanan httpOnly bir cookie'de yaşar ve JS tarafından asla
+// okunamaz.
 
 import { apiClient, ApiError } from "@/lib/api";
 import { AUTH_ENDPOINTS, ENDPOINTS } from "@/lib/endpoints";
@@ -81,9 +83,9 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
   if (!res.ok) {
     throw new ApiError(data?.message ?? "Giriş yapılamadı.", res.status, data);
   }
-  // No client-asserted role to validate against — there's no role picker in
-  // the login UI anymore. The server's own role (data.user.role) is the only
-  // source of truth, and callers redirect off DASHBOARD_PATH_BY_ROLE[role].
+  // Doğrulanacak istemci taraflı bir rol iddiası yok — giriş arayüzünde artık
+  // bir rol seçici bulunmuyor. Sunucunun kendi rolü (data.user.role) tek
+  // gerçek kaynaktır ve çağıranlar DASHBOARD_PATH_BY_ROLE[role] üzerinden yönlendirilir.
   setAccessToken(data.access);
   const user: AuthUser = {
     id: String(data.user.id),
@@ -154,8 +156,8 @@ export function logout(): void {
   }).catch(() => undefined);
 }
 
-// Admin deliberately doesn't live under /dashboard — it's a hidden, unlinked
-// entry point (/manage), never surfaced in any public-facing UI.
+// Admin bilinçli olarak /dashboard altında yaşamaz — bu gizli, bağlantısız
+// bir giriş noktasıdır (/manage), hiçbir genel arayüzde gösterilmez.
 export const DASHBOARD_PATH_BY_ROLE: Record<UserRole, string> = {
   creator: "/dashboard/creator",
   brand: "/dashboard/brand",

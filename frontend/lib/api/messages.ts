@@ -1,11 +1,11 @@
-// Messaging API layer — wraps the real Django REST endpoints (see lib/endpoints.ts)
-// and normalizes snake_case backend shapes into the app's camelCase `Conversation`/
-// `ChatMessage` types.
+// Mesajlaşma API katmanı — gerçek Django REST endpoint'lerini sarar (bkz.
+// lib/endpoints.ts) ve snake_case backend şekillerini uygulamanın camelCase
+// `Conversation`/`ChatMessage` tiplerine normalize eder.
 //
-// REST layer for messaging: initial page load, conversation list, attachment
-// uploads (no attachment support over the WebSocket). Live message/typing/
-// read/presence updates go over the Channels WebSocket instead — see
-// lib/ws/conversation-socket.ts and features/messaging/messaging-app.tsx.
+// Mesajlaşma için REST katmanı: ilk sayfa yüklemesi, konuşma listesi, ek
+// yüklemeleri (WebSocket üzerinden ek desteği yok). Canlı mesaj/yazıyor/
+// okundu/durum güncellemeleri bunun yerine Channels WebSocket üzerinden gider
+// — bkz. lib/ws/conversation-socket.ts ve features/messaging/messaging-app.tsx.
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS, conversationMessages } from "@/lib/endpoints";
 import type { ChatMessage, Conversation, MessageAttachment, UserRole } from "@/types";
@@ -97,8 +97,9 @@ function normalizeConversation(conv: ApiConversation, currentUserEmail?: string)
     participantRole: other?.role ?? "creator",
     lastMessage: last?.body ?? "",
     lastMessageAt: last?.created_at ?? conv.updated_at,
-    // Computing a real unread count would mean fetching every conversation's full
-    // message list just for a badge — too heavy for a list view. Omitted for real data.
+    // Gerçek bir okunmamış sayısı hesaplamak, yalnızca bir rozet için her
+    // konuşmanın tüm mesaj listesini çekmek anlamına gelir — bir liste
+    // görünümü için çok ağır. Gerçek veri için atlandı.
     unreadCount: 0,
     campaignId: conv.campaign != null ? String(conv.campaign) : undefined,
   };

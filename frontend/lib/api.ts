@@ -1,21 +1,21 @@
-// Thin API client boundary. Every real network call in the app goes through
-// `request()`/`apiClient` below instead of calling `fetch` directly.
+// İnce bir API istemci sınırı. Uygulamadaki her gerçek ağ çağrısı, doğrudan
+// `fetch` çağırmak yerine aşağıdaki `request()`/`apiClient` üzerinden geçer.
 //
-// Auth: the access token lives in memory only (see lib/token-store.ts) and is
-// attached as `Authorization: Bearer <token>`. On a 401, we attempt exactly
-// one silent refresh (via the /api/auth/refresh route handler, which reads
-// the httpOnly refresh cookie) and retry the original request once before
-// giving up and surfacing the error.
+// Kimlik doğrulama: access token yalnızca bellekte tutulur (bkz. lib/token-store.ts)
+// ve `Authorization: Bearer <token>` olarak eklenir. Bir 401 durumunda, tam
+// olarak bir kez sessiz refresh denenir (httpOnly refresh cookie'sini okuyan
+// /api/auth/refresh route handler'ı üzerinden) ve pes edip hatayı göstermeden
+// önce orijinal istek bir kez daha denenir.
 
 import { getAccessToken, setAccessToken } from "@/lib/token-store";
 
 const isServer = typeof window === "undefined";
 
-// The browser can resolve a relative "/api/v1" against its own origin (Caddy
-// proxies that to the backend), but Node's `fetch` on the server has no
-// origin to resolve against — it needs an absolute URL, or every server
-// component fetch fails with "unknown scheme". Server code talks to Django
-// directly over the Docker network instead of bouncing through Caddy.
+// Tarayıcı, göreli bir "/api/v1"i kendi origin'ine göre çözebilir (Caddy bunu
+// backend'e proxy'ler), ancak sunucudaki Node'un `fetch`'inin çözümleyeceği
+// bir origin'i yoktur — mutlak bir URL gerekir, aksi halde her server
+// component fetch'i "unknown scheme" hatasıyla başarısız olur. Sunucu kodu,
+// Caddy üzerinden dolaşmak yerine Docker ağı üzerinden doğrudan Django'yla konuşur.
 const API_BASE_URL = isServer
   ? (process.env.DJANGO_API_URL ?? "http://localhost:8000/api/v1")
   : (process.env.NEXT_PUBLIC_API_BASE_URL ?? "");
@@ -139,26 +139,29 @@ async function rawFetch(endpoint: string, options: RequestOptions, isRetry: bool
       method: options.method ?? "GET",
       headers,
       body: isFormData ? (options.body as FormData) : options.body !== undefined ? JSON.stringify(options.body) : undefined,
-      // Only the browser has a cookie jar to send; server-side requests carry
-      // auth via the explicit Authorization header set above instead.
+      // Yalnızca tarayıcının gönderecek bir cookie jar'ı vardır; sunucu
+      // tarafındaki istekler bunun yerine yukarıda ayarlanan açık Authorization
+      // header'ı ile kimlik doğrulama taşır.
       credentials: isServer ? undefined : "include",
     });
   } catch (cause) {
     throw new NetworkError(cause);
   }
 
-  // Silent-refresh-and-retry only makes sense in the browser (it calls a
-  // relative same-origin route handler and relies on the browser's cookie
-  // jar). Server Components get one shot with whatever the access cookie
-  // held at request time — if it's stale, the fetch below fails, the caller
-  // sees a real 401, and the next client-side refresh corrects it.
+  // Sessiz refresh-ve-yeniden-deneme yalnızca tarayıcıda anlamlıdır (göreli
+  // bir same-origin route handler'ı çağırır ve tarayıcının cookie jar'ına
+  // dayanır). Server Component'ler, istek anında access cookie'sinin tuttuğu
+  // değerle tek bir şans alır — bayatsa, aşağıdaki fetch başarısız olur,
+  // çağıran gerçek bir 401 görür ve bir sonraki istemci taraflı refresh
+  // bunu düzeltir.
   if (res.status === 401 && !options.anonymous && !isRetry && !isServer) {
     const refreshed = await refreshAccessToken();
     if (refreshed) return rawFetch(endpoint, options, true);
-    // Refresh genuinely failed (refresh token missing/expired/blacklisted) —
-    // this isn't "one request happened to 401", the whole session is over.
-    // Let the app know so it can clear state and redirect, instead of every
-    // call site having to notice a 401 and do that itself.
+    // Refresh gerçekten başarısız oldu (refresh token eksik/süresi dolmuş/
+    // kara listede) — bu "bir istek 401 aldı" durumu değil, oturumun tamamı
+    // bitti demektir. Her çağrı noktasının bir 401'i fark edip kendi başına
+    // bunu yapması yerine, uygulamanın durumu temizleyip yönlendirebilmesi
+    // için bunu bildir.
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("auth:session-expired"));
     }

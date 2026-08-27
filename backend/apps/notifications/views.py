@@ -14,7 +14,7 @@ from .tasks import broadcast_notification
 
 
 class NotificationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, viewsets.GenericViewSet):
-    """Read-only access to the authenticated user's own notifications."""
+    """Giriş yapmış kullanıcının kendi bildirimlerine salt okunur erişim."""
 
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -34,7 +34,7 @@ class NotificationViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, view
     @action(detail=False, methods=["post"])
     def mark_all_read(self, request):
         self.get_queryset().filter(is_read=False).update(is_read=True, read_at=timezone.now())
-        return Response({"detail": "All notifications marked as read."})
+        return Response({"detail": "Tüm bildirimler okundu olarak işaretlendi."})
 
 
 VALID_BROADCAST_TARGETS = {"all", Role.CREATOR, Role.BRAND, Role.MODERATOR, Role.ADMIN}

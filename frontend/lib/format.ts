@@ -1,16 +1,21 @@
 export function formatCompactNumber(value: number): string {
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(
+  return new Intl.NumberFormat("tr-TR", { notation: "compact", maximumFractionDigits: 1 }).format(
     value,
   );
 }
 
 export function formatCurrency(value: number, opts?: { compact?: boolean }): string {
   if (opts?.compact) {
-    return `$${formatCompactNumber(value)}`;
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: "TRY",
+      notation: "compact",
+      maximumFractionDigits: 1,
+    }).format(value);
   }
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("tr-TR", {
     style: "currency",
-    currency: "USD",
+    currency: "TRY",
     maximumFractionDigits: 0,
   }).format(value);
 }

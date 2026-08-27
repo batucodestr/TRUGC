@@ -62,7 +62,7 @@ function ParallaxRig({ children }: { children: React.ReactNode }) {
 
   useFrame((state) => {
     if (!ref.current) return;
-    // Kept well under 10% of scene scale — a hint of depth, never a distraction.
+    // Sahne ölçeğinin %10'unun oldukça altında tutulur — bir derinlik ipucu, asla dikkat dağıtıcı değil.
     const targetX = state.pointer.x * 0.25;
     const targetY = state.pointer.y * 0.15;
     ref.current.position.x = THREE.MathUtils.lerp(ref.current.position.x, targetX, 0.02);

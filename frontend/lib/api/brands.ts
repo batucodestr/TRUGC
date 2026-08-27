@@ -1,5 +1,6 @@
-// Brands API layer — wraps the real Django REST endpoints (see lib/endpoints.ts)
-// and normalizes snake_case backend shapes into the app's camelCase `Brand` type.
+// Markalar API katmanı — gerçek Django REST endpoint'lerini sarar (bkz.
+// lib/endpoints.ts) ve snake_case backend şekillerini uygulamanın camelCase
+// `Brand` tipine normalize eder.
 import { apiClient, ApiError } from "@/lib/api";
 import { ENDPOINTS, brandAdminDetail, brandDetail } from "@/lib/endpoints";
 import type { Brand } from "@/types";
@@ -85,7 +86,7 @@ export async function getBrand(id: string): Promise<Brand | undefined> {
 }
 
 export async function listFeaturedBrands(count = 6): Promise<Brand[]> {
-  // No "featured" concept on the backend — surface verified brands first, most recent.
+  // Backend'de bir "öne çıkan" kavramı yok — önce doğrulanmış, en yeni markaları göster.
   const all = await listBrands();
   const verified = all.filter((b) => b.verified);
   return (verified.length ? verified : all).slice(0, count);

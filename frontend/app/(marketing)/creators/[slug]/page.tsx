@@ -28,9 +28,9 @@ import { listReviewsForReviewee } from "@/lib/api/reviews";
 import { PLATFORM_LABEL, CATEGORY_LABEL_TR } from "@/lib/constants";
 import { formatCompactNumber, formatCurrency, formatDate, formatPercent } from "@/lib/format";
 
-// No generateStaticParams: creator profiles are live marketplace data,
-// rendered on demand at request time instead of enumerated from the backend
-// at build time (see the brands/[slug] page for the same reasoning).
+// generateStaticParams yok: creator profilleri canlı marketplace verisidir,
+// build zamanında backend'den numaralandırılmak yerine istek anında talebe
+// göre render edilir (aynı gerekçe için brands/[slug] sayfasına bakın).
 
 export default async function CreatorProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -39,8 +39,8 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
 
   const allCreators = await listCreators();
   const similar = allCreators.filter((c) => c.id !== creator.id && c.categories.some((cat) => creator.categories.includes(cat))).slice(0, 4);
-  // Reviews live in a separate `apps/reviews` app on the backend, not nested under
-  // Creator — fetched separately and merged in here for the reviews tab.
+  // Değerlendirmeler backend'de Creator'ın altında değil, ayrı bir `apps/reviews`
+  // uygulamasında yaşar — ayrı olarak çekilir ve değerlendirmeler sekmesi için burada birleştirilir.
   const reviews = creator.userId ? await listReviewsForReviewee(creator.userId) : [];
 
   return (

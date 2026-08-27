@@ -8,10 +8,11 @@ from .models import Notification, NotificationType
 
 @shared_task
 def broadcast_notification(role, title, body, link=""):
-    """Admin broadcast (/manage) — creates one Notification per targeted user.
-    `role` is a Role value to target one role, or "all" for every active user.
-    Runs immediately when queued with .delay(), or at a future time when
-    queued with .apply_async(eta=...) for scheduled sends."""
+    """Admin yayını (/manage) — hedeflenen her kullanıcı için bir Notification oluşturur.
+    `role`, tek bir rolü hedeflemek için bir Role değeridir, ya da tüm aktif
+    kullanıcılar için "all". .delay() ile kuyruğa alındığında hemen çalışır,
+    planlı gönderimler için .apply_async(eta=...) ile kuyruğa alındığında ise
+    ileride belirtilen zamanda çalışır."""
     User = get_user_model()
     users = User.objects.filter(is_active=True)
     if role != "all":
@@ -26,7 +27,7 @@ def broadcast_notification(role, title, body, link=""):
 
 @shared_task
 def send_notification_email(notification_id):
-    """Best-effort email delivery for a notification. Safe to call fire-and-forget."""
+    """Bir bildirim için en iyi çaba (best-effort) e-posta gönderimi. Fire-and-forget olarak çağrılması güvenlidir."""
     try:
         notification = Notification.objects.select_related("user").get(pk=notification_id)
     except Notification.DoesNotExist:

@@ -13,6 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PaginationControls } from "@/components/shared/pagination-controls";
+import { CATEGORY_LABEL_TR } from "@/lib/constants";
+import type { CreatorCategory } from "@/types";
 import { listCreatorsPaginated } from "@/lib/api/creators";
 import { performUserAction } from "@/lib/api/admin";
 import { getErrorMessage } from "@/lib/error-message";
@@ -124,7 +126,9 @@ export function CreatorManagementTable() {
                         <span className="max-w-[180px] truncate font-medium hover:text-violet-600">{creator.name}</span>
                       </Link>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{creator.categories.slice(0, 2).join(", ") || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {creator.categories.slice(0, 2).map((c) => CATEGORY_LABEL_TR[c as CreatorCategory] ?? c).join(", ") || "—"}
+                    </TableCell>
                     <TableCell className="text-muted-foreground">{(creator.totalFollowers ?? 0).toLocaleString("tr-TR")}</TableCell>
                     <TableCell>
                       {creator.verified ? (

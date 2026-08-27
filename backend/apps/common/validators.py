@@ -1,9 +1,9 @@
-"""Shared upload validators for FileField/ImageField across apps.
+"""Uygulamalar arasında paylaşılan FileField/ImageField yükleme doğrulayıcıları.
 
-Kept dependency-free (no python-magic) — validates by file extension and
-Django's own ImageField/Pillow check, which is sufficient for the marketplace's
-threat model (authenticated users uploading their own media) without adding
-a native dependency to the Docker image.
+Bağımlılıksız tutulur (python-magic yok) — dosya uzantısına ve Django'nun
+kendi ImageField/Pillow kontrolüne göre doğrulama yapar; bu, marketplace'in
+tehdit modeli (kendi medyasını yükleyen kimliği doğrulanmış kullanıcılar) için
+Docker imajına yerel bir bağımlılık eklemeden yeterlidir.
 """
 
 from django.core.exceptions import ValidationError
@@ -12,8 +12,8 @@ from django.core.validators import FileExtensionValidator
 IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"]
 DOCUMENT_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "webp"]
 ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS + ["pdf", "mp4", "mov", "zip", "doc", "docx", "ppt", "pptx"]
-# Message attachments are intentionally scoped tighter than general campaign
-# media/portfolio attachments (image + PDF only) per product spec.
+# Mesaj ekleri, ürün spesifikasyonu gereği genel kampanya medyası/portföy
+# eklerinden (yalnızca görsel + PDF) bilinçli olarak daha sıkı kapsamlıdır.
 MESSAGE_ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS + ["pdf"]
 
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024

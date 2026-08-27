@@ -1,9 +1,9 @@
-// Central place to turn any thrown error (ApiError, NetworkError, or an
-// unexpected JS error) into a short, friendly Turkish message safe to show
-// in a toast. Prefers the backend's own message (already Turkish and
-// production-safe — see backend/apps/accounts/exceptions.py) and only falls
-// back to these generic ones when there isn't one (network failures, or a
-// non-ApiError bug).
+// Fırlatılan herhangi bir hatayı (ApiError, NetworkError veya beklenmeyen bir
+// JS hatası) bir toast'ta gösterilmesi güvenli, kısa ve dostane bir Türkçe
+// mesaja dönüştürmek için merkezi bir yer. Backend'in kendi mesajını tercih
+// eder (zaten Türkçe ve production'a uygun — bkz.
+// backend/apps/accounts/exceptions.py) ve yalnızca bir mesaj olmadığında
+// (ağ hataları veya ApiError olmayan bir hata) bu genel mesajlara geri döner.
 import { ApiError, NetworkError } from "@/lib/api";
 
 const MESSAGE_BY_KIND: Record<string, string> = {

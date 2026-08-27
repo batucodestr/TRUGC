@@ -8,9 +8,10 @@ from rest_framework.views import exception_handler as drf_exception_handler
 
 logger = logging.getLogger(__name__)
 
-# Machine-readable code + production-safe Turkish message per HTTP status.
-# Never derived from the exception's own message — that can leak internals
-# (query fragments, file paths) for anything DRF didn't already sanitize.
+# Her HTTP durum kodu için makine tarafından okunabilir bir kod + production'a
+# uygun Türkçe mesaj. Asla istisnanın kendi mesajından türetilmez — bu, DRF'nin
+# henüz temizlemediği içerikler için dahili bilgileri (sorgu parçaları, dosya
+# yolları) sızdırabilir.
 _STATUS_CODE_MAP = {
     status.HTTP_400_BAD_REQUEST: ("VALIDATION_ERROR", "Gönderilen bilgilerde bir hata var."),
     status.HTTP_401_UNAUTHORIZED: ("UNAUTHORIZED", "Bu işlem için giriş yapmanız gerekiyor."),
@@ -27,13 +28,13 @@ _SERVER_CODE, _SERVER_MESSAGE = "SERVER_ERROR", "Sunucuda beklenmeyen bir hata o
 
 def custom_exception_handler(exc, context):
     """
-    Consistent JSON error envelope for every response DRF returns:
+    DRF'nin döndürdüğü her yanıt için tutarlı bir JSON hata zarfı:
         { "error": true, "code": "NOT_FOUND", "message": "Kaynak bulunamadı.", "fields": {...}? }
 
-    `fields` is only present for 400s where DRF's default handler produced
-    per-field validation errors (a ModelSerializer's normal shape); anything
-    else collapses to a single safe `message` — no exception text, stack
-    trace, or internal detail ever reaches the response in production.
+    `fields` yalnızca DRF'nin varsayılan handler'ının alan bazlı doğrulama
+    hataları ürettiği 400'lerde bulunur (bir ModelSerializer'ın olağan şekli);
+    diğer tüm durumlar güvenli tek bir `message`'a indirgenir — production'da
+    hiçbir istisna metni, stack trace veya dahili detay yanıta ulaşmaz.
     """
     if isinstance(exc, Http404):
         exc = APIException("Not found.")
@@ -44,9 +45,9 @@ def custom_exception_handler(exc, context):
     response = drf_exception_handler(exc, context)
 
     if response is None:
-        # Not an APIException DRF recognizes — a genuine unhandled bug. Log the
-        # full exception server-side (with traceback) for diagnosis, but the
-        # client only ever sees the generic envelope below.
+        # DRF'nin tanıdığı bir APIException değil — gerçek, ele alınmamış bir hata.
+        # Tanı için sunucu tarafında (traceback ile) tam istisnayı logla, ancak
+        # istemci her zaman aşağıdaki genel zarfı görür.
         request = context.get("request")
         logger.exception("Unhandled exception in %s", getattr(request, "path", "<unknown path>"), exc_info=exc)
         return Response({"error": True, "code": _SERVER_CODE, "message": _SERVER_MESSAGE}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -54,9 +55,10 @@ def custom_exception_handler(exc, context):
     code, message = _STATUS_CODE_MAP.get(response.status_code, (_DEFAULT_CODE, _DEFAULT_MESSAGE))
     payload = {"error": True, "code": code, "message": message}
 
-    # Field-keyed validation errors (e.g. {"email": ["This field is required."]})
-    # have no top-level "detail" key — surface them under `fields` so the
-    # frontend can highlight specific inputs instead of only showing `message`.
+    # Alan bazlı doğrulama hatalarının (ör. {"email": ["This field is required."]})
+    # üst seviyede bir "detail" anahtarı yoktur — bunları `fields` altında
+    # sunuyoruz ki frontend yalnızca `message` göstermek yerine ilgili alanları
+    # vurgulayabilsin.
     if isinstance(response.data, dict) and "detail" not in response.data:
         fields = {k: (v if isinstance(v, list) else [v]) for k, v in response.data.items()}
         payload["fields"] = {k: [str(item) for item in v] for k, v in fields.items()}
@@ -66,7 +68,7 @@ def custom_exception_handler(exc, context):
 
 
 def error_response(code: str, message: str, http_status: int) -> Response:
-    """For the handful of views that construct an error Response directly
-    instead of raising (bypassing custom_exception_handler above) — keeps
-    those on the same envelope shape rather than a bare {"detail": ...}."""
+    """Hata yükseltmek yerine doğrudan bir Response oluşturan az sayıdaki view için
+    (yukarıdaki custom_exception_handler'ı atlar) — bunları çıplak bir
+    {"detail": ...} yerine aynı zarf şekliyle döndürmeyi sağlar."""
     return Response({"error": True, "code": code, "message": message}, status=http_status)

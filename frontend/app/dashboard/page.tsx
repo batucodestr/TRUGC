@@ -3,8 +3,8 @@ import { ArrowRight, Megaphone, UserCog } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Logo } from "@/components/shared/logo";
 
-// Admin is deliberately never listed here — it lives at the hidden,
-// unlinked /manage entry point instead.
+// Admin bilinçli olarak burada asla listelenmez — bunun yerine gizli,
+// bağlantısız /manage giriş noktasında yaşar.
 const ROLES = [
   { label: "Marka Paneli", description: "Kampanyalarını yönet, başvuruları incele, ödemeleri takip et.", href: "/dashboard/brand", icon: Megaphone },
   { label: "Creator Paneli", description: "Portfolyonu yönet, başvurularını takip et, kazançlarını gör.", href: "/dashboard/creator", icon: UserCog },

@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-// Blacklists the refresh token server-side (so it can't be replayed even if
-// it leaked) and clears the httpOnly cookie. Best-effort: if Django is
-// unreachable or the token's already invalid, we still clear the cookie so
-// the user is locally logged out either way.
+// Refresh token'ı sunucu tarafında kara listeye alır (sızsa bile tekrar
+// oynatılamaz) ve httpOnly cookie'yi temizler. En iyi çaba (best-effort):
+// Django erişilemezse veya token zaten geçersizse, kullanıcı her durumda
+// yerel olarak çıkış yapmış olsun diye yine de cookie'yi temizleriz.
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL ?? "http://localhost:8000/api/v1";
 const REFRESH_COOKIE = "trugc_refresh";

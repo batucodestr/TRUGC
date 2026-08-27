@@ -8,8 +8,8 @@ import { ErrorShell } from "@/components/shared/error-shell";
 
 export default function ErrorPage({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => {
-    // Logged for diagnostics only — the UI below never surfaces error.message
-    // or the stack to the visitor, in production or otherwise.
+    // Yalnızca tanı amacıyla loglanır — aşağıdaki UI, production'da veya
+    // başka bir durumda ziyaretçiye asla error.message veya stack'i göstermez.
     console.error(error);
   }, [error]);
 

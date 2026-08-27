@@ -15,8 +15,8 @@ from .serializers import ApplicationSerializer, ApplicationStatusUpdateSerialize
 
 class ApplicationViewSet(viewsets.ModelViewSet):
     """
-    Creators create/list/withdraw their own applications.
-    Brands list applications to their campaigns and accept/reject them.
+    Creator'lar kendi başvurularını oluşturur/listeler/geri çeker.
+    Markalar kendi kampanyalarına gelen başvuruları listeler ve kabul/red eder.
     """
 
     serializer_class = ApplicationSerializer
@@ -84,7 +84,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def hold(self, request, pk=None):
-        """Admin-only: revert a decision back to pending for re-review."""
+        """Yalnızca admin: bir kararı yeniden inceleme için beklemede durumuna geri alır."""
         application = self.get_object()
         if not self._is_staff_reviewer(request):
             raise PermissionDenied("Only staff can put an application on hold.")

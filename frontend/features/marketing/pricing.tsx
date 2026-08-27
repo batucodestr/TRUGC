@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Reveal } from "@/components/Motion/Reveal";
 import { PRICING_PLANS } from "@/lib/content/marketing";
+import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 export function Pricing() {
@@ -33,8 +34,10 @@ export function Pricing() {
                 <h3 className="text-lg font-semibold">{plan.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
                 <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-4xl font-semibold tracking-tight">${plan.price}</span>
-                  <span className="text-sm text-muted-foreground">/{plan.period}</span>
+                  <span className="text-4xl font-semibold tracking-tight">
+                    {plan.price === 0 ? "Ücretsiz" : formatCurrency(plan.price)}
+                  </span>
+                  {plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
                 </div>
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.features.map((f) => (

@@ -1,10 +1,10 @@
-// API layer for applications. Reads/writes the real Django `ApplicationViewSet` (`/api/v1/applications/`).
+// Başvurular için API katmanı. Gerçek Django `ApplicationViewSet`'ini (`/api/v1/applications/`) okur/yazar.
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS, applicationDetail } from "@/lib/endpoints";
 import type { Application, ApplicationStatus } from "@/types";
 
 // ---------------------------------------------------------------------------
-// Real API shapes (mirrors apps/applications/serializers.py ApplicationSerializer)
+// Gerçek API şekilleri (apps/applications/serializers.py ApplicationSerializer'ı yansıtır)
 // ---------------------------------------------------------------------------
 
 interface RawApplication {
@@ -52,7 +52,7 @@ function normalizeApplication(raw: RawApplication): Application {
 }
 
 // ---------------------------------------------------------------------------
-// Reads
+// Okumalar
 // ---------------------------------------------------------------------------
 
 /** Every application visible to the current user — ApplicationViewSet already scopes this to
@@ -87,7 +87,7 @@ export async function listApplicationsPaginated(params: { page?: number; status?
 }
 
 // ---------------------------------------------------------------------------
-// Writes
+// Yazmalar
 // ---------------------------------------------------------------------------
 
 export interface ApplyInput {

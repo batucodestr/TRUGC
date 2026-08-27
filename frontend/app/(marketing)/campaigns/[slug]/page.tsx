@@ -12,9 +12,9 @@ import { getCampaign } from "@/lib/api/campaigns";
 import { PLATFORM_LABEL } from "@/lib/constants";
 import { formatCurrency, formatDate } from "@/lib/format";
 
-// No generateStaticParams: campaigns are live marketplace data, rendered on
-// demand at request time instead of enumerated from the backend at build
-// time (see the brands/[slug] page for the same reasoning).
+// generateStaticParams yok: kampanyalar canlı marketplace verisidir, build
+// zamanında backend'den numaralandırılmak yerine istek anında talebe göre
+// render edilir (aynı gerekçe için brands/[slug] sayfasına bakın).
 
 export default async function CampaignDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
-// Exchanges the httpOnly refresh cookie for a new access token. Called by
-// lib/api.ts on a 401, and by lib/auth.ts's restoreSession() on first load
-// (the in-memory access token is gone after every full page reload).
+// httpOnly refresh cookie'sini yeni bir access token ile değiştirir.
+// lib/api.ts tarafından bir 401'de ve lib/auth.ts'nin restoreSession()'ı
+// tarafından ilk yüklemede çağrılır (bellek içi access token her tam sayfa
+// yenilemesinden sonra kaybolur).
 
 const DJANGO_API_URL = process.env.DJANGO_API_URL ?? "http://localhost:8000/api/v1";
 const REFRESH_COOKIE = "trugc_refresh";
@@ -33,10 +34,10 @@ export async function POST() {
 
   const response = NextResponse.json({ access: data.access });
 
-  // SimpleJWT is configured with ROTATE_REFRESH_TOKENS in this backend's
-  // settings, so a new refresh token comes back on every call — rotate the
-  // cookie every time (BLACKLIST_AFTER_ROTATION means the old one is now
-  // invalid server-side regardless).
+  // Bu backend'in ayarlarında SimpleJWT, ROTATE_REFRESH_TOKENS ile
+  // yapılandırılmıştır, bu yüzden her çağrıda yeni bir refresh token geri
+  // gelir — cookie'yi her seferinde döndür (BLACKLIST_AFTER_ROTATION, eskisinin
+  // artık sunucu tarafında geçersiz olduğu anlamına gelir zaten).
   if (data.refresh) {
     response.cookies.set(REFRESH_COOKIE, data.refresh, {
       httpOnly: true,

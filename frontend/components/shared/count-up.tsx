@@ -24,7 +24,7 @@ export function CountUp({ value, prefix = "", suffix = "", decimals = 0, classNa
   useEffect(() => {
     return spring.on("change", (latest) => {
       if (ref.current) {
-        ref.current.textContent = `${prefix}${latest.toLocaleString("en-US", {
+        ref.current.textContent = `${prefix}${latest.toLocaleString("tr-TR", {
           minimumFractionDigits: decimals,
           maximumFractionDigits: decimals,
         })}${suffix}`;

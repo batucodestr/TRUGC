@@ -8,8 +8,8 @@ import { listFeaturedBrands } from "@/lib/api/brands";
 
 export const metadata = { title: "Başarı Hikayeleri — TRUGC" };
 
-// Narrative copy is marketing content, not backend data — matched to whichever
-// brands come back from the API by position (index), not by a fabricated slug.
+// Anlatı metni pazarlama içeriğidir, backend verisi değildir — uydurma bir
+// slug ile değil, API'den konumuna (index) göre hangi marka geliyorsa onunla eşleştirilir.
 const CASE_STUDIES = [
   {
     narrative:

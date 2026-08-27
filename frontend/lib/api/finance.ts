@@ -2,13 +2,15 @@ import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 import type { ChartPoint } from "@/types";
 
-// Real backend shape — mirrors apps/payments/serializers.py TransactionSerializer.
-// Note the backend does NOT expose a "type" (payout/payment/refund/fee) field like the
-// old mock did — a Transaction is just an escrow flow between `payer` and `payee`, and
-// the queryset is scoped to transactions where the current user is either party. It also
-// does not expose payer_email or a campaign/brand title, only `payee_email` — so when the
-// current user IS the payee (a creator viewing their own earnings), there is no real
-// "counterparty name" to show; we fall back to the application id.
+// Gerçek backend şekli — apps/payments/serializers.py TransactionSerializer'ı
+// yansıtır. Backend'in eski mock'un yaptığı gibi bir "type" (payout/payment/
+// refund/fee) alanı SUNMADIĞINA dikkat edin — bir Transaction yalnızca
+// `payer` ve `payee` arasındaki bir emanet (escrow) akışıdır ve queryset,
+// mevcut kullanıcının her iki taraftan biri olduğu işlemlerle sınırlıdır.
+// Ayrıca payer_email veya bir kampanya/marka başlığı sunmaz, yalnızca
+// `payee_email` sunar — bu yüzden mevcut kullanıcı payee İSE (kendi
+// kazancını görüntüleyen bir creator), gösterilecek gerçek bir "karşı taraf
+// adı" yoktur; başvuru id'sine geri döneriz.
 export interface ApiTransaction {
   id: number;
   application_id: number;

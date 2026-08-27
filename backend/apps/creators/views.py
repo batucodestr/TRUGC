@@ -25,7 +25,7 @@ class CategoryListView(generics.ListAPIView):
 
 
 class CreatorListView(generics.ListAPIView):
-    """Public directory of creators, filterable by category/platform/availability."""
+    """Kategori/platform/uygunluğa göre filtrelenebilen genel creator dizini."""
 
     queryset = Creator.objects.select_related("user", "user__profile").prefetch_related("categories", "social_accounts").all()
     serializer_class = CreatorSerializer
@@ -67,7 +67,7 @@ class MyCreatorView(generics.RetrieveUpdateAPIView):
 
 
 class CreatorAdminDetailView(generics.RetrieveUpdateAPIView):
-    """Admin/moderator edit access to any creator's profile from /manage."""
+    """/manage üzerinden herhangi bir creator profiline admin/moderatör düzenleme erişimi."""
 
     queryset = Creator.objects.select_related("user", "user__profile").prefetch_related(
         "categories", "social_accounts", "portfolio_items", "packages"
@@ -78,7 +78,7 @@ class CreatorAdminDetailView(generics.RetrieveUpdateAPIView):
 
 
 class SocialAccountViewSet(viewsets.ModelViewSet):
-    """Manage the authenticated creator's connected social accounts."""
+    """Giriş yapmış creator'ın bağlı sosyal medya hesaplarını yönetir."""
 
     serializer_class = SocialAccountSerializer
     permission_classes = [permissions.IsAuthenticated, IsCreatorOwnerViaCreator]
@@ -91,7 +91,7 @@ class SocialAccountViewSet(viewsets.ModelViewSet):
 
 
 class PortfolioItemViewSet(viewsets.ModelViewSet):
-    """Manage the authenticated creator's portfolio items."""
+    """Giriş yapmış creator'ın portföy öğelerini yönetir."""
 
     serializer_class = PortfolioItemSerializer
     permission_classes = [permissions.IsAuthenticated, IsCreatorOwnerViaCreator]
@@ -104,7 +104,7 @@ class PortfolioItemViewSet(viewsets.ModelViewSet):
 
 
 class CreatorPackageViewSet(viewsets.ModelViewSet):
-    """Manage the authenticated creator's pricing packages."""
+    """Giriş yapmış creator'ın fiyatlandırma paketlerini yönetir."""
 
     serializer_class = CreatorPackageSerializer
     permission_classes = [permissions.IsAuthenticated, IsCreatorOwnerViaCreator]

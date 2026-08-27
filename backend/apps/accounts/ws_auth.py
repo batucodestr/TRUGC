@@ -1,13 +1,12 @@
-"""JWT authentication for Channels WebSocket connections.
+"""Channels WebSocket bağlantıları için JWT kimlik doğrulaması.
 
-Channels consumers don't go through DRF's authentication classes — the
-handshake is a plain ASGI `scope`, not a DRF `Request`. This middleware reads
-the same access token the REST API uses (`Authorization: Bearer <token>`),
-passed as a `?token=` query param since browsers can't set custom headers on
-a WebSocket handshake, validates it with SimpleJWT, and attaches the
-resolved user to `scope["user"]` — anonymous (and rejected by the consumer)
-if the token is missing, expired, or invalid.
-"""
+Channels consumer'ları DRF'nin kimlik doğrulama sınıflarından geçmez —
+handshake, bir DRF `Request`'i değil, düz bir ASGI `scope`'udur. Bu middleware,
+REST API'nin kullandığı aynı access token'ı (`Authorization: Bearer <token>`)
+okur; tarayıcılar bir WebSocket handshake'inde özel header ayarlayamadığından
+bu token `?token=` sorgu parametresi olarak geçirilir, SimpleJWT ile doğrulanır
+ve çözümlenen kullanıcı `scope["user"]`'a eklenir — token eksik, süresi dolmuş
+veya geçersizse anonim kalır (ve consumer tarafından reddedilir)."""
 from urllib.parse import parse_qs
 
 from channels.db import database_sync_to_async

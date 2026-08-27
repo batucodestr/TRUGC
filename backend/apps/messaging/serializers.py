@@ -18,9 +18,9 @@ class AttachmentSerializer(serializers.ModelSerializer):
 class MessageSerializer(serializers.ModelSerializer):
     sender_email = serializers.EmailField(source="sender.email", read_only=True)
     attachments = AttachmentSerializer(many=True, read_only=True)
-    # Write-only: lets a single multipart POST create the message and its one
-    # attachment together, since Attachment has no separate writable endpoint
-    # (MVP scope — one attachment per message is enough for the current UI).
+    # Yalnızca yazma amaçlı: tek bir multipart POST'un mesajı ve tek ekini
+    # birlikte oluşturmasını sağlar, çünkü Attachment'ın ayrı bir yazılabilir
+    # endpoint'i yok (MVP kapsamı — mevcut arayüz için mesaj başına bir ek yeterli).
     attachment = serializers.FileField(
         write_only=True,
         required=False,
@@ -55,7 +55,7 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class AdminConversationSerializer(serializers.ModelSerializer):
-    """Read-only oversight view for /manage — every conversation platform-wide, not just the caller's own."""
+    """/manage için salt okunur denetim görünümü — sadece çağıranın değil, platform genelindeki tüm konuşmalar."""
 
     participants = serializers.SerializerMethodField()
     last_message = serializers.SerializerMethodField()

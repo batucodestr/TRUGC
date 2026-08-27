@@ -28,9 +28,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setSession = (session: AuthSession | null) => setState({ session, loading: false });
 
   useEffect(() => {
-    // Fired by lib/api.ts when a silent token refresh genuinely fails (not
-    // "one request 401'd" — the refresh token itself is gone/expired), so
-    // the whole session is over regardless of which call noticed it first.
+    // lib/api.ts tarafından, sessiz bir token refresh'i gerçekten başarısız
+    // olduğunda tetiklenir ("bir istek 401 aldı" değil — refresh token'ın
+    // kendisi gitmiş/süresi dolmuş), bu yüzden hangi çağrının önce fark
+    // ettiğinden bağımsız olarak oturumun tamamı bitmiştir.
     function handleSessionExpired() {
       auth.logout();
       setSession(null);
@@ -43,13 +44,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Reads the session cookie on mount only, then (in real-backend mode)
-    // silently exchanges the httpOnly refresh cookie for a fresh in-memory
-    // access token — the access token doesn't survive a page reload since it
-    // only ever lives in JS memory. This must stay effect-based (not a lazy
-    // useState initializer) because `document.cookie` is unavailable during
-    // SSR — rendering `loading: true` first and syncing after mount is what
-    // keeps client hydration matching the server-rendered markup.
+    // Oturum cookie'sini yalnızca mount'ta okur, ardından (gerçek backend
+    // modunda) httpOnly refresh cookie'sini sessizce taze bir bellek içi
+    // access token ile değiştirir — access token bir sayfa yenilemeyi
+    // atlatmaz çünkü yalnızca JS belleğinde yaşar. Bu, effect tabanlı kalmak
+    // zorundadır (tembel bir useState initializer'ı değil) çünkü
+    // `document.cookie`, SSR sırasında kullanılamaz — önce `loading: true`
+    // render etmek ve mount sonrası senkronize etmek, istemci hidrasyonunu
+    // sunucu tarafında render edilen markup ile eşleşir tutan şeydir.
     let cancelled = false;
     auth.restoreSession().then((session) => {
       if (!cancelled) setState({ session, loading: false });

@@ -17,12 +17,12 @@ class ReportStatus(models.TextChoices):
 
 
 class Report(models.Model):
-    """A user-submitted report against a profile, campaign, or message, for moderator review.
+    """Moderatör incelemesi için bir profil, kampanya veya mesaj hakkında kullanıcı tarafından gönderilen rapor.
 
-    Deliberately minimal (MVP): the target is a loose (type, id) pair rather
-    than a GenericForeignKey, since the only consumers are a moderator list
-    view and a resolve action — neither needs to traverse the relation in the
-    ORM, just display it and let a human go look.
+    Bilinçli olarak minimal (MVP): hedef, bir GenericForeignKey yerine gevşek
+    bir (type, id) çiftidir; çünkü tek tüketiciler bir moderatör liste görünümü
+    ve bir çözümleme işlemidir — hiçbiri ilişkiyi ORM üzerinde gezmeye ihtiyaç
+    duymaz, sadece gösterip bir insanın bakmasına izin verir.
     """
 
     reporter = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reports_filed")

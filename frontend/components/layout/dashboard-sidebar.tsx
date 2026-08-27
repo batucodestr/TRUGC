@@ -22,9 +22,9 @@ export function DashboardSidebar({ items, onNavigate, className }: DashboardSide
       </div>
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {items.map((item) => {
-          // Section "index" pages (/manage, /dashboard/brand, /dashboard/creator) must match
-          // exactly — otherwise they'd stay highlighted on every sub-page too, since every
-          // sub-page's pathname also starts with the index href.
+          // Bölüm "index" sayfaları (/manage, /dashboard/brand, /dashboard/creator) tam
+          // olarak eşleşmelidir — aksi halde her alt sayfada da vurgulu kalırlar, çünkü
+          // her alt sayfanın pathname'i de index href'i ile başlar.
           const isIndexHref = item.href === "/manage" || item.href === "/dashboard/brand" || item.href === "/dashboard/creator";
           const active = isIndexHref ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
           const Icon = item.icon;

@@ -3,11 +3,12 @@ import { listNotifications } from "@/lib/api/notifications";
 import { apiClient } from "@/lib/api";
 import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 
-// Moderators and full admins share this same panel, but a moderator (is_staff
-// without is_superuser) doesn't get the most sensitive modules — those
-// backend endpoints (system status, roles/permissions, audit log) are
-// IsAdminRole-only, not IsAdminRole|IsModerator, so hiding them here just
-// keeps the sidebar honest about what a moderator can actually reach.
+// Moderatörler ve tam adminler bu aynı paneli paylaşır, ancak bir moderatör
+// (is_superuser olmadan is_staff) en hassas modüllere erişemez — o backend
+// endpoint'leri (sistem durumu, roller/yetkiler, denetim kaydı)
+// IsAdminRole|IsModerator değil, yalnızca IsAdminRole'dür; bu yüzden onları
+// burada gizlemek, kenar çubuğunun bir moderatörün gerçekten neye
+// ulaşabildiği konusunda dürüst kalmasını sağlar.
 const SUPERUSER_ONLY_HREFS = ["/manage/system", "/manage/roles", "/manage/logs"];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

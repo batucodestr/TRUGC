@@ -10,9 +10,10 @@ interface State {
   hasError: boolean;
 }
 
-// Three.js/WebGL can fail or lose context on constrained GPUs (remote desktops,
-// low-power sandboxes). Fail silently rather than surfacing a broken canvas —
-// the page's own background still carries the hero visually without it.
+// Three.js/WebGL, kısıtlı GPU'larda (uzak masaüstleri, düşük güçlü sandbox'lar)
+// başarısız olabilir veya context'ini kaybedebilir. Bozuk bir canvas göstermek
+// yerine sessizce başarısız ol — sayfanın kendi arka planı, o olmadan da hero'yu
+// görsel olarak taşımaya devam eder.
 export class WebglErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
@@ -21,7 +22,7 @@ export class WebglErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch() {
-    // swallow — no telemetry needed for a decorative 3D background
+    // yut — dekoratif bir 3D arka plan için telemetriye gerek yok
   }
 
   render() {

@@ -1,9 +1,10 @@
-// Thin client for the Channels WebSocket endpoint at /ws/conversations/<id>/
-// (see backend/apps/messaging/consumers.py). Handles the JWT handshake
-// (access token as a `?token=` query param — browsers can't set custom
-// headers during the WS upgrade), auto-reconnect with backoff whenever the
-// connection drops (network blip, access token expiring mid-session, server
-// restart), and a small typed event surface for the UI layer.
+// /ws/conversations/<id>/ adresindeki Channels WebSocket endpoint'i için ince
+// bir istemci (bkz. backend/apps/messaging/consumers.py). JWT handshake'ini
+// (access token bir `?token=` sorgu parametresi olarak — tarayıcılar WS
+// upgrade sırasında özel header ayarlayamaz), bağlantı her düştüğünde
+// (ağ kesintisi, oturum ortasında access token'ın süresinin dolması, sunucu
+// yeniden başlatma) backoff ile otomatik yeniden bağlanmayı ve UI katmanı
+// için küçük, tiplenmiş bir olay yüzeyini yönetir.
 import { getAccessToken } from "@/lib/token-store";
 
 export type ConversationSocketEvent =
@@ -37,8 +38,9 @@ export class ConversationSocket {
   private connect() {
     const token = getAccessToken();
     if (!token) {
-      // No in-memory access token yet (e.g. a fresh page load before
-      // restoreSession() finishes) — retry shortly instead of failing silently.
+      // Bellekte henüz bir access token yok (ör. restoreSession() bitmeden
+      // önceki taze bir sayfa yüklemesi) — sessizce başarısız olmak yerine
+      // kısa süre sonra tekrar dene.
       this.scheduleReconnect();
       return;
     }
@@ -57,7 +59,7 @@ export class ConversationSocket {
         const data = JSON.parse(event.data) as ConversationSocketEvent;
         this.onEvent(data);
       } catch {
-        // Ignore malformed frames.
+        // Hatalı biçimlendirilmiş frame'leri yoksay.
       }
     };
 

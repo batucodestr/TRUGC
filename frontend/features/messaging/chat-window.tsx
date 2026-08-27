@@ -11,7 +11,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, Conversation } from "@/types";
 
-// Matches backend/apps/common/validators.py MESSAGE_ATTACHMENT_EXTENSIONS / MAX_MESSAGE_ATTACHMENT_SIZE_BYTES.
+// backend/apps/common/validators.py MESSAGE_ATTACHMENT_EXTENSIONS / MAX_MESSAGE_ATTACHMENT_SIZE_BYTES ile eşleşir.
 const ATTACHMENT_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 

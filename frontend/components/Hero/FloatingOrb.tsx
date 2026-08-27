@@ -24,7 +24,7 @@ export function FloatingOrb() {
       meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.12) * 0.12;
     }
     if (groupRef.current) {
-      // Cursor influence capped well under 10% of the viewport's scale, applied on top of the base offset.
+      // İmleç etkisi, viewport ölçeğinin %10'unun oldukça altında sınırlandırılır, temel ofsetin üzerine uygulanır.
       const targetX = BASE_POSITION[0] + (pointer.x * viewport.width) / 24;
       const targetY = BASE_POSITION[1] + (pointer.y * viewport.height) / 24;
       groupRef.current.position.x = THREE.MathUtils.lerp(groupRef.current.position.x, targetX, 0.03);

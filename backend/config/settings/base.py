@@ -1,5 +1,5 @@
 """
-Base settings shared by all environments.
+Tüm ortamlar tarafından paylaşılan temel ayarlar.
 """
 from datetime import timedelta
 from pathlib import Path
@@ -14,7 +14,7 @@ DEBUG = config("DJANGO_DEBUG", default=False, cast=bool)
 ALLOWED_HOSTS = config("DJANGO_ALLOWED_HOSTS", default="localhost,127.0.0.1", cast=Csv())
 
 # ---------------------------------------------------------------------------
-# Applications
+# Uygulamalar
 # ---------------------------------------------------------------------------
 DJANGO_APPS = [
     "daphne",
@@ -59,6 +59,7 @@ AUTH_USER_MODEL = "accounts.User"
 # ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -94,7 +95,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
 # ---------------------------------------------------------------------------
-# Database
+# Veritabanı
 # ---------------------------------------------------------------------------
 DATABASES = {
     "default": dj_database_url.config(
@@ -107,7 +108,7 @@ DATABASES = {
 }
 
 # ---------------------------------------------------------------------------
-# Password validation
+# Şifre doğrulama
 # ---------------------------------------------------------------------------
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
@@ -117,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # ---------------------------------------------------------------------------
-# Internationalization
+# Dil ve bölge ayarları
 # ---------------------------------------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
@@ -125,7 +126,7 @@ USE_I18N = True
 USE_TZ = True
 
 # ---------------------------------------------------------------------------
-# Static & media files
+# Statik ve medya dosyaları
 # ---------------------------------------------------------------------------
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
@@ -157,7 +158,7 @@ if USE_S3:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------
-# DRF
+# DRF (Django REST Framework)
 # ---------------------------------------------------------------------------
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
@@ -205,7 +206,7 @@ SPECTACULAR_SETTINGS = {
 }
 
 # ---------------------------------------------------------------------------
-# Cache / Redis
+# Önbellek / Redis
 # ---------------------------------------------------------------------------
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
 CACHES = {
@@ -214,19 +215,21 @@ CACHES = {
         "LOCATION": REDIS_URL,
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            # Degrade gracefully (no caching/throttling) instead of hard-failing
-            # requests if Redis is temporarily unreachable.
+            # Redis geçici olarak erişilemez durumdaysa istekleri tamamen
+            # reddetmek yerine (önbellek/throttling olmadan) zarif bir şekilde devam et.
             "IGNORE_EXCEPTIONS": True,
         },
     }
 }
-# Sessions are DB-backed (not cache-backed) so Django admin login keeps working
-# even when Redis is down; the JWT-authenticated REST API never touches sessions.
+# Oturumlar önbellek yerine veritabanı üzerinden yönetilir; böylece Redis çökse
+# bile Django admin girişi çalışmaya devam eder. JWT ile doğrulanan REST API
+# zaten oturumlara hiç dokunmaz.
 SESSION_ENGINE = "django.contrib.sessions.backends.db"
 
 # ---------------------------------------------------------------------------
-# Channels (WebSocket real-time messaging) — same Redis instance as the cache,
-# different logical role (pub/sub group messaging between ASGI consumers).
+# Channels (WebSocket ile gerçek zamanlı mesajlaşma) — önbellekle aynı Redis
+# instance'ını kullanır, ancak farklı bir mantıksal rolde (ASGI consumer'lar
+# arasında pub/sub grup mesajlaşması).
 # ---------------------------------------------------------------------------
 CHANNEL_LAYERS = {
     "default": {
@@ -236,14 +239,15 @@ CHANNEL_LAYERS = {
 }
 
 # ---------------------------------------------------------------------------
-# Celery
+# Celery (arka plan görevleri)
 # ---------------------------------------------------------------------------
 CELERY_BROKER_URL = config("CELERY_BROKER_URL", default=REDIS_URL)
 CELERY_RESULT_BACKEND = config("CELERY_BROKER_URL", default=REDIS_URL)
-# Silences a CPendingDeprecationWarning and keeps today's retry-on-startup
-# behavior explicit for Celery 6+, where the default is flipping to False —
-# without this, the worker would stop retrying a not-yet-ready broker at
-# container startup (a real race against Redis's healthcheck otherwise).
+# Bir CPendingDeprecationWarning uyarısını susturur ve mevcut "başlangıçta
+# yeniden dene" davranışını Celery 6+ için açıkça korur — bu sürümde varsayılan
+# değer False'a dönecek; bu ayar olmadan worker, container başlangıcında henüz
+# hazır olmayan broker'ı yeniden denemeyi bırakır (Redis'in healthcheck'iyle
+# gerçek bir yarış durumu oluşur).
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
@@ -254,15 +258,16 @@ CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
 # ---------------------------------------------------------------------------
 # CORS / CSRF
 # ---------------------------------------------------------------------------
+
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", default="http://localhost:3000", cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = config("CSRF_TRUSTED_ORIGINS", default="http://localhost:3000", cast=Csv())
 
-# Base URL of the Next.js frontend, used to build links embedded in emails.
+# E-postalara gömülen bağlantıları oluşturmak için kullanılan Next.js frontend'in temel URL'si.
 FRONTEND_URL = config("FRONTEND_URL", default="http://localhost:3000").rstrip("/")
 
 # ---------------------------------------------------------------------------
-# Security (behind Caddy reverse proxy)
+# Güvenlik (Caddy reverse proxy arkasında)
 # ---------------------------------------------------------------------------
 if config("SECURE_PROXY_SSL_HEADER", default=True, cast=bool):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -276,13 +281,13 @@ SESSION_COOKIE_SECURE = config("SESSION_COOKIE_SECURE", default=True, cast=bool)
 CSRF_COOKIE_SECURE = config("CSRF_COOKIE_SECURE", default=True, cast=bool)
 SESSION_COOKIE_HTTPONLY = True
 
-# Hide server info
+# Sunucu bilgisini gizle
 SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=0, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 
 # ---------------------------------------------------------------------------
-# Email (future-ready)
+# E-posta (ileride kullanıma hazır)
 # ---------------------------------------------------------------------------
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
@@ -294,7 +299,7 @@ if not EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ---------------------------------------------------------------------------
-# Logging
+# Loglama
 # ---------------------------------------------------------------------------
 LOGGING = {
     "version": 1,

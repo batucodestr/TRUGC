@@ -95,7 +95,7 @@ export function DashboardPreview() {
         >
           <p className="text-xs text-muted-foreground">Toplam ödeme</p>
           <p className="mt-1 text-xl font-semibold">
-            <CountUp value={128400} prefix="$" />
+            <CountUp value={128400} suffix=" ₺" />
           </p>
           <p className="mt-1 text-[11px] text-emerald-500">Bu ay ödenen</p>
         </motion.div>

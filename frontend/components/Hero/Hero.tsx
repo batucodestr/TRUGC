@@ -33,8 +33,8 @@ export function Hero() {
     router.push(q ? `/creators?search=${encodeURIComponent(q)}` : "/creators");
   }
 
-  // Cinematic exit: the WebGL backdrop eases out and scales up slightly as
-  // the hero scrolls past, so the next section blends in rather than cutting.
+  // Sinematik çıkış: hero kaydırılıp geçerken WebGL arka planı yavaşça
+  // kaybolur ve hafifçe büyür, böylece bir sonraki bölüm keskin kesilme yerine harmanlanır.
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const section = sectionRef.current;

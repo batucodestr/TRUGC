@@ -8,8 +8,8 @@ from .models import Conversation, Message
 
 
 class ConversationConsumer(AsyncJsonWebsocketConsumer):
-    """One room per conversation. Handles new messages, typing indicators,
-    read receipts, and lightweight online-presence for the two participants."""
+    """Her konuşma için tek bir oda. Yeni mesajları, yazıyor göstergelerini,
+    okundu bilgisini ve iki katılımcı için hafif çevrimiçi durumu yönetir."""
 
     async def connect(self):
         self.conversation_id = self.scope["url_route"]["kwargs"]["conversation_id"]
@@ -56,7 +56,7 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             await self._mark_read()
             await self.channel_layer.group_send(self.group_name, {"type": "chat.read", "user_id": self.user.id})
 
-    # --- group event handlers (dispatched by "type", dots -> underscores) ---
+    # --- grup olay işleyicileri ("type" ile dağıtılır, noktalar -> alt çizgi) ---
 
     async def chat_message(self, event):
         await self.send_json({"type": "message", "message": event["message"]})
@@ -74,7 +74,7 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             return
         await self.send_json({"type": "presence", "user_id": event["user_id"], "status": event["status"]})
 
-    # --- DB helpers ---
+    # --- veritabanı yardımcıları ---
 
     @database_sync_to_async
     def _is_participant(self, user):

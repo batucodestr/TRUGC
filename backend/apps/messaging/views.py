@@ -57,7 +57,7 @@ class MessageViewSet(viewsets.ModelViewSet):
 
 
 class AdminConversationListView(generics.ListAPIView):
-    """Platform-wide message oversight for /manage — every conversation, not just the caller's own."""
+    """/manage için platform genelinde mesaj denetimi — sadece çağıranın değil, tüm konuşmalar."""
 
     serializer_class = AdminConversationSerializer
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
@@ -71,7 +71,7 @@ class AdminConversationListView(generics.ListAPIView):
 
 
 class AdminConversationMessagesView(generics.ListAPIView):
-    """Every message in one conversation, for the /manage moderation detail view."""
+    """/manage moderasyon detay görünümü için bir konuşmadaki her mesaj."""
 
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
@@ -83,7 +83,7 @@ class AdminConversationMessagesView(generics.ListAPIView):
 
 
 class AdminMessageActionView(APIView):
-    """Moderation actions on a single message: flag as spam, or delete it outright."""
+    """Tek bir mesaj üzerinde moderasyon işlemleri: spam olarak işaretle veya doğrudan sil."""
 
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
 

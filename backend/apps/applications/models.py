@@ -10,7 +10,7 @@ class ApplicationStatus(models.TextChoices):
 
 
 class Application(models.Model):
-    """A creator's application to a brand's campaign."""
+    """Bir creator'ın bir markanın kampanyasına yaptığı başvuru."""
 
     creator = models.ForeignKey("creators.Creator", on_delete=models.CASCADE, related_name="applications")
     campaign = models.ForeignKey("campaigns.Campaign", on_delete=models.CASCADE, related_name="applications")

@@ -10,7 +10,7 @@ class EventType(models.TextChoices):
 
 
 class Event(models.Model):
-    """Lightweight append-only event log powering future analytics/reporting."""
+    """Gelecekteki analitik/raporlamayı besleyen hafif, yalnızca eklenen bir olay günlüğü."""
 
     event_type = models.CharField(max_length=32, choices=EventType.choices, db_index=True)
     actor = models.ForeignKey(

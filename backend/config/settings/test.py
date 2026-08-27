@@ -17,8 +17,9 @@ CACHES = {
 
 PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 
-# Throttling relies on a shared cache keyed by IP/scope; disable it for tests so
-# unrelated test cases hitting the same "auth" scope don't 429 each other.
+# Throttling, IP/scope ile anahtarlanan paylaşımlı bir önbelleğe dayanır; testler
+# için devre dışı bırakıyoruz ki aynı "auth" scope'una düşen ilgisiz test case'leri
+# birbirini 429'a düşürmesin.
 REST_FRAMEWORK = {**REST_FRAMEWORK, "DEFAULT_THROTTLE_CLASSES": [], "DEFAULT_THROTTLE_RATES": {}}
 
 CELERY_TASK_ALWAYS_EAGER = True

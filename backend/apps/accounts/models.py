@@ -52,7 +52,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractBaseUser, PermissionsMixin):
-    """Custom user model. Email is the unique identifier used to authenticate."""
+    """Özel kullanıcı modeli. Kimlik doğrulamada kullanılan benzersiz tanımlayıcı e-postadır."""
 
     email = models.EmailField(_("email address"), unique=True, db_index=True)
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.CREATOR, db_index=True)
@@ -104,7 +104,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 
 
 class Profile(models.Model):
-    """Common profile fields shared by every role."""
+    """Her rol tarafından paylaşılan ortak profil alanları."""
 
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     first_name = models.CharField(max_length=150, blank=True)
@@ -167,7 +167,7 @@ class VerificationStatus(models.Model):
 
 
 class AdminActionLog(models.Model):
-    """Audit trail for every mutating action taken from the /manage panel."""
+    """/manage panelinden yapılan her değiştirici işlem için denetim kaydı."""
 
     actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="admin_actions")
     action = models.CharField(max_length=100, db_index=True)

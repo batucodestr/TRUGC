@@ -30,9 +30,9 @@ export function VerificationList({ requests: initialRequests }: { requests: ApiV
     setPendingId(id);
     try {
       await reviewVerification(id, decision);
-      // Reviewed requests leave the pending queue — the decision itself (with
-      // reviewed_at/reviewed_by/notes) is retained in VerificationStatus, so
-      // nothing is lost, it just no longer belongs in this "pending" list.
+      // İncelenen talepler bekleyen kuyruktan ayrılır — kararın kendisi
+      // (reviewed_at/reviewed_by/notes ile) VerificationStatus'ta saklanır,
+      // bu yüzden hiçbir şey kaybolmaz, sadece artık bu "bekleyen" listeye ait değildir.
       setRequests((prev) => prev.filter((r) => r.id !== id));
       toast.success(decision === "approve" ? "Doğrulama onaylandı" : "Doğrulama reddedildi");
     } catch (err) {

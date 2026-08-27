@@ -35,7 +35,7 @@ class Platform(models.TextChoices):
 
 
 class Creator(models.Model):
-    """A creator profile owned by a user with role=creator."""
+    """role=creator olan bir kullanıcıya ait creator profili."""
 
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="creator")
     display_name = models.CharField(max_length=150, blank=True)
@@ -75,7 +75,7 @@ class Creator(models.Model):
 
 
 class SocialAccount(models.Model):
-    """A single connected platform account, tracked separately for scalable per-platform stats."""
+    """Platform bazında ölçeklenebilir istatistikler için ayrı takip edilen, bağlı tek bir platform hesabı."""
 
     creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="social_accounts")
     platform = models.CharField(max_length=20, choices=Platform.choices)
@@ -98,7 +98,7 @@ class SocialAccount(models.Model):
 
 
 class CreatorPackage(models.Model):
-    """A pricing offer a creator publishes on their public profile."""
+    """Bir creator'ın genel profilinde yayınladığı fiyatlandırma teklifi."""
 
     creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="packages")
     title = models.CharField(max_length=150)
@@ -125,7 +125,7 @@ class PortfolioItemKind(models.TextChoices):
 
 
 class PortfolioItem(models.Model):
-    """A piece of past work a creator showcases on their profile, or a media-kit document."""
+    """Bir creator'ın profilinde sergilediği geçmiş bir çalışma örneği veya bir medya kiti belgesi."""
 
     creator = models.ForeignKey(Creator, on_delete=models.CASCADE, related_name="portfolio_items")
     kind = models.CharField(max_length=20, choices=PortfolioItemKind.choices, default=PortfolioItemKind.PORTFOLIO)

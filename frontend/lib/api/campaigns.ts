@@ -1,10 +1,10 @@
-// API layer for campaigns. Reads/writes the real Django `CampaignViewSet` (`/api/v1/campaigns/`).
+// Kampanyalar için API katmanı. Gerçek Django `CampaignViewSet`'ini (`/api/v1/campaigns/`) okur/yazar.
 import { apiClient, ApiError } from "@/lib/api";
 import { ENDPOINTS, campaignDetail, campaignMedia } from "@/lib/endpoints";
 import type { Campaign, CampaignDeliverable, CampaignMediaItem, CampaignStatus, SocialPlatform } from "@/types";
 
 // ---------------------------------------------------------------------------
-// Real API shapes (mirrors apps/campaigns/serializers.py CampaignSerializer)
+// Gerçek API şekilleri (apps/campaigns/serializers.py CampaignSerializer'ı yansıtır)
 // ---------------------------------------------------------------------------
 
 interface RawCategory {
@@ -105,7 +105,7 @@ function normalizeCampaign(raw: RawCampaign): Campaign {
 }
 
 // ---------------------------------------------------------------------------
-// Reads
+// Okumalar
 // ---------------------------------------------------------------------------
 
 export interface CampaignFilters {
@@ -157,7 +157,7 @@ export async function listMyCampaigns(): Promise<Campaign[]> {
 }
 
 // ---------------------------------------------------------------------------
-// Writes (brand-only: create/update/delete)
+// Yazmalar (yalnızca marka: oluştur/güncelle/sil)
 // ---------------------------------------------------------------------------
 
 export interface CampaignInput {

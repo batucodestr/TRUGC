@@ -9,10 +9,11 @@ import { getBrand } from "@/lib/api/brands";
 import { listCampaigns } from "@/lib/api/campaigns";
 import { formatCurrency, formatDate } from "@/lib/format";
 
-// No generateStaticParams: brand profiles are live marketplace data (new
-// brands register continuously), so every slug is rendered on demand at
-// request time instead of being enumerated from the backend at build time
-// (which would also make the Docker image build depend on a live backend).
+// generateStaticParams yok: marka profilleri canlı marketplace verisidir
+// (yeni markalar sürekli kayıt olur), bu yüzden her slug, backend'den build
+// zamanında numaralandırılmak yerine istek anında talebe göre render edilir
+// (bu aynı zamanda Docker imaj build'inin build anında canlı bir backend'e
+// bağımlı olmasını da engeller).
 
 export default async function BrandProfilePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

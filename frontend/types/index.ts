@@ -1,5 +1,5 @@
-// Core domain types for the Influencer Marketplace platform.
-// These mirror the shape a future Django REST API is expected to return.
+// Influencer Marketplace platformu için temel domain tipleri.
+// Bunlar, bir Django REST API'sinin döndürmesi beklenen şekli yansıtır.
 
 export type UserRole = "brand" | "creator" | "admin";
 
@@ -143,7 +143,7 @@ export interface Brand {
   foundedYear?: number;
 }
 
-// Backend CampaignStatus choices (apps/campaigns/models.py CampaignStatus).
+// Backend CampaignStatus seçenekleri (apps/campaigns/models.py CampaignStatus).
 export type CampaignStatus = "draft" | "published" | "in_progress" | "completed" | "cancelled";
 
 export interface CampaignDeliverable {
@@ -199,7 +199,7 @@ export interface Campaign {
   location?: string;
 }
 
-// Backend ApplicationStatus choices (apps/applications/models.py ApplicationStatus).
+// Backend ApplicationStatus seçenekleri (apps/applications/models.py ApplicationStatus).
 export type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn";
 
 export interface Application {
@@ -346,7 +346,7 @@ export interface PricingPlan {
   id: string;
   name: string;
   price: number;
-  period: "month" | "year";
+  period: "ay" | "yıl";
   description: string;
   features: string[];
   highlighted?: boolean;

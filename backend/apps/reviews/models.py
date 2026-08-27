@@ -4,7 +4,7 @@ from django.db import models
 
 
 class Review(models.Model):
-    """A rating left by one campaign party about the other, once collaboration concludes."""
+    """İş birliği tamamlandığında, kampanya taraflarından birinin diğeri hakkında bıraktığı değerlendirme."""
 
     campaign = models.ForeignKey("campaigns.Campaign", on_delete=models.CASCADE, related_name="reviews")
     reviewer = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="reviews_given")
