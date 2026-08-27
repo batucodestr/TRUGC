@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import { ArrowRight, Volume2, VolumeX } from "lucide-react";
 import { Reveal } from "@/components/Motion/Reveal";
@@ -110,56 +110,27 @@ function VideoCard({ video, viewportRef }: { video: FeedVideo; viewportRef: RefO
 
 function MarqueeTrack({ videos, direction }: { videos: FeedVideo[]; direction: "left" | "right" }) {
   const viewportRef = useRef<HTMLDivElement>(null);
-  const [paused, setPaused] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [dragX, setDragX] = useState(0);
-  const dragStart = useRef({ pointerX: 0, baseX: 0 });
-
-  function handlePointerDown(e: ReactPointerEvent<HTMLDivElement>) {
-    dragStart.current = { pointerX: e.clientX, baseX: dragX };
-    setDragging(true);
-    setPaused(true);
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
-
-  function handlePointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragging) return;
-    const delta = e.clientX - dragStart.current.pointerX;
-    setDragX(dragStart.current.baseX + delta);
-  }
-
-  function endDrag(e: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragging) return;
-    setDragging(false);
-    setPaused(false);
-    e.currentTarget.releasePointerCapture(e.pointerId);
-  }
-
   const doubled = [...videos, ...videos];
 
   return (
-    <div
-      ref={viewportRef}
-      className="touch-pan-y relative w-full cursor-grab overflow-hidden active:cursor-grabbing"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => !dragging && setPaused(false)}
-    >
-      <div style={{ transform: `translateX(${dragX}px)` }}>
-        <div
-          className={cn(
-            "flex w-max gap-4 [will-change:transform] sm:gap-5",
-            direction === "right" ? "animate-[marquee-reverse_22s_linear_infinite]" : "animate-[marquee_22s_linear_infinite]",
-          )}
-          style={{ animationPlayState: paused ? "paused" : "running" }}
-        >
-          {doubled.map((video, i) => (
-            <VideoCard key={`${video.id}-${i}`} video={video} viewportRef={viewportRef} />
-          ))}
-        </div>
+    <div ref={viewportRef} className="relative w-full overflow-hidden">
+      {/* gap yerine her karta eşit sağ margin veriyoruz — flex `gap` kullanılsaydı
+          8 kartlık satırda 7 boşluk olurdu ama translateX(-50%) tam olarak "4
+          kart + 4 boşluk"a değil "4 kart + 3.5 boşluk"a denk gelirdi; bu yarım
+          boşluk farkı her loop'ta görünür bir sıçrama/beyaz çakma yaratıyordu.
+          Her karta (sonuncu dahil) sabit margin vermek toplam genişliği tam
+          8×(kart+margin) yapar, böylece %50 tam olarak bir tekrar birimine denk gelir. */}
+      <div
+        className={cn(
+          "flex w-max [will-change:transform]",
+          direction === "right" ? "animate-[marquee-reverse_18s_linear_infinite]" : "animate-[marquee_18s_linear_infinite]",
+        )}
+      >
+        {doubled.map((video, i) => (
+          <div key={`${video.id}-${i}`} className="mr-4 sm:mr-5">
+            <VideoCard video={video} viewportRef={viewportRef} />
+          </div>
+        ))}
       </div>
     </div>
   );
