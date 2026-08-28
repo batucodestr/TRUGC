@@ -7,7 +7,7 @@ from apps.analytics.models import Event, EventType
 from apps.accounts.permissions import IsAdminRole, IsModerator
 
 from .models import Category, Creator, CreatorPackage, PortfolioItem, SocialAccount
-from .permissions import IsCreatorOwner, IsCreatorOwnerViaCreator
+from .permissions import CanViewCreatorDirectory, IsCreatorOwner, IsCreatorOwnerViaCreator
 from .serializers import (
     CategorySerializer,
     CreatorPackageSerializer,
@@ -29,7 +29,7 @@ class CreatorListView(generics.ListAPIView):
 
     queryset = Creator.objects.select_related("user", "user__profile").prefetch_related("categories", "social_accounts").all()
     serializer_class = CreatorSerializer
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [CanViewCreatorDirectory]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["is_verified", "is_available", "categories", "social_accounts__platform"]
     search_fields = ["display_name", "bio"]

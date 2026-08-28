@@ -51,6 +51,10 @@ class Brand(models.Model):
     founded_year = models.PositiveIntegerField(null=True, blank=True)
 
     is_verified = models.BooleanField(default=False)
+    has_paid_access = models.BooleanField(
+        default=False,
+        help_text="Creator dizinini görüntüleme erişimi. Ödeme alındıktan sonra admin panelinden manuel olarak işaretlenir.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

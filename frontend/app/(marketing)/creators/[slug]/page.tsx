@@ -27,6 +27,8 @@ import { getCreator, listCreators } from "@/lib/api/creators";
 import { listReviewsForReviewee } from "@/lib/api/reviews";
 import { PLATFORM_LABEL, CATEGORY_LABEL_TR } from "@/lib/constants";
 import { formatCompactNumber, formatCurrency, formatDate, formatPercent } from "@/lib/format";
+import { ApiError } from "@/lib/api";
+import type { Creator } from "@/types";
 
 // generateStaticParams yok: creator profilleri canlı marketplace verisidir,
 // build zamanında backend'den numaralandırılmak yerine istek anında talebe
@@ -37,7 +39,16 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
   const creator = await getCreator(slug);
   if (!creator) notFound();
 
-  const allCreators = await listCreators();
+  // Creator dizini artık giriş yapmayan/ödeme onayı olmayan markalara kapalı;
+  // ancak bu profil sayfasının kendisi bilinçli olarak herkese açık kalmalı,
+  // bu yüzden "benzer creator'lar" bölümü kilitliyse sessizce boş listeye
+  // düşer, sayfanın geri kalanını hiçbir şekilde etkilemez.
+  let allCreators: Creator[] = [];
+  try {
+    allCreators = await listCreators();
+  } catch (err) {
+    if (!(err instanceof ApiError && (err.kind === "unauthorized" || err.kind === "forbidden"))) throw err;
+  }
   const similar = allCreators.filter((c) => c.id !== creator.id && c.categories.some((cat) => creator.categories.includes(cat))).slice(0, 4);
   // Değerlendirmeler backend'de Creator'ın altında değil, ayrı bir `apps/reviews`
   // uygulamasında yaşar — ayrı olarak çekilir ve değerlendirmeler sekmesi için burada birleştirilir.

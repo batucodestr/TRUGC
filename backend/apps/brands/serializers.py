@@ -23,7 +23,8 @@ class BrandSerializer(serializers.ModelSerializer):
             "headquarters",
             "founded_year",
             "is_verified",
+            "has_paid_access",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_verified", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_verified", "has_paid_access", "created_at", "updated_at"]

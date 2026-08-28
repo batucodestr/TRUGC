@@ -173,7 +173,11 @@ export async function listCreators(filters: CreatorFilters = {}): Promise<Creato
   const qs = params.toString();
   const endpoint = qs ? `${ENDPOINTS.creators}?${qs}` : ENDPOINTS.creators;
 
-  const page = await apiClient.getPublic<Paginated<ApiCreator>>(endpoint);
+  // Creator dizini artık giriş yapmayan ve ödeme onayı olmayan markalara kapalı
+  // (CreatorListView, CanViewCreatorDirectory ile korunuyor) — bu yüzden
+  // getPublic yerine get() kullanılır, aksi halde oturum çerezi hiç
+  // gönderilmez ve backend her isteği anonim sayar.
+  const page = await apiClient.get<Paginated<ApiCreator>>(endpoint);
   let results = page.results.map(normalizeCreator);
 
   if (filters.country) {

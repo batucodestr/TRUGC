@@ -4,10 +4,22 @@ import { Button } from "@/components/ui/button";
 import { CreatorCard } from "@/components/Cards/CreatorCard";
 import { Reveal } from "@/components/Motion/Reveal";
 import { EmptyState } from "@/components/shared/empty-state";
+import { LockedCreatorsTeaser } from "@/components/shared/locked-creators-teaser";
 import { listFeaturedCreators } from "@/lib/api/creators";
+import { ApiError } from "@/lib/api";
+import type { Creator } from "@/types";
 
 export async function FeaturedCreators() {
-  const creators = await listFeaturedCreators(8);
+  let creators: Creator[] = [];
+  let locked: "login" | "payment" | null = null;
+
+  try {
+    creators = await listFeaturedCreators(8);
+  } catch (err) {
+    if (err instanceof ApiError && err.kind === "unauthorized") locked = "login";
+    else if (err instanceof ApiError && err.kind === "forbidden") locked = "payment";
+    else throw err;
+  }
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
@@ -23,7 +35,11 @@ export async function FeaturedCreators() {
         </Button>
       </Reveal>
 
-      {creators.length === 0 ? (
+      {locked ? (
+        <div className="mt-10">
+          <LockedCreatorsTeaser reason={locked} />
+        </div>
+      ) : creators.length === 0 ? (
         <EmptyState icon={Users} title="Henüz creator bulunmuyor" description="Yeni creator'lar katıldıkça burada listelenecek." className="mt-10" />
       ) : (
         <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
