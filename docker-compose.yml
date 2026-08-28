@@ -126,9 +126,12 @@ services:
       - backend
     networks:
       - internal
+      - edge
 
 networks:
   internal:
+  edge:
+    external: true
 
 volumes:
   postgres_data:

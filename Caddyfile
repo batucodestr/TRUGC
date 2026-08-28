@@ -3,6 +3,28 @@
     email admin@{$DOMAIN}
 }
 
+www.batucodes.com {
+    redir https://batucodes.com{uri} permanent
+}
+
+batucodes.com {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    reverse_proxy batucodes-web:3000 {
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-For {remote}
+        header_up X-Real-IP {remote}
+    }
+}
+
 www.{$DOMAIN} {
     redir https://{$DOMAIN}{uri} permanent
 }
