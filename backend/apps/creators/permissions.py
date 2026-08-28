@@ -30,6 +30,13 @@ class CanViewCreatorDirectory(BasePermission):
         if not (user and user.is_authenticated):
             return False
         if user.role == Role.BRAND:
-            brand = getattr(user, "brand", None)
-            return bool(brand and brand.has_paid_access)
+            from apps.brands.models import Brand
+
+            # getattr(user, "brand", ...) üzerinden gidersek, bu User nesnesinin
+            # .brand ilişkisi daha önce (ör. kayıt sırasındaki post_save sinyali
+            # zincirinde, Brand satırı henüz oluşmadan) bir kez erişilmiş ve
+            # Python tarafında cache'lenmiş olabilir; sonraki bir has_paid_access
+            # güncellemesi (ör. admin panelindeki toplu .update()) bu cache'i
+            # geçersiz kılmaz. Bunun yerine her seferinde taze bir sorgu atarız.
+            return Brand.objects.filter(user_id=user.id, has_paid_access=True).exists()
         return True

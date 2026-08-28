@@ -56,6 +56,17 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Creator keşfi markalar içindir — giriş yapmış bir creator, /creators'a
+  // (liste veya tekil profil) doğrudan URL ile de gitmeye çalışsa kendi
+  // panosuna yönlendirilir. Anonim ziyaretçiler ve markalar etkilenmez.
+  if (pathname.startsWith("/creators")) {
+    const session = readSession(request);
+    if (session?.user?.role === "creator") {
+      return NextResponse.redirect(new URL("/dashboard/creator", request.url));
+    }
+    return NextResponse.next();
+  }
+
   if (!pathname.startsWith("/dashboard")) {
     return NextResponse.next();
   }
@@ -81,5 +92,5 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/manage/:path*"],
+  matcher: ["/dashboard/:path*", "/manage/:path*", "/creators/:path*"],
 };

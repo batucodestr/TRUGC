@@ -23,6 +23,20 @@ class MessagingTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Conversation.objects.first().participants.count(), 2)
 
+    def test_cannot_create_conversation_with_only_self(self):
+        self.client.force_authenticate(self.brand_user)
+        url = reverse("messaging:conversation-list")
+        response = self.client.post(url, {"participant_ids": [self.brand_user.pk]})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Conversation.objects.exists())
+
+    def test_cannot_create_conversation_with_only_self_and_duplicates(self):
+        self.client.force_authenticate(self.brand_user)
+        url = reverse("messaging:conversation-list")
+        response = self.client.post(url, {"participant_ids": [self.brand_user.pk, self.brand_user.pk]})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(Conversation.objects.exists())
+
     def test_send_and_list_messages(self):
         conversation = Conversation.objects.create()
         conversation.participants.set([self.brand_user, self.creator_user])

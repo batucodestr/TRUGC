@@ -4,6 +4,7 @@ from rest_framework.response import Response
 
 from apps.analytics.models import Event, EventType
 
+from apps.accounts.models import Role
 from apps.accounts.permissions import IsAdminRole, IsModerator
 
 from .models import Category, Creator, CreatorPackage, PortfolioItem, SocialAccount
@@ -34,6 +35,15 @@ class CreatorListView(generics.ListAPIView):
     filterset_fields = ["is_verified", "is_available", "categories", "social_accounts__platform"]
     search_fields = ["display_name", "bio"]
     ordering_fields = ["created_at"]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # Bir creator (frontend zaten bu listeye erişemez, ama API'yi doğrudan
+        # çağırsa bile) kendi kartını bu dizinde asla görmemeli.
+        user = self.request.user
+        if user.is_authenticated and user.role == Role.CREATOR:
+            qs = qs.exclude(user_id=user.id)
+        return qs
 
 
 class CreatorDetailView(generics.RetrieveAPIView):

@@ -45,7 +45,38 @@ class CreatorProfileTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]) if "results" in response.data else len(response.data), 0)
 
-    def test_public_creator_list_is_accessible_without_auth(self):
+    def test_creator_directory_requires_authentication(self):
+        # Creator dizini artık markalar için giriş + ödeme onayı gerektiriyor
+        # (bkz. CanViewCreatorDirectory) — anonim erişim 401 döner.
+        url = reverse("creators:creator-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_authenticated_creator_can_view_directory_but_not_own_card(self):
+        self.client.force_authenticate(self.creator_user)
+        url = reverse("creators:creator-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        returned_ids = {c["user_id"] for c in response.data["results"]}
+        self.assertIn(self.other_creator_user.id, returned_ids)
+        self.assertNotIn(self.creator_user.id, returned_ids)
+
+    def test_brand_without_paid_access_is_forbidden(self):
+        from apps.brands.models import Brand
+
+        brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        Brand.objects.filter(user=brand_user).update(has_paid_access=False)
+        self.client.force_authenticate(brand_user)
+        url = reverse("creators:creator-list")
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_brand_with_paid_access_can_view_directory(self):
+        from apps.brands.models import Brand
+
+        brand_user = User.objects.create_user(email="brand2@example.com", password="StrongPass123", role=Role.BRAND)
+        Brand.objects.filter(user=brand_user).update(has_paid_access=True)
+        self.client.force_authenticate(brand_user)
         url = reverse("creators:creator-list")
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)

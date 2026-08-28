@@ -28,6 +28,11 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
+  // Creator'lar için "İçerik Üreticileri Keşfet" bağlantısı gizlenir — o akış
+  // markaların creator bulması içindir, bir creator'ın kendi iş akışıyla
+  // ilgisi yoktur.
+  const navLinks = session?.user.role === "creator" ? NAV_LINKS.filter((link) => link.href !== "/creators") : NAV_LINKS;
+
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
     onScroll();
@@ -76,7 +81,7 @@ export function Navbar() {
         </motion.div>
 
         <nav className="hidden items-center gap-1 md:flex">
-          {NAV_LINKS.map((link) => (
+          {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -132,7 +137,7 @@ export function Navbar() {
               </SheetTitle>
             </SheetHeader>
             <div className="flex flex-col gap-1 px-4">
-              {NAV_LINKS.map((link) => (
+              {navLinks.map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}

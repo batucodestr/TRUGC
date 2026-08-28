@@ -140,7 +140,18 @@ STORAGES = {
     },
 }
 
-MEDIA_URL = "/media/"
+# MEDIA_URL göreli (/media/) olduğunda, DRF'nin ImageField'ı mutlak URL
+# üretmek için request.build_absolute_uri() çağırır — bu da isteğin GERÇEKTE
+# hangi Host üzerinden geldiğine bağlıdır. Frontend'in server-side fetch'leri
+# Caddy'yi atlayıp Docker ağı üzerinden doğrudan backend:8000'e gittiğinden
+# (bkz. lib/api.ts), bu durumda üretilen avatar/kapak URL'leri
+# "http://backend:8000/media/..." olur — tarayıcının hiçbir zaman
+# çözemeyeceği, yalnızca container'lar arası geçerli bir adres. DOMAIN
+# tanımlıysa MEDIA_URL'i baştan mutlak (gerçek genel alan adı) yaparak bunu
+# request'in geldiği yoldan tamamen bağımsız hale getiriyoruz — Django'nun
+# build_absolute_uri()'si zaten mutlak bir URL'i olduğu gibi bırakır.
+_public_domain = config("DOMAIN", default="")
+MEDIA_URL = f"https://{_public_domain}/media/" if _public_domain else "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
 USE_S3 = config("USE_S3", default=False, cast=bool)

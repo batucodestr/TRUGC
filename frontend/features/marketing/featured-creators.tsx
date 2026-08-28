@@ -6,10 +6,20 @@ import { Reveal } from "@/components/Motion/Reveal";
 import { EmptyState } from "@/components/shared/empty-state";
 import { LockedCreatorsTeaser } from "@/components/shared/locked-creators-teaser";
 import { listFeaturedCreators } from "@/lib/api/creators";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiClient } from "@/lib/api";
+import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 import type { Creator } from "@/types";
 
 export async function FeaturedCreators() {
+  // Creator'lar için bu bölüm hiç render edilmez — diğer creator'ları keşfetmek
+  // bir creator'ın iş akışının parçası değildir, bu akış markalar içindir.
+  try {
+    const me = await apiClient.get<{ role: string }>(AUTH_ENDPOINTS.me);
+    if (me.role === "creator") return null;
+  } catch {
+    // anonim ziyaretçi — bölüm normal şekilde gösterilir
+  }
+
   let creators: Creator[] = [];
   let locked: "login" | "payment" | null = null;
 

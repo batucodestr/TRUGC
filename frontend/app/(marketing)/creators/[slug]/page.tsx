@@ -27,7 +27,8 @@ import { getCreator, listCreators } from "@/lib/api/creators";
 import { listReviewsForReviewee } from "@/lib/api/reviews";
 import { PLATFORM_LABEL, CATEGORY_LABEL_TR } from "@/lib/constants";
 import { formatCompactNumber, formatCurrency, formatDate, formatPercent } from "@/lib/format";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiClient } from "@/lib/api";
+import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 import type { Creator } from "@/types";
 
 // generateStaticParams yok: creator profilleri canlı marketplace verisidir,
@@ -53,6 +54,17 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
   // Değerlendirmeler backend'de Creator'ın altında değil, ayrı bir `apps/reviews`
   // uygulamasında yaşar — ayrı olarak çekilir ve değerlendirmeler sekmesi için burada birleştirilir.
   const reviews = creator.userId ? await listReviewsForReviewee(creator.userId) : [];
+
+  // Kullanıcı kendi profiline mesaj gönderememeli — "mesaj gönder" butonu
+  // kendi profilinde hiç gösterilmez (asıl doğrulama backend'de
+  // ConversationSerializer.create'de yapılır, bu yalnızca UI'ı sadeleştirir).
+  let isOwnProfile = false;
+  try {
+    const me = await apiClient.get<{ id: number }>(AUTH_ENDPOINTS.me);
+    isOwnProfile = creator.userId != null && String(me.id) === creator.userId;
+  } catch {
+    isOwnProfile = false;
+  }
 
   return (
     <div>
@@ -96,7 +108,7 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
           </div>
           <div className="hidden items-center gap-2 sm:flex">
             <ReportDialog targetType="creator" targetId={creator.id} targetLabel="Bu profili" />
-            <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />
+            {!isOwnProfile && <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />}
           </div>
         </div>
 
@@ -254,15 +266,17 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
                       ))}
                     </ul>
                     <p className="mt-3 text-xs text-muted-foreground">{pkg.turnaroundDays} günde teslim</p>
-                    <ContactCreatorDialog
-                      creatorName={creator.name}
-                      packages={[pkg]}
-                      trigger={
-                        <Button variant="outline" className="mt-4 rounded-full">
-                          Paketi seç
-                        </Button>
-                      }
-                    />
+                    {!isOwnProfile && (
+                      <ContactCreatorDialog
+                        creatorName={creator.name}
+                        packages={[pkg]}
+                        trigger={
+                          <Button variant="outline" className="mt-4 rounded-full">
+                            Paketi seç
+                          </Button>
+                        }
+                      />
+                    )}
                   </Card>
                 ))}
               </TabsContent>
@@ -302,14 +316,18 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
                   <dd className="font-medium">{formatDate(creator.joinedAt)}</dd>
                 </div>
               </dl>
-              <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} trigger={
-                <Button size="lg" className="mt-5 w-full gap-2 rounded-full bg-gradient-brand shadow-sm shadow-violet-600/30 hover:opacity-90 sm:hidden">
-                  {creator.name.split(" ")[0]} ile iletişime geç
-                </Button>
-              } />
-              <div className="mt-5 hidden sm:block">
-                <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />
-              </div>
+              {!isOwnProfile && (
+                <>
+                  <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} trigger={
+                    <Button size="lg" className="mt-5 w-full gap-2 rounded-full bg-gradient-brand shadow-sm shadow-violet-600/30 hover:opacity-90 sm:hidden">
+                      {creator.name.split(" ")[0]} ile iletişime geç
+                    </Button>
+                  } />
+                  <div className="mt-5 hidden sm:block">
+                    <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />
+                  </div>
+                </>
+              )}
             </Card>
           </aside>
         </div>

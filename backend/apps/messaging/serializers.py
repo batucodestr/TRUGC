@@ -96,9 +96,17 @@ class ConversationSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         request = self.context["request"]
         participants = set(validated_data.pop("participants"))
+
+        # participant_ids'te yalnızca çağıranın kendi id'si gönderilmiş olsa bile
+        # (ör. kendi profiline "mesaj gönder" denemesi) bunu açıkça reddet —
+        # request.user'ı eklemeden önce kontrol ederek "en az 2 katılımcı"
+        # kuralının yan etkisine güvenmek yerine net bir hata mesajı veriyoruz.
+        if participants <= {request.user}:
+            raise serializers.ValidationError({"participant_ids": "Kendinize mesaj gönderemezsiniz."})
+
         participants.add(request.user)
         if len(participants) < 2:
-            raise serializers.ValidationError({"participant_ids": "A conversation needs at least two participants."})
+            raise serializers.ValidationError({"participant_ids": "Bir konuşmanın en az iki katılımcısı olmalıdır."})
         conversation = Conversation.objects.create(**validated_data)
         conversation.participants.set(participants)
         return conversation

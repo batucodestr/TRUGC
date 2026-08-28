@@ -6,8 +6,6 @@ import {
   CreditCard,
   Settings,
   User,
-  Package,
-  Wallet,
   MessageSquare,
   Users,
   UserCog,
@@ -37,14 +35,17 @@ export const BRAND_NAV: DashboardNavItem[] = [
   { label: "Ayarlar", href: "/dashboard/brand/settings", icon: Settings },
 ];
 
+// Creator navigasyonu bilinçli olarak minimal tutulur: creator'ın odağı
+// kendi iş akışı olmalı (kampanyalara başvurmak, mesajlaşmak, profilini
+// yönetmek) — diğer creator'ları keşfetmeye yönelik hiçbir bağlantı
+// içermez, o akış markalar içindir. Paketler/kazançlar/ayarlar sayfaları
+// hâlâ mevcuttur (kaldırılmadı), yalnızca bu sadeleştirilmiş menüde
+// bağlantı verilmez; profil sayfası üzerinden erişilebilir.
 export const CREATOR_NAV: DashboardNavItem[] = [
-  { label: "Genel Bakış", href: "/dashboard/creator", icon: LayoutDashboard },
-  { label: "Profilim", href: "/dashboard/creator/profile", icon: User },
-  { label: "Paketlerim", href: "/dashboard/creator/packages", icon: Package },
-  { label: "Başvurular", href: "/dashboard/creator/applications", icon: FileText },
+  { label: "Dashboard", href: "/dashboard/creator", icon: LayoutDashboard },
+  { label: "Kampanyalar", href: "/campaigns", icon: Megaphone },
   { label: "Mesajlar", href: "/dashboard/messages", icon: MessageSquare },
-  { label: "Kazançlar", href: "/dashboard/creator/earnings", icon: Wallet },
-  { label: "Ayarlar", href: "/dashboard/creator/settings", icon: Settings },
+  { label: "Profil", href: "/dashboard/creator/profile", icon: User },
 ];
 
 export const ADMIN_NAV: DashboardNavItem[] = [
