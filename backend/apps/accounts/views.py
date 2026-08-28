@@ -271,9 +271,13 @@ class UserAdminActionView(APIView):
             user.is_active = False
             user.save(update_fields=["is_active"])
         elif op == "activate":
+            # "pending" durumu (bkz. frontend mapUser) yalnızca email_verified'a
+            # bakar — bu alanı da işaretlemezsek admin "Etkinleştir"e bassa bile
+            # durum hiçbir zaman "Beklemede"den çıkmazdı.
             user.is_active = True
             user.is_banned = False
-            user.save(update_fields=["is_active", "is_banned"])
+            user.email_verified = True
+            user.save(update_fields=["is_active", "is_banned", "email_verified"])
         elif op == "ban":
             user.is_active = False
             user.is_banned = True

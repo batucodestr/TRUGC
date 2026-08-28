@@ -277,7 +277,7 @@ export function UserManagementTable() {
                             <DropdownMenuItem onClick={() => setDetailUserId(user.id)}>Görüntüle / Düzenle</DropdownMenuItem>
                             {!user.verified && <DropdownMenuItem onClick={() => runSingleAction(user, "verify")}>Doğrula</DropdownMenuItem>}
                             <DropdownMenuSeparator />
-                            {user.status === "suspended" || user.status === "banned" ? (
+                            {user.status !== "active" ? (
                               <DropdownMenuItem onClick={() => runSingleAction(user, "activate")}>Etkinleştir</DropdownMenuItem>
                             ) : (
                               <DropdownMenuItem onClick={() => runSingleAction(user, "suspend")}>Askıya al</DropdownMenuItem>
