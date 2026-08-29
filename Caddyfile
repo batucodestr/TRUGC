@@ -70,3 +70,78 @@ www.{$DOMAIN} {
         Referrer-Policy "same-origin"
     }
 }
+
+# ================= ubercekici.com =================
+# Eklendi: UberCekici production deploy hazırlığı (/opt/UberCekici).
+# UberCekici kendi Caddy'sini çalıştırmıyor; backend/websocket/frontend/
+# static container'ları "edge" ağına katılıp burada isimleriyle proxy
+# ediliyor (ubercekici-backend, ubercekici-websocket, ubercekici-frontend,
+# ubercekici-static — bkz. /opt/UberCekici/docker-compose.yml).
+# Kaynak/versiyon takibi: /opt/UberCekici/infra/caddy/ubercekici.site.caddy
+
+www.ubercekici.com {
+    redir https://ubercekici.com{uri} permanent
+}
+
+ubercekici.com {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "geolocation=(self), camera=(), microphone=()"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https://*.tile.openstreetmap.org https://unpkg.com; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://ubercekici.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        -Server
+    }
+
+    @websocket {
+        header Connection *Upgrade*
+        header Upgrade websocket
+    }
+    handle @websocket {
+        reverse_proxy ubercekici-websocket:8001 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    @static path /static/* /media/*
+    handle @static {
+        reverse_proxy ubercekici-static:80
+    }
+
+    handle /api/* {
+        reverse_proxy ubercekici-backend:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    handle /django-admin/* {
+        reverse_proxy ubercekici-backend:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    handle {
+        reverse_proxy ubercekici-frontend:80 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
+        }
+    }
+
+    log {
+        output file /var/log/caddy/ubercekici.log {
+            roll_size 10mb
+            roll_keep 5
+        }
+        format json
+    }
+}

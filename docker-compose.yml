@@ -109,7 +109,12 @@ services:
       - internal
 
   caddy:
-    image: caddy:2-alpine
+    # caddy:2-alpine (musl libc) tekrarlı "lookup ... on 127.0.0.11:53:
+    # server misbehaving" hatalarına yol açıyordu — bu container birden
+    # fazla Docker ağına (trugc_internal + edge) bağlı olduğunda musl'ın
+    # stub resolver'ının Docker'ın embedded DNS'iyle bilinen bir uyumsuzluğu.
+    # glibc tabanlı caddy:2 imajı bu sınıftaki hatayı ortadan kaldırır.
+    image: caddy:2
     restart: unless-stopped
     env_file: .env
     ports:
