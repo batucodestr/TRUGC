@@ -7,7 +7,7 @@
 // okundu/durum güncellemeleri bunun yerine Channels WebSocket üzerinden gider
 // — bkz. lib/ws/conversation-socket.ts ve features/messaging/messaging-app.tsx.
 import { apiClient } from "@/lib/api";
-import { ENDPOINTS, conversationMessages } from "@/lib/endpoints";
+import { ENDPOINTS, conversationDetail, conversationMessageDetail, conversationMessages } from "@/lib/endpoints";
 import type { ChatMessage, Conversation, MessageAttachment, UserRole } from "@/types";
 
 /** DRF's paginated list envelope. */
@@ -21,6 +21,8 @@ interface Paginated<T> {
 interface ApiParticipant {
   id: number;
   email: string;
+  /** Profile.full_name when set, falling back to the email — see apps/messaging/serializers.py::_serialize_participant. */
+  name: string;
   role: UserRole;
 }
 
@@ -35,9 +37,13 @@ interface ApiAttachment {
 export interface ApiMessage {
   id: number;
   conversation: number;
+  sender_id: number;
   sender_email: string;
+  sender_name: string;
   body: string;
   is_read: boolean;
+  is_edited: boolean;
+  edited_at: string | null;
   attachments: ApiAttachment[];
   created_at: string;
 }
@@ -73,12 +79,13 @@ export function normalizeMessage(msg: ApiMessage, currentUserEmail?: string): Ch
     id: String(msg.id),
     conversationId: String(msg.conversation),
     senderId: msg.sender_email,
-    senderName: isOwn ? "You" : msg.sender_email,
+    senderName: isOwn ? "You" : msg.sender_name || msg.sender_email,
     text: msg.body,
     createdAt: msg.created_at,
     attachments: msg.attachments?.length ? msg.attachments.map(normalizeAttachment) : undefined,
     isOwn,
     isRead: msg.is_read,
+    isEdited: msg.is_edited,
   };
 }
 
@@ -90,10 +97,13 @@ export function normalizeMessage(msg: ApiMessage, currentUserEmail?: string): Ch
 function normalizeConversation(conv: ApiConversation, currentUserEmail?: string): Conversation {
   const other = conv.participants.find((p) => p.email !== currentUserEmail) ?? conv.participants[0];
   const last = conv.last_message;
+  // Sohbet başlığı: veritabanındaki isim (Profile.full_name) doluysa
+  // "İsim (email)", yoksa sadece email.
+  const otherLabel = other ? (other.name && other.name !== other.email ? `${other.name} (${other.email})` : other.email) : "Unknown";
   return {
     id: String(conv.id),
     participantId: other ? String(other.id) : "",
-    participantName: other?.email ?? "Unknown",
+    participantName: otherLabel,
     participantRole: other?.role ?? "creator",
     lastMessage: last?.body ?? "",
     lastMessageAt: last?.created_at ?? conv.updated_at,
@@ -139,6 +149,25 @@ export async function sendMessage(
     created = await apiClient.post<ApiMessage>(conversationMessages(conversationId), { body });
   }
   return normalizeMessage(created, currentUserEmail);
+}
+
+export async function editMessage(
+  conversationId: string,
+  messageId: string,
+  body: string,
+  currentUserEmail?: string,
+): Promise<ChatMessage> {
+  const updated = await apiClient.patch<ApiMessage>(conversationMessageDetail(conversationId, messageId), { body });
+  return normalizeMessage(updated, currentUserEmail);
+}
+
+export async function deleteMessage(conversationId: string, messageId: string): Promise<void> {
+  await apiClient.delete(conversationMessageDetail(conversationId, messageId));
+}
+
+/** Deletes an entire conversation (and its messages/attachments, cascaded server-side) for both participants. */
+export async function deleteConversation(conversationId: string): Promise<void> {
+  await apiClient.delete(conversationDetail(conversationId));
 }
 
 export async function createConversation(participantIds: number[], campaignId?: number): Promise<Conversation> {

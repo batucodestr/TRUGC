@@ -1,5 +1,6 @@
 from channels.db import database_sync_to_async
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.utils import timezone
 
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
@@ -56,10 +57,35 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             await self._mark_read()
             await self.channel_layer.group_send(self.group_name, {"type": "chat.read", "user_id": self.user.id})
 
+        elif message_type == "edit":
+            message_id = content.get("id")
+            body = (content.get("body") or "").strip()
+            if not message_id or not body:
+                return
+            updated = await self._edit_message(message_id, body)
+            if updated:
+                await self.channel_layer.group_send(self.group_name, {"type": "chat.edit", "message": updated})
+
+        elif message_type == "delete":
+            message_id = content.get("id")
+            if not message_id:
+                return
+            deleted = await self._delete_message(message_id)
+            if deleted:
+                await self.channel_layer.group_send(
+                    self.group_name, {"type": "chat.delete", "message_id": int(message_id)}
+                )
+
     # --- grup olay işleyicileri ("type" ile dağıtılır, noktalar -> alt çizgi) ---
 
     async def chat_message(self, event):
         await self.send_json({"type": "message", "message": event["message"]})
+
+    async def chat_edit(self, event):
+        await self.send_json({"type": "edit", "message": event["message"]})
+
+    async def chat_delete(self, event):
+        await self.send_json({"type": "delete", "message_id": event["message_id"]})
 
     async def chat_typing(self, event):
         if event["user_id"] == self.user.id:
@@ -83,12 +109,17 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
     @database_sync_to_async
     def _create_message(self, body):
         message = Message.objects.create(conversation_id=self.conversation_id, sender=self.user, body=body)
+        full_name = getattr(getattr(self.user, "profile", None), "full_name", "")
         return {
             "id": message.id,
             "conversation": int(self.conversation_id),
+            "sender_id": self.user.id,
             "sender_email": self.user.email,
+            "sender_name": full_name or self.user.email,
             "body": message.body,
             "is_read": message.is_read,
+            "is_edited": False,
+            "edited_at": None,
             "attachments": [],
             "created_at": message.created_at.isoformat(),
         }
@@ -98,6 +129,29 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         Message.objects.filter(conversation_id=self.conversation_id, is_read=False).exclude(sender=self.user).update(
             is_read=True
         )
+
+    @database_sync_to_async
+    def _edit_message(self, message_id, body):
+        # Yalnızca kendi mesajını düzenleyebilir — bkz. views.MessageViewSet._check_is_sender
+        # ile aynı kural, burada WS yolu için tekrarlanıyor.
+        updated = Message.objects.filter(pk=message_id, conversation_id=self.conversation_id, sender=self.user).update(
+            body=body, is_edited=True, edited_at=timezone.now()
+        )
+        if not updated:
+            return None
+        return {
+            "id": int(message_id),
+            "conversation": int(self.conversation_id),
+            "body": body,
+            "is_edited": True,
+        }
+
+    @database_sync_to_async
+    def _delete_message(self, message_id):
+        deleted, _ = Message.objects.filter(
+            pk=message_id, conversation_id=self.conversation_id, sender=self.user
+        ).delete()
+        return bool(deleted)
 
     @database_sync_to_async
     def _notify_other_participants(self, body):

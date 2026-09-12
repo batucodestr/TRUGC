@@ -1,6 +1,8 @@
 from django.db.models import Count
+from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,7 +20,7 @@ from .serializers import AdminConversationSerializer, ConversationSerializer, Me
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated, IsConversationParticipant]
-    http_method_names = ["get", "post", "head", "options"]
+    http_method_names = ["get", "post", "delete", "head", "options"]
 
     def get_queryset(self):
         return Conversation.objects.filter(participants=self.request.user).prefetch_related("participants", "messages")
@@ -27,7 +29,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
     permission_classes = [permissions.IsAuthenticated, IsConversationParticipant]
-    http_method_names = ["get", "post", "head", "options"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
 
     def get_conversation(self):
         conversation = get_object_or_404(Conversation, pk=self.kwargs["conversation_pk"])
@@ -54,6 +56,21 @@ class MessageViewSet(viewsets.ModelViewSet):
                 body=message.body[:200],
                 notification_type=NotificationType.MESSAGE,
             )
+
+    def _check_is_sender(self, message):
+        # Bir konuşmanın katılımcısı olmak, o konuşmadaki mesajları görmek için
+        # yeterlidir (IsConversationParticipant) ama bir mesajı düzenlemek/silmek
+        # yalnızca onu gönderen kişiye ait bir eylemdir.
+        if message.sender_id != self.request.user.pk:
+            raise PermissionDenied("You can only edit or delete your own messages.")
+
+    def perform_update(self, serializer):
+        self._check_is_sender(serializer.instance)
+        serializer.save(is_edited=True, edited_at=timezone.now())
+
+    def perform_destroy(self, instance):
+        self._check_is_sender(instance)
+        instance.delete()
 
 
 class AdminConversationListView(generics.ListAPIView):

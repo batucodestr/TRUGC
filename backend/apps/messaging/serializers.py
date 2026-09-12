@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db import models
 from rest_framework import serializers
 
 from apps.common.validators import message_attachment_extension_validator, validate_message_attachment_size
@@ -28,13 +29,49 @@ class MessageSerializer(serializers.ModelSerializer):
         validators=[message_attachment_extension_validator, validate_message_attachment_size],
     )
 
+    sender_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Message
-        fields = ["id", "conversation", "sender_email", "body", "is_read", "is_flagged", "attachments", "attachment", "created_at"]
-        read_only_fields = ["id", "conversation", "sender_email", "is_read", "is_flagged", "attachments", "created_at"]
+        fields = [
+            "id",
+            "conversation",
+            "sender_id",
+            "sender_email",
+            "sender_name",
+            "body",
+            "is_read",
+            "is_flagged",
+            "is_edited",
+            "edited_at",
+            "attachments",
+            "attachment",
+            "created_at",
+        ]
+        read_only_fields = [
+            "id",
+            "conversation",
+            "sender_id",
+            "sender_email",
+            "sender_name",
+            "is_read",
+            "is_flagged",
+            "is_edited",
+            "edited_at",
+            "attachments",
+            "created_at",
+        ]
+
+    sender_id = serializers.IntegerField(source="sender.id", read_only=True)
+
+    def get_sender_name(self, obj):
+        full_name = getattr(getattr(obj.sender, "profile", None), "full_name", "")
+        return full_name or obj.sender.email
 
     def validate(self, attrs):
-        if not attrs.get("body") and not attrs.get("attachment"):
+        # PATCH (edit) çağrılarında ek/gövde zorunlu değildir — bu yalnızca
+        # ilk oluşturmada geçerlidir.
+        if self.instance is None and not attrs.get("body") and not attrs.get("attachment"):
             raise serializers.ValidationError("A message needs a body or an attachment.")
         return attrs
 
@@ -67,11 +104,16 @@ class AdminConversationSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_participants(self, obj):
-        return [{"id": u.id, "email": u.email, "role": u.role} for u in obj.participants.all()]
+        return [_serialize_participant(u) for u in obj.participants.all()]
 
     def get_last_message(self, obj):
         last = obj.messages.order_by("-created_at").first()
         return MessageSerializer(last).data if last else None
+
+
+def _serialize_participant(user):
+    full_name = getattr(getattr(user, "profile", None), "full_name", "")
+    return {"id": user.id, "email": user.email, "name": full_name or user.email, "role": user.role}
 
 
 class ConversationSerializer(serializers.ModelSerializer):
@@ -87,7 +129,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "participants", "last_message", "created_at", "updated_at"]
 
     def get_participants(self, obj):
-        return [{"id": u.id, "email": u.email, "role": u.role} for u in obj.participants.all()]
+        return [_serialize_participant(u) for u in obj.participants.all()]
 
     def get_last_message(self, obj):
         last = obj.messages.order_by("-created_at").first()
@@ -107,6 +149,19 @@ class ConversationSerializer(serializers.ModelSerializer):
         participants.add(request.user)
         if len(participants) < 2:
             raise serializers.ValidationError({"participant_ids": "Bir konuşmanın en az iki katılımcısı olmalıdır."})
+
+        campaign = validated_data.get("campaign")
+        # Aynı katılımcı kümesi (ve aynı kampanya) için tekrar "iletişime geç"
+        # tıklandığında her seferinde yeni bir konuşma açmak yerine var olanı
+        # bul — aksi halde her tıklama chat listesinde ayrı bir satır oluşturur.
+        existing = (
+            Conversation.objects.annotate(participant_count=models.Count("participants"))
+            .filter(campaign=campaign, participant_count=len(participants))
+        )
+        for candidate in existing:
+            if set(candidate.participants.values_list("pk", flat=True)) == {p.pk for p in participants}:
+                return candidate
+
         conversation = Conversation.objects.create(**validated_data)
         conversation.participants.set(participants)
         return conversation

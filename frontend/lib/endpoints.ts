@@ -88,6 +88,14 @@ export function conversationMessages(conversationId: string | number) {
   return `${ENDPOINTS.conversations}${conversationId}/messages/`;
 }
 
+export function conversationMessageDetail(conversationId: string | number, messageId: string | number) {
+  return `${ENDPOINTS.conversations}${conversationId}/messages/${messageId}/`;
+}
+
+export function conversationDetail(conversationId: string | number) {
+  return `${ENDPOINTS.conversations}${conversationId}/`;
+}
+
 export function notificationDetail(id: string | number) {
   return `${ENDPOINTS.notifications}${id}/`;
 }

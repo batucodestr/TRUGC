@@ -244,7 +244,7 @@ export interface MessageReaction {
 export interface ChatMessage {
   id: string;
   conversationId: string;
-  /** MessageSerializer exposes `sender_email` only — no numeric sender id, so this is the email. */
+  /** MessageSerializer now exposes `sender_id` too — kept as the email for back-compat with existing callers keyed on email. */
   senderId: string;
   senderName: string;
   /** Not returned by MessageSerializer — mock-only, real messages fall back to initials. */
@@ -257,6 +257,7 @@ export interface ChatMessage {
   isOwn?: boolean;
   /** True once loaded via a real fetch (used to gate UI for concepts the backend doesn't support). */
   isRead?: boolean;
+  isEdited?: boolean;
 }
 
 export interface Conversation {

@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Check, CheckCheck, File as FileIcon, Paperclip, Send, X } from "lucide-react";
+import { Check, CheckCheck, File as FileIcon, MoreVertical, Paperclip, Pencil, Send, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, Conversation } from "@/types";
@@ -22,13 +28,28 @@ interface ChatWindowProps {
   onReact: (messageId: string, emoji: string) => void;
   onTyping?: (isTyping: boolean) => void;
   peerTyping?: boolean;
+  onEditMessage?: (messageId: string, text: string) => void;
+  onDeleteMessage?: (messageId: string) => void;
+  onDeleteConversation?: (conversationId: string) => void;
 }
 
 const TYPING_STOP_DELAY_MS = 2000;
 
-export function ChatWindow({ conversation, messages, onSendMessage, onReact, onTyping, peerTyping }: ChatWindowProps) {
+export function ChatWindow({
+  conversation,
+  messages,
+  onSendMessage,
+  onReact,
+  onTyping,
+  peerTyping,
+  onEditMessage,
+  onDeleteMessage,
+  onDeleteConversation,
+}: ChatWindowProps) {
   const [draft, setDraft] = useState("");
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingStopTimer = useRef<number | null>(null);
@@ -79,6 +100,35 @@ export function ChatWindow({ conversation, messages, onSendMessage, onReact, onT
     }
   }
 
+  function startEdit(msg: ChatMessage) {
+    setEditingId(msg.id);
+    setEditDraft(msg.text);
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditDraft("");
+  }
+
+  function confirmEdit() {
+    if (!editingId) return;
+    const trimmed = editDraft.trim();
+    if (trimmed) onEditMessage?.(editingId, trimmed);
+    cancelEdit();
+  }
+
+  function handleDeleteMessage(messageId: string) {
+    if (window.confirm("Bu mesajı silmek istediğinize emin misiniz?")) {
+      onDeleteMessage?.(messageId);
+    }
+  }
+
+  function handleDeleteConversation() {
+    if (window.confirm(`${conversation.participantName} ile olan tüm sohbeti silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
+      onDeleteConversation?.(conversation.id);
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-border/60 px-5 py-3.5">
@@ -99,6 +149,17 @@ export function ChatWindow({ conversation, messages, onSendMessage, onReact, onT
             )
           )}
         </div>
+        {onDeleteConversation && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+            onClick={handleDeleteConversation}
+            title="Sohbeti sil"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1 px-5">
@@ -110,13 +171,69 @@ export function ChatWindow({ conversation, messages, onSendMessage, onReact, onT
                 <AvatarFallback>{msg.senderName.slice(0, 2)}</AvatarFallback>
               </Avatar>
               <div className={cn("group flex max-w-[75%] flex-col gap-1", msg.isOwn && "items-end")}>
-                <div
-                  className={cn(
-                    "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
-                    msg.isOwn ? "rounded-tr-sm bg-gradient-brand text-white" : "rounded-tl-sm bg-muted",
+                <div className={cn("flex items-center gap-1", msg.isOwn && "flex-row-reverse")}>
+                  {editingId === msg.id ? (
+                    <div className="flex w-full min-w-64 flex-col gap-1.5">
+                      <Textarea
+                        autoFocus
+                        value={editDraft}
+                        onChange={(e) => setEditDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            confirmEdit();
+                          } else if (e.key === "Escape") {
+                            cancelEdit();
+                          }
+                        }}
+                        rows={2}
+                        className="resize-none text-sm"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                          İptal
+                        </Button>
+                        <Button size="sm" onClick={confirmEdit} disabled={!editDraft.trim()}>
+                          Kaydet
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div
+                        className={cn(
+                          "rounded-2xl px-4 py-2.5 text-sm leading-relaxed",
+                          msg.isOwn ? "rounded-tr-sm bg-gradient-brand text-white" : "rounded-tl-sm bg-muted",
+                        )}
+                      >
+                        {msg.text}
+                      </div>
+                      {msg.isOwn && (onEditMessage || onDeleteMessage) && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <button
+                              type="button"
+                              className="rounded-full p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted group-hover:opacity-100"
+                            >
+                              <MoreVertical className="h-3.5 w-3.5" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align={msg.isOwn ? "end" : "start"}>
+                            {onEditMessage && (
+                              <DropdownMenuItem onClick={() => startEdit(msg)}>
+                                <Pencil className="mr-2 h-3.5 w-3.5" /> Düzenle
+                              </DropdownMenuItem>
+                            )}
+                            {onDeleteMessage && (
+                              <DropdownMenuItem onClick={() => handleDeleteMessage(msg.id)} className="text-destructive focus:text-destructive">
+                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Sil
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                    </>
                   )}
-                >
-                  {msg.text}
                 </div>
 
                 {msg.attachments?.map((att) => (
@@ -135,6 +252,7 @@ export function ChatWindow({ conversation, messages, onSendMessage, onReact, onT
 
                 <div className={cn("flex items-center gap-1.5", msg.isOwn && "flex-row-reverse")}>
                   <span className="text-[11px] text-muted-foreground">{formatRelativeTime(msg.createdAt)}</span>
+                  {msg.isEdited && <span className="text-[11px] text-muted-foreground">(düzenlendi)</span>}
                   {msg.isOwn &&
                     (msg.isRead ? (
                       <CheckCheck className="h-3.5 w-3.5 text-violet-600" />

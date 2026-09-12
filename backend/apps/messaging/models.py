@@ -29,6 +29,8 @@ class Message(models.Model):
     body = models.TextField(blank=True)
     is_read = models.BooleanField(default=False)
     is_flagged = models.BooleanField(default=False, help_text="Flagged as spam/abuse by a moderator.")
+    is_edited = models.BooleanField(default=False)
+    edited_at = models.DateTimeField(null=True, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 

@@ -11,7 +11,9 @@ export type ConversationSocketEvent =
   | { type: "message"; message: Record<string, unknown> }
   | { type: "typing"; user_id: number; is_typing: boolean }
   | { type: "read"; user_id: number }
-  | { type: "presence"; user_id: number; status: "online" | "offline" };
+  | { type: "presence"; user_id: number; status: "online" | "offline" }
+  | { type: "edit"; message: Record<string, unknown> }
+  | { type: "delete"; message_id: number };
 
 const MAX_RECONNECT_DELAY_MS = 10_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;
@@ -96,6 +98,14 @@ export class ConversationSocket {
 
   sendRead() {
     this.send({ type: "read" });
+  }
+
+  sendEdit(messageId: string, body: string) {
+    this.send({ type: "edit", id: Number(messageId), body });
+  }
+
+  sendDelete(messageId: string) {
+    this.send({ type: "delete", id: Number(messageId) });
   }
 
   close() {

@@ -4,7 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, MessageSquare } from "lucide-react";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useAuth } from "@/components/Auth/AuthProvider";
-import { listConversations, listMessages, normalizeMessage, sendMessage, type ApiMessage } from "@/lib/api/messages";
+import {
+  deleteConversation,
+  deleteMessage,
+  editMessage,
+  listConversations,
+  listMessages,
+  normalizeMessage,
+  sendMessage,
+  type ApiMessage,
+} from "@/lib/api/messages";
 import { ConversationSocket, type ConversationSocketEvent } from "@/lib/ws/conversation-socket";
 import { ConversationList } from "./conversation-list";
 import { ChatWindow } from "./chat-window";
@@ -94,6 +103,19 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
           }));
         } else if (event.type === "presence") {
           setConversations((prev) => prev.map((c) => (c.id === id ? { ...c, online: event.status === "online" } : c)));
+        } else if (event.type === "edit") {
+          const editedId = String(event.message.id);
+          const body = String(event.message.body ?? "");
+          setMessagesByConvo((prev) => ({
+            ...prev,
+            [id]: (prev[id] ?? []).map((m) => (m.id === editedId ? { ...m, text: body, isEdited: true } : m)),
+          }));
+        } else if (event.type === "delete") {
+          const deletedId = String(event.message_id);
+          setMessagesByConvo((prev) => ({
+            ...prev,
+            [id]: (prev[id] ?? []).filter((m) => m.id !== deletedId),
+          }));
         }
       },
       (status) => setSocketOpen(status === "open"),
@@ -207,6 +229,55 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
     socketRef.current?.sendTyping(isTyping);
   }
 
+  const handleEditMessage = useCallback(
+    (messageId: string, text: string) => {
+      if (!activeId) return;
+      // Optimistic — the socket also echoes an "edit" event back which is a no-op once this has landed.
+      setMessagesByConvo((prev) => ({
+        ...prev,
+        [activeId]: (prev[activeId] ?? []).map((m) => (m.id === messageId ? { ...m, text, isEdited: true } : m)),
+      }));
+      if (socketRef.current && socketOpen) {
+        socketRef.current.sendEdit(messageId, text);
+      } else {
+        editMessage(activeId, messageId, text, currentUserEmail).catch(() => {});
+      }
+    },
+    [activeId, currentUserEmail, socketOpen],
+  );
+
+  const handleDeleteMessage = useCallback(
+    (messageId: string) => {
+      if (!activeId) return;
+      setMessagesByConvo((prev) => ({
+        ...prev,
+        [activeId]: (prev[activeId] ?? []).filter((m) => m.id !== messageId),
+      }));
+      if (socketRef.current && socketOpen) {
+        socketRef.current.sendDelete(messageId);
+      } else {
+        deleteMessage(activeId, messageId).catch(() => {});
+      }
+    },
+    [activeId, socketOpen],
+  );
+
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    // Aktif olarak konuşulan sohbeti silme — chat kalabalığını temizlemek için.
+    try {
+      await deleteConversation(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      setMessagesByConvo((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      setActiveId((prev) => (prev === id ? null : prev));
+    } catch {
+      // best-effort — the conversation list still reflects the last known server state on next poll
+    }
+  }, []);
+
   return (
     <div className="grid h-full grid-cols-1 md:grid-cols-[340px_1fr]">
       <div className={`border-border/60 md:border-r ${mobileShowChat ? "hidden md:block" : "block"}`}>
@@ -216,6 +287,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
           onSelect={handleSelect}
           search={search}
           onSearchChange={setSearch}
+          onDeleteConversation={handleDeleteConversation}
         />
       </div>
 
@@ -236,6 +308,9 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
                 onReact={handleReact}
                 onTyping={handleTyping}
                 peerTyping={peerTyping}
+                onEditMessage={handleEditMessage}
+                onDeleteMessage={handleDeleteMessage}
+                onDeleteConversation={handleDeleteConversation}
               />
             </div>
           </div>

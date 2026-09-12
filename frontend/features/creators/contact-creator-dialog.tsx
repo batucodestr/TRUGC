@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,29 +19,54 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { MessageSquare } from "lucide-react";
 import type { CreatorPackage } from "@/types";
 import { formatCurrency } from "@/lib/format";
+import { useAuth } from "@/components/Auth/AuthProvider";
+import { createConversation, sendMessage } from "@/lib/api/messages";
+import { getErrorMessage } from "@/lib/error-message";
 
 interface ContactCreatorDialogProps {
   creatorName: string;
+  /** The creator's underlying User id — required to actually open a conversation with them. */
+  creatorUserId?: string;
   packages: CreatorPackage[];
   trigger?: React.ReactNode;
 }
 
-export function ContactCreatorDialog({ creatorName, packages, trigger }: ContactCreatorDialogProps) {
+export function ContactCreatorDialog({ creatorName, creatorUserId, packages, trigger }: ContactCreatorDialogProps) {
+  const router = useRouter();
+  const { session } = useAuth();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [selectedPackage, setSelectedPackage] = useState(packages[0]?.id ?? "");
   const [sending, setSending] = useState(false);
 
-  function handleSend() {
+  async function handleSend() {
+    if (!session) {
+      toast.error("Mesaj göndermek için giriş yapmalısınız.");
+      router.push("/login");
+      return;
+    }
+    if (!creatorUserId) {
+      toast.error("Bu içerik üreticisine şu anda mesaj gönderilemiyor.");
+      return;
+    }
+
     setSending(true);
-    setTimeout(() => {
-      setSending(false);
+    try {
+      const pkg = packages.find((p) => p.id === selectedPackage);
+      const body = pkg ? `[${pkg.title}] ${message}` : message;
+      const conversation = await createConversation([Number(creatorUserId)]);
+      await sendMessage(conversation.id, body, session.user.email);
       setOpen(false);
       setMessage("");
       toast.success(`Mesaj ${creatorName} kişisine gönderildi`, {
-        description: "Genellikle birkaç saat içinde yanıt veriyor.",
+        description: "Sohbeti mesajlar sayfasından takip edebilirsiniz.",
       });
-    }, 700);
+      router.push("/dashboard/messages");
+    } catch (err) {
+      toast.error("Mesaj gönderilemedi", { description: getErrorMessage(err) });
+    } finally {
+      setSending(false);
+    }
   }
 
   return (

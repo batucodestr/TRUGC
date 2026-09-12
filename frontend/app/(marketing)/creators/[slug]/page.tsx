@@ -108,7 +108,7 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
           </div>
           <div className="hidden items-center gap-2 sm:flex">
             <ReportDialog targetType="creator" targetId={creator.id} targetLabel="Bu profili" />
-            {!isOwnProfile && <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />}
+            {!isOwnProfile && <ContactCreatorDialog creatorName={creator.name} creatorUserId={creator.userId} packages={creator.packages ?? []} />}
           </div>
         </div>
 
@@ -269,6 +269,7 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
                     {!isOwnProfile && (
                       <ContactCreatorDialog
                         creatorName={creator.name}
+                        creatorUserId={creator.userId}
                         packages={[pkg]}
                         trigger={
                           <Button variant="outline" className="mt-4 rounded-full">
@@ -318,13 +319,13 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
               </dl>
               {!isOwnProfile && (
                 <>
-                  <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} trigger={
+                  <ContactCreatorDialog creatorName={creator.name} creatorUserId={creator.userId} packages={creator.packages ?? []} trigger={
                     <Button size="lg" className="mt-5 w-full gap-2 rounded-full bg-gradient-brand shadow-sm shadow-violet-600/30 hover:opacity-90 sm:hidden">
                       {creator.name.split(" ")[0]} ile iletişime geç
                     </Button>
                   } />
                   <div className="mt-5 hidden sm:block">
-                    <ContactCreatorDialog creatorName={creator.name} packages={creator.packages ?? []} />
+                    <ContactCreatorDialog creatorName={creator.name} creatorUserId={creator.userId} packages={creator.packages ?? []} />
                   </div>
                 </>
               )}

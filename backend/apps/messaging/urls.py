@@ -9,7 +9,7 @@ router = DefaultRouter()
 router.register("", views.ConversationViewSet, basename="conversation")
 
 message_list = views.MessageViewSet.as_view({"get": "list", "post": "create"})
-message_detail = views.MessageViewSet.as_view({"get": "retrieve"})
+message_detail = views.MessageViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"})
 
 urlpatterns = [
     path("admin/conversations/", views.AdminConversationListView.as_view(), name="admin-conversation-list"),
