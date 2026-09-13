@@ -28,7 +28,7 @@ class Transaction(models.Model):
     payee = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="payments_received")
 
     amount = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(Decimal("0"))])
-    currency = models.CharField(max_length=3, default="USD")
+    currency = models.CharField(max_length=3, default="TRY")
     status = models.CharField(max_length=20, choices=TransactionStatus.choices, default=TransactionStatus.PENDING, db_index=True)
 
     provider = models.CharField(max_length=50, blank=True, help_text="e.g. 'stripe'. Empty while unintegrated.")

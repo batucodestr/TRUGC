@@ -92,7 +92,7 @@ export function PackageEditorDialog({ pkg, trigger }: PackageEditorDialogProps) 
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
-                <Label htmlFor="price">Fiyat (USD)</Label>
+                <Label htmlFor="price">Fiyat (TL)</Label>
                 <Input id="price" name="price" type="number" min={0} step="0.01" defaultValue={pkg?.price} required />
               </div>
               <div className="space-y-2">

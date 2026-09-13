@@ -11,6 +11,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from apps.creators.models import Creator
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
@@ -264,9 +265,15 @@ class UserAdminActionView(APIView):
         if op == "verify":
             user.is_verified = True
             user.save(update_fields=["is_verified"])
+            # apps.creators.Creator has its own separate is_verified flag —
+            # the "Doğrulama" column in the admin creators table reads that
+            # one, not User.is_verified, so both must be kept in sync or the
+            # admin action silently has no visible effect on that screen.
+            Creator.objects.filter(user=user).update(is_verified=True)
         elif op == "unverify":
             user.is_verified = False
             user.save(update_fields=["is_verified"])
+            Creator.objects.filter(user=user).update(is_verified=False)
         elif op == "suspend":
             user.is_active = False
             user.save(update_fields=["is_active"])
@@ -324,6 +331,7 @@ class UserBulkActionView(APIView):
             users.update(is_active=False, is_banned=True, ban_reason=request.data.get("reason", ""))
         elif op == "verify":
             users.update(is_verified=True)
+            Creator.objects.filter(user_id__in=ids).update(is_verified=True)
         elif op == "change_role":
             new_role = request.data.get("role")
             if new_role not in Role.values:

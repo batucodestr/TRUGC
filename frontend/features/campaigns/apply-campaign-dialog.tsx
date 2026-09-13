@@ -65,8 +65,8 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Teklif edilen fiyat (USD)</Label>
-            <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="örn. 450" />
+            <Label>Teklif edilen fiyat (TL)</Label>
+            <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="örn. 15.000" />
           </div>
           <div className="space-y-2">
             <Label>Mesaj</Label>
