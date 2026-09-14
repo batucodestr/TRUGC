@@ -50,6 +50,51 @@ class ApplicationTests(APITestCase):
         application.refresh_from_db()
         self.assertEqual(application.status, ApplicationStatus.ACCEPTED)
 
+    def test_admin_can_accept_application(self):
+        # Regresyon: IsApplicationParty.has_object_permission bir staff bypass'ı
+        # olmadan yalnızca gerçek creator/marka'ya izin veriyordu, bu yüzden bir
+        # admin'in get_object() çağrısı _set_status()'un kendi (doğru) staff
+        # kontrolüne hiç ulaşmadan 403 alıyordu — /manage/applications'taki
+        # "Onayla" butonu admin/moderatör hesapları için sessizce başarısız oluyordu.
+        admin_user = User.objects.create_user(email="admin@example.com", password="StrongPass123", role=Role.ADMIN)
+        application = Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign, message="hi")
+        self.client.force_authenticate(admin_user)
+        url = reverse("applications:application-accept", args=[application.pk])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.ACCEPTED)
+
+    def test_moderator_can_reject_and_hold_application(self):
+        moderator_user = User.objects.create_user(email="mod@example.com", password="StrongPass123", role=Role.MODERATOR)
+        application = Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign, message="hi")
+        self.client.force_authenticate(moderator_user)
+
+        reject_url = reverse("applications:application-reject", args=[application.pk])
+        response = self.client.post(reject_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.REJECTED)
+
+        hold_url = reverse("applications:application-hold", args=[application.pk])
+        response = self.client.post(hold_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.PENDING)
+
+    def test_unrelated_creator_cannot_accept_application(self):
+        # get_queryset() zaten ilgisiz kullanıcılar için başvuruyu görünür
+        # kümeden çıkarır, bu yüzden get_object() burada (has_object_permission
+        # hiç çalışmadan) 404 döner — kaynağın var olduğunu ilgisiz taraflara
+        # sızdırmayan, 403'ten daha güvenli bir davranış.
+        application = Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign, message="hi")
+        self.client.force_authenticate(self.other_creator_user)
+        url = reverse("applications:application-accept", args=[application.pk])
+        response = self.client.post(url)
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        application.refresh_from_db()
+        self.assertEqual(application.status, ApplicationStatus.PENDING)
+
     def test_other_creator_cannot_see_application(self):
         Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign, message="hi")
         self.client.force_authenticate(self.other_creator_user)
