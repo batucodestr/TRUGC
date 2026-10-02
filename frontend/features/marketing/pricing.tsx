@@ -5,16 +5,30 @@ import { Card } from "@/components/ui/card";
 import { Reveal } from "@/components/Motion/Reveal";
 import { PRICING_PLANS } from "@/lib/content/marketing";
 import { formatCurrency, convertUsdToTry } from "@/lib/format";
+import { getPricingState } from "@/lib/pricing";
 import { cn } from "@/lib/utils";
 
-export function Pricing() {
+/**
+ * Pazarlama sayfasındaki fiyatlandırma bölümü.
+ *
+ * Ücretsiz dönemde (hafta sonu) hiçbir tutar gösterilmez — durum sunucudan
+ * okunur (bkz. lib/pricing.ts), istemcinin saatinden değil.
+ */
+export async function Pricing() {
+  const pricing = await getPricingState();
+  const showPrices = !pricing.free;
+
   return (
     <section id="pricing" className="border-y border-border/60 bg-muted/30 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <Reveal className="text-center">
           <p className="text-sm font-medium text-violet-600">Fiyatlandırma</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Her büyüklükteki marka için basit planlar</h2>
-          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">Creator&apos;lar için katılım ve kampanyaları görüntüleme her zaman ücretsizdir.</p>
+          <p className="mx-auto mt-3 max-w-xl text-muted-foreground">
+            {showPrices
+              ? "Creator'lar için katılım ve kampanyaları görüntüleme her zaman ücretsizdir."
+              : `${pricing.free_weekday_labels.join(" ve ")} günleri TRUGC'nin tamamı ücretsiz — hiçbir ücret alınmaz.`}
+          </p>
         </Reveal>
 
         <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
@@ -35,9 +49,9 @@ export function Pricing() {
                 <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
                 <div className="mt-5 flex items-baseline gap-1">
                   <span className="text-4xl font-semibold tracking-tight">
-                    {plan.price === 0 ? "Ücretsiz" : formatCurrency(convertUsdToTry(plan.price))}
+                    {!showPrices || plan.price === 0 ? "Ücretsiz" : formatCurrency(convertUsdToTry(plan.price))}
                   </span>
-                  {plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
+                  {showPrices && plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
                 </div>
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.features.map((f) => (

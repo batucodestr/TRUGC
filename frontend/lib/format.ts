@@ -54,3 +54,31 @@ export function formatRelativeTime(iso: string): string {
   if (diffDay < 7) return `${diffDay}g önce`;
   return formatDate(iso);
 }
+
+/** Hafta sonu ücretsiz dönemde fiyat/ücret alanları için kullanılan etiket. */
+export const FREE_PERIOD_LABEL = "Ücretsiz";
+
+/**
+ * Bütçe/ücret aralığını biçimlendirir.
+ *
+ * `null` bir tutar, backend'in ücretsiz dönemde (hafta sonu) fiyatı yanıttan
+ * düşürdüğü anlamına gelir (bkz. apps/common/serializers.py) — bu durumda
+ * hiçbir rakam gösterilmez, "Ücretsiz" yazılır. Böylece gizleme kararı tek
+ * bir yerde, sunucunun verdiği bilgiye dayanarak uygulanır.
+ */
+export function formatBudgetRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+  opts?: { compact?: boolean; separator?: string },
+): string {
+  if (min == null || max == null) return FREE_PERIOD_LABEL;
+  const separator = opts?.separator ?? "–";
+  if (min === max) return formatCurrency(max, opts);
+  return `${formatCurrency(min, opts)}${separator}${formatCurrency(max, opts)}`;
+}
+
+/** Tek bir tutar için aynı kural: `null` → "Ücretsiz". */
+export function formatPriceOrFree(value: number | null | undefined, opts?: { compact?: boolean }): string {
+  if (value == null) return FREE_PERIOD_LABEL;
+  return formatCurrency(value, opts);
+}

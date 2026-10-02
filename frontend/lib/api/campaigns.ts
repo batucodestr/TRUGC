@@ -36,8 +36,9 @@ interface RawCampaign {
   description: string;
   categories: RawCategory[];
   platform: string;
-  budget_min: string;
-  budget_max: string;
+  // Ücretsiz dönemde (hafta sonu) backend fiyatı gizler ve `null` döndürür.
+  budget_min: string | null;
+  budget_max: string | null;
   requirements: string;
   deliverables: RawCampaignDeliverable[];
   start_date: string | null;
@@ -47,6 +48,7 @@ interface RawCampaign {
   media_files: RawCampaignMedia[];
   created_at: string;
   updated_at: string;
+  free_period?: boolean;
 }
 
 interface Paginated<T> {
@@ -88,8 +90,9 @@ function normalizeCampaign(raw: RawCampaign): Campaign {
     categories: (raw.categories ?? []).map((c) => c.name),
     platform,
     platforms: [platform],
-    budgetMin: Number(raw.budget_min),
-    budgetMax: Number(raw.budget_max),
+    budgetMin: raw.budget_min == null ? null : Number(raw.budget_min),
+    budgetMax: raw.budget_max == null ? null : Number(raw.budget_max),
+    freePeriod: raw.free_period ?? false,
     description: raw.description,
     requirements: raw.requirements ?? "",
     deliverables,
@@ -165,8 +168,10 @@ export interface CampaignInput {
   description: string;
   categoryIds?: number[];
   platform: SocialPlatform;
-  budgetMin: number;
-  budgetMax: number;
+  /** Ücretsiz dönemde gönderilmez; backend zaten 0 olarak kaydeder ve
+   *  istemciden gelen tutarı yok sayar. */
+  budgetMin?: number;
+  budgetMax?: number;
   requirements?: string;
   startDate?: string;
   deadline: string;

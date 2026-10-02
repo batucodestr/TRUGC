@@ -12,7 +12,7 @@ import { listMyCampaigns } from "@/lib/api/campaigns";
 import { listApplications } from "@/lib/api/applications";
 import { getBrandDashboard } from "@/lib/api/analytics";
 import { listTransactions, bucketTransactionsByMonth } from "@/lib/api/finance";
-import { formatCurrency, formatRelativeTime } from "@/lib/format";
+import { formatBudgetRange, formatCurrency, formatRelativeTime } from "@/lib/format";
 
 export default async function BrandDashboardPage() {
   const [campaigns, allApplications, dashboard, transactions] = await Promise.all([
@@ -106,7 +106,7 @@ export default async function BrandDashboardPage() {
                 <p className="truncate text-sm font-medium">{campaign.title}</p>
                 <p className="text-xs text-muted-foreground">
                   {campaign.applicantsCount != null ? `${campaign.applicantsCount} başvuran · ` : ""}
-                  {formatCurrency(campaign.budgetMin)}–{formatCurrency(campaign.budgetMax)}
+                  {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}
                 </p>
               </div>
               <CampaignStatusBadge status={campaign.status} />

@@ -26,7 +26,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { getCreator, listCreators } from "@/lib/api/creators";
 import { listReviewsForReviewee } from "@/lib/api/reviews";
 import { PLATFORM_LABEL, CATEGORY_LABEL_TR } from "@/lib/constants";
-import { formatCompactNumber, formatCurrency, formatDate, formatPercent } from "@/lib/format";
+import { formatCompactNumber, formatCurrency, formatDate, formatPercent, formatPriceOrFree } from "@/lib/format";
 import { ApiError, apiClient } from "@/lib/api";
 import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 import type { Creator } from "@/types";
@@ -257,7 +257,7 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
                     )}
                     <p className="font-semibold">{pkg.title}</p>
                     <p className="mt-1 text-sm text-muted-foreground">{pkg.description}</p>
-                    <p className="mt-4 text-2xl font-semibold">{formatCurrency(pkg.price)}</p>
+                    <p className="mt-4 text-2xl font-semibold">{formatPriceOrFree(pkg.price)}</p>
                     <ul className="mt-4 flex-1 space-y-2">
                       {pkg.deliverables.map((d) => (
                         <li key={d} className="flex items-start gap-2 text-sm">

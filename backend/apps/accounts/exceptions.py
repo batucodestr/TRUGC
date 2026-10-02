@@ -25,6 +25,24 @@ _STATUS_CODE_MAP = {
 _DEFAULT_CODE, _DEFAULT_MESSAGE = "ERROR", "Bir hata oluştu."
 _SERVER_CODE, _SERVER_MESSAGE = "SERVER_ERROR", "Sunucuda beklenmeyen bir hata oluştu."
 
+# Yukarıdaki durum kodu tablosu, bir istisnanın kendi metninin yanıta
+# ulaşmasını bilinçli olarak engeller. Bazı durumlarda ise kullanıcıya
+# tam olarak NE yapması gerektiğini söylemek zorundayız — "yetkiniz yok"
+# yerine "e-postanızı doğrulayın" demek gibi. Bu kodlar, mesajı özellikle
+# son kullanıcı için yazılmış (hiçbir dahili detay içermeyen) ve bu nedenle
+# aynen geçirilmesi güvenli olan istisnaları işaretler. Bir izin sınıfı,
+# üzerine ``code = "..."`` koyarak bu listeye katılır; DRF bu değeri
+# ``PermissionDenied`` içindeki ErrorDetail.code alanına taşır.
+USER_FACING_CODES = {
+    "EMAIL_NOT_VERIFIED",
+    "PROFILE_PHOTO_REQUIRED",
+    "ONBOARDING_REQUIRED",
+    "FREE_PERIOD",
+    "PAID_ACCESS_REQUIRED",
+    "POS_NOT_CONFIGURED",
+    "POS_ERROR",
+}
+
 
 def custom_exception_handler(exc, context):
     """
@@ -53,6 +71,18 @@ def custom_exception_handler(exc, context):
         return Response({"error": True, "code": _SERVER_CODE, "message": _SERVER_MESSAGE}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     code, message = _STATUS_CODE_MAP.get(response.status_code, (_DEFAULT_CODE, _DEFAULT_MESSAGE))
+
+    # Açıkça son kullanıcı için yazılmış mesajları (bkz. USER_FACING_CODES)
+    # genel metinle değiştirmek yerine aynen geçir — aksi halde "profil
+    # fotoğrafı yükleyin" uyarısı "yetkiniz bulunmuyor"a dönüşür ve kullanıcı
+    # ne yapacağını bilemez.
+    detail = getattr(exc, "detail", None)
+    explicit_code = getattr(detail, "code", None)
+    if explicit_code in USER_FACING_CODES:
+        code = explicit_code
+        if isinstance(detail, str) and str(detail).strip():
+            message = str(detail)
+
     payload = {"error": True, "code": code, "message": message}
 
     # Alan bazlı doğrulama hatalarının (ör. {"email": ["This field is required."]})

@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { MotionProvider } from "@/components/Motion/MotionProvider";
 import { SmoothScroll } from "@/components/Motion/SmoothScroll";
 import { AuthProvider } from "@/components/Auth/AuthProvider";
+import { PricingProvider } from "@/components/Pricing/PricingProvider";
 import "./globals.css";
 
 // Uygulama, statik bir build'e gömülmesi güvenli içerik yerine canlı bir
@@ -61,10 +62,14 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <MotionProvider>
           <SmoothScroll>
             <AuthProvider>
-              <TooltipProvider delayDuration={150}>
-                {children}
-                <Toaster position="bottom-right" richColors closeButton />
-              </TooltipProvider>
+              {/* Hafta sonu ücretsiz / hafta içi ücretli durumu tek bir yerden,
+                  sunucu saatine göre okunur (bkz. lib/pricing.ts). */}
+              <PricingProvider>
+                <TooltipProvider delayDuration={150}>
+                  {children}
+                  <Toaster position="bottom-right" richColors closeButton />
+                </TooltipProvider>
+              </PricingProvider>
             </AuthProvider>
           </SmoothScroll>
         </MotionProvider>

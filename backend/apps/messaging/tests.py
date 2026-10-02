@@ -4,6 +4,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
+from apps.common.testing import onboard
 
 from .models import Attachment, Conversation
 
@@ -15,6 +16,11 @@ class MessagingTests(APITestCase):
             email="creator@example.com", password="StrongPass123", role=Role.CREATOR
         )
         self.stranger = User.objects.create_user(email="stranger@example.com", password="StrongPass123", role=Role.CREATOR)
+        # Yeni görüşme başlatmak (işe alım hunisinin ilk adımı) zorunlu
+        # kullanıcı akışını gerektirir.
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        onboard(self.stranger)
 
     def test_create_conversation(self):
         self.client.force_authenticate(self.brand_user)

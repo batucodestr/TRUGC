@@ -8,7 +8,7 @@ import { CampaignStatusBadge } from "@/features/campaigns/campaign-status-badge"
 import { CampaignRowActions } from "@/features/brands/campaign-row-actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listMyCampaigns } from "@/lib/api/campaigns";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatBudgetRange, formatCurrency, formatDate } from "@/lib/format";
 
 export default async function ManageCampaignsPage() {
   const campaigns = await listMyCampaigns();
@@ -67,7 +67,7 @@ export default async function ManageCampaignsPage() {
                       <CampaignStatusBadge status={campaign.status} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {formatCurrency(campaign.budgetMin)}–{formatCurrency(campaign.budgetMax)}
+                      {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{campaign.applicantsCount ?? "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{formatDate(campaign.applicationDeadline)}</TableCell>

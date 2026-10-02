@@ -1,9 +1,11 @@
+from django.test import override_settings
 from django.utils import timezone
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
+from apps.common.testing import onboard
 
 from .models import Campaign, CampaignStatus
 
@@ -17,6 +19,11 @@ class CampaignTests(APITestCase):
         self.creator_user = User.objects.create_user(
             email="creator@example.com", password="StrongPass123", role=Role.CREATOR
         )
+        # Kampanya oluşturma/düzenleme, zorunlu kullanıcı akışının (e-posta
+        # doğrulama + profil fotoğrafı) tamamlanmasını gerektirir.
+        onboard(self.brand_user)
+        onboard(self.other_brand_user)
+        onboard(self.creator_user)
         self.payload = {
             "title": "Summer UGC Push",
             "description": "Need 5 short-form videos.",
@@ -126,3 +133,141 @@ class CampaignRequirementTests(APITestCase):
         response = self.client.post(url, {"description": "Hijacked deliverable"})
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.campaign.deliverables.count(), 0)
+
+
+FREE_PERIOD = dict(BILLING_FREE_PERIOD_ENABLED=True, BILLING_FREE_WEEKDAYS=[0, 1, 2, 3, 4, 5, 6])
+
+
+def campaign_model_payload(**overrides):
+    """Model üzerinden doğrudan kampanya oluşturmak için alan seti (serializer'ı atlar)."""
+    return {
+        "title": "Test Campaign",
+        "description": "desc",
+        "platform": "tiktok",
+        "budget_min": 100,
+        "budget_max": 500,
+        "deadline": timezone.now() + timezone.timedelta(days=30),
+        **overrides,
+    }
+
+
+@override_settings(**FREE_PERIOD)
+class FreePeriodCampaignTests(APITestCase):
+    """Hafta sonu: ilan bütçesiz (ücretsiz) oluşturulur ve fiyat hiçbir yerde görünmez."""
+
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        onboard(self.brand_user)
+        self.client.force_authenticate(self.brand_user)
+        self.base_payload = {
+            "title": "Ücretsiz hafta sonu ilanı",
+            "description": "desc",
+            "platform": "tiktok",
+            "deadline": (timezone.now() + timezone.timedelta(days=10)).isoformat(),
+        }
+
+    def test_campaign_can_be_created_without_a_budget(self):
+        response = self.client.post(reverse("campaigns:campaign-list"), self.base_payload)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        campaign = Campaign.objects.get()
+        self.assertEqual(campaign.budget_min, 0)
+        self.assertEqual(campaign.budget_max, 0)
+
+    def test_submitted_budget_is_ignored_during_the_free_period(self):
+        response = self.client.post(
+            reverse("campaigns:campaign-list"), {**self.base_payload, "budget_min": "500", "budget_max": "900"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        campaign = Campaign.objects.get()
+        self.assertEqual(campaign.budget_max, 0)
+
+    def test_budget_is_hidden_in_api_responses(self):
+        """Fiyat gizleme backend'de yapılır — API yanıtında tutar bulunmaz."""
+        campaign = Campaign.objects.create(
+            brand=self.brand_user.brand, status=CampaignStatus.PUBLISHED, **campaign_model_payload()
+        )
+        response = self.client.get(reverse("campaigns:campaign-detail", args=[campaign.pk]))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(response.data["budget_min"])
+        self.assertIsNone(response.data["budget_max"])
+        self.assertTrue(response.data["free_period"])
+
+    def test_staff_still_sees_real_amounts(self):
+        """Moderasyon/raporlama kör kalmasın: staff için gizleme uygulanmaz."""
+        admin = User.objects.create_superuser(email="admin@example.com", password="StrongPass123")
+        campaign = Campaign.objects.create(
+            brand=self.brand_user.brand, status=CampaignStatus.PUBLISHED, **campaign_model_payload()
+        )
+        self.client.force_authenticate(admin)
+        response = self.client.get(reverse("campaigns:campaign-detail", args=[campaign.pk]))
+        self.assertIsNotNone(response.data["budget_max"])
+
+
+@override_settings(BILLING_FREE_PERIOD_ENABLED=False)
+class PaidPeriodCampaignTests(APITestCase):
+    """Pazartesi'den itibaren: bütçe yeniden zorunlu ve görünür."""
+
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        onboard(self.brand_user)
+        self.client.force_authenticate(self.brand_user)
+
+    def test_budget_is_required(self):
+        response = self.client.post(
+            reverse("campaigns:campaign-list"),
+            {
+                "title": "Ücretli ilan",
+                "description": "desc",
+                "platform": "tiktok",
+                "deadline": (timezone.now() + timezone.timedelta(days=10)).isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("budget_min", response.data["fields"])
+
+    def test_budget_is_visible(self):
+        campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            status=CampaignStatus.PUBLISHED,
+            title="t",
+            description="d",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timezone.timedelta(days=10),
+        )
+        response = self.client.get(reverse("campaigns:campaign-detail", args=[campaign.pk]))
+        self.assertEqual(response.data["budget_max"], "500.00")
+        self.assertFalse(response.data["free_period"])
+
+
+@override_settings(**FREE_PERIOD)
+class FreePeriodDoesNotDestroyExistingBudgetTests(APITestCase):
+    """Hafta sonu yapılan bir düzenleme, hafta içi girilmiş bütçeyi silmemeli."""
+
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        onboard(self.brand_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand, status=CampaignStatus.PUBLISHED, **campaign_model_payload()
+        )
+        self.client.force_authenticate(self.brand_user)
+
+    def test_editing_a_campaign_keeps_its_budget(self):
+        response = self.client.patch(
+            reverse("campaigns:campaign-detail", args=[self.campaign.pk]), {"title": "Yeni başlık"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.title, "Yeni başlık")
+        # Bütçe korunur (yanıtta gizlenir ama veritabanında durur).
+        self.assertEqual(self.campaign.budget_min, 100)
+        self.assertEqual(self.campaign.budget_max, 500)
+
+    def test_budget_cannot_be_changed_during_the_free_period(self):
+        self.client.patch(
+            reverse("campaigns:campaign-detail", args=[self.campaign.pk]),
+            {"budget_min": "9000", "budget_max": "9000"},
+        )
+        self.campaign.refresh_from_db()
+        self.assertEqual(self.campaign.budget_max, 500)

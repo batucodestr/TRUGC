@@ -47,3 +47,69 @@ image_extension_validator = FileExtensionValidator(allowed_extensions=IMAGE_EXTE
 document_extension_validator = FileExtensionValidator(allowed_extensions=DOCUMENT_EXTENSIONS)
 attachment_extension_validator = FileExtensionValidator(allowed_extensions=ATTACHMENT_EXTENSIONS)
 message_attachment_extension_validator = FileExtensionValidator(allowed_extensions=MESSAGE_ATTACHMENT_EXTENSIONS)
+
+
+# ---------------------------------------------------------------------------
+# Profil fotoğrafı (zorunlu, kullanıcı başına tek adet)
+# ---------------------------------------------------------------------------
+# Profil fotoğrafı, genel profillerde ve mesajlaşmada görünen tek görsel
+# olduğu için diğer yüklemelerden daha sıkı doğrulanır: animasyonlu/çok
+# katmanlı GIF kabul edilmez, dosyanın gerçekten bir görsel olduğu Pillow ile
+# doğrulanır ve "decompression bomb" niteliğindeki aşırı büyük çözünürlükler
+# reddedilir.
+AVATAR_EXTENSIONS = ["jpg", "jpeg", "png", "webp"]
+AVATAR_FORMATS = {"JPEG", "PNG", "WEBP"}
+MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024
+MIN_AVATAR_DIMENSION = 100
+MAX_AVATAR_DIMENSION = 6000
+
+avatar_extension_validator = FileExtensionValidator(allowed_extensions=AVATAR_EXTENSIONS)
+
+
+def validate_avatar_size(value):
+    _validate_max_size(value, MAX_AVATAR_SIZE_BYTES)
+
+
+def validate_avatar_image(value):
+    """Yüklenen dosyanın gerçekten makul boyutlarda bir görsel olduğunu doğrular.
+
+    Uzantı ve MIME tipi istemci tarafından belirlenir, dolayısıyla tek başına
+    güvenilmez; burada dosya içeriği Pillow ile açılıp format ve çözünürlük
+    kontrol edilir. ``ImageField`` zaten Pillow ile bir ön doğrulama yapar,
+    ancak formatı kısıtlamaz ve çözünürlük sınırı koymaz.
+    """
+    from PIL import Image, UnidentifiedImageError
+
+    file = getattr(value, "file", value)
+    try:
+        position = file.tell()
+    except (AttributeError, OSError):
+        position = None
+
+    try:
+        file.seek(0)
+        with Image.open(file) as image:
+            image_format = (image.format or "").upper()
+            width, height = image.size
+            # verify(), dosyanın tamamını decode etmeden bozuk/sahte görselleri
+            # yakalar; çağrıldıktan sonra image nesnesi tekrar kullanılamaz,
+            # bu yüzden format/boyut bilgisi önce okunur.
+            image.verify()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise ValidationError("Geçersiz veya bozuk görsel dosyası. JPG, PNG veya WEBP yükleyin.")
+    finally:
+        try:
+            file.seek(position if position is not None else 0)
+        except (AttributeError, OSError):
+            pass
+
+    if image_format not in AVATAR_FORMATS:
+        raise ValidationError("Desteklenmeyen görsel formatı. JPG, PNG veya WEBP yükleyin.")
+    if width < MIN_AVATAR_DIMENSION or height < MIN_AVATAR_DIMENSION:
+        raise ValidationError(
+            f"Görsel çok küçük ({width}x{height}px). En az {MIN_AVATAR_DIMENSION}x{MIN_AVATAR_DIMENSION}px olmalı."
+        )
+    if width > MAX_AVATAR_DIMENSION or height > MAX_AVATAR_DIMENSION:
+        raise ValidationError(
+            f"Görsel çözünürlüğü çok yüksek ({width}x{height}px). En fazla {MAX_AVATAR_DIMENSION}px olabilir."
+        )

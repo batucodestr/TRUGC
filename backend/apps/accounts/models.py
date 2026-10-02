@@ -5,10 +5,11 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from apps.common.validators import (
+    avatar_extension_validator,
     document_extension_validator,
-    image_extension_validator,
+    validate_avatar_image,
+    validate_avatar_size,
     validate_document_size,
-    validate_image_size,
 )
 
 
@@ -65,6 +66,24 @@ class User(AbstractBaseUser, PermissionsMixin):
         default=False, help_text="Whether the user has completed identity verification (see VerificationStatus)."
     )
     email_verified = models.BooleanField(default=False, help_text="Whether the user has confirmed their email address.")
+    email_verified_at = models.DateTimeField(
+        null=True, blank=True, help_text="When the user confirmed their email address (audit trail)."
+    )
+    # Zorunlu profil fotoğrafı YALNIZCA yeni hesaplar için geçerlidir. Bu alan
+    # yeni kayıtlarda True olarak başlar; kural devreye girdiği anda var olan
+    # hesaplar için bir veri taşıma adımıyla False'a çekildi (bkz.
+    # accounts/migrations/0008). Böylece eski kullanıcılar bir anda iş
+    # verme/iş alma dışında kalmaz, yeni kullanıcılar ise fotoğraf yüklemeden
+    # ilerleyemez. Tarih/saat karşılaştırmasına dayanmaz: kullanıcı başına
+    # açık bir bayrak, sunucu saatine veya bir ayara göre kayan bir eşikten
+    # daha öngörülebilirdir.
+    profile_photo_required = models.BooleanField(
+        default=True,
+        help_text=(
+            "Whether this account must upload a profile photo before using the main features. "
+            "Pre-existing accounts were grandfathered out when the rule was introduced."
+        ),
+    )
 
     date_joined = models.DateTimeField(default=timezone.now)
     last_login_ip = models.GenericIPAddressField(null=True, blank=True)
@@ -102,6 +121,44 @@ class User(AbstractBaseUser, PermissionsMixin):
     def is_admin_role(self):
         return self.role == Role.ADMIN
 
+    @property
+    def has_profile_photo(self):
+        """Zorunlu profil fotoğrafının yüklenmiş olup olmadığı.
+
+        ``Profile`` satırı kayıt anında post_save sinyaliyle oluşturulur, ancak
+        (ör. doğrudan ORM ile oluşturulmuş eski kayıtlarda) eksik olabileceği
+        için erişim savunmacı yapılır.
+        """
+        profile = getattr(self, "profile", None)
+        return bool(profile and profile.avatar)
+
+    @property
+    def photo_is_required(self):
+        """Bu hesabın profil fotoğrafı yüklemesi zorunlu mu?
+
+        İki koşulun birleşimidir: platform genelindeki ``ONBOARDING_REQUIRE_PROFILE_PHOTO``
+        anahtarı ve hesabın kendi ``profile_photo_required`` bayrağı. İkincisi,
+        kural getirilmeden önce var olan hesapları muaf tutar.
+        """
+        from django.conf import settings
+
+        if not getattr(settings, "ONBOARDING_REQUIRE_PROFILE_PHOTO", True):
+            return False
+        return bool(self.profile_photo_required)
+
+    @property
+    def onboarding_complete(self):
+        """Kayıt → e-posta doğrulama → profil fotoğrafı akışının tamamlanıp
+        tamamlanmadığı. İş verme/iş alma gibi ana işlemlerin ön koşuludur
+        (bkz. apps/accounts/permissions.py::IsOnboarded)."""
+        from django.conf import settings
+
+        if getattr(settings, "ONBOARDING_REQUIRE_EMAIL_VERIFICATION", True) and not self.email_verified:
+            return False
+        if self.photo_is_required and not self.has_profile_photo:
+            return False
+        return True
+
 
 class Profile(models.Model):
     """Her rol tarafından paylaşılan ortak profil alanları."""
@@ -109,11 +166,15 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
     first_name = models.CharField(max_length=150, blank=True)
     last_name = models.CharField(max_length=150, blank=True)
+    # Kullanıcı başına TEK profil fotoğrafı: Profile, User ile OneToOne olduğu
+    # ve bu tek alanı taşıdığı için "birden fazla fotoğraf" durumu şema
+    # düzeyinde imkânsızdır. Yeni bir yükleme, eskisini depolamadan da silerek
+    # yerine geçer (bkz. apps/accounts/serializers.py::ProfileSerializer).
     avatar = models.ImageField(
         upload_to="avatars/%Y/%m/",
         null=True,
         blank=True,
-        validators=[image_extension_validator, validate_image_size],
+        validators=[avatar_extension_validator, validate_avatar_size, validate_avatar_image],
     )
     phone_number = models.CharField(max_length=32, blank=True)
     country = models.CharField(max_length=100, blank=True)
@@ -133,6 +194,10 @@ class Profile(models.Model):
     @property
     def full_name(self):
         return f"{self.first_name} {self.last_name}".strip()
+
+    @property
+    def has_photo(self):
+        return bool(self.avatar)
 
 
 class VerificationStatus(models.Model):

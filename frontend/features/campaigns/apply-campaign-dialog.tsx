@@ -19,9 +19,13 @@ import { Send } from "lucide-react";
 import { useAuth } from "@/components/Auth/AuthProvider";
 import { applyToCampaign } from "@/lib/api/applications";
 import { getErrorMessage } from "@/lib/error-message";
+import { usePricing } from "@/components/Pricing/PricingProvider";
 
 export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId: string; campaignTitle: string }) {
   const { session } = useAuth();
+  // Hafta sonu iş almak ücretsizdir: ücret teklifi alanı gösterilmez ve
+  // gönderilmez (backend de bu dönemde teklif edilen ücreti yok sayar).
+  const { showPrices } = usePricing();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
   const [price, setPrice] = useState("");
@@ -33,7 +37,7 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
       await applyToCampaign({
         campaignId,
         message,
-        proposedRate: price ? Number(price) : undefined,
+        proposedRate: showPrices && price ? Number(price) : undefined,
       });
       setOpen(false);
       setMessage("");
@@ -60,14 +64,20 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>&quot;{campaignTitle}&quot; kampanyasına başvur</DialogTitle>
-          <DialogDescription>Markaya neden uygun olduğunuzu anlatın ve ücretinizi teklif edin.</DialogDescription>
+          <DialogDescription>
+            {showPrices
+              ? "Markaya neden uygun olduğunuzu anlatın ve ücretinizi teklif edin."
+              : "Hafta sonu başvurular ücretsiz: markaya neden uygun olduğunuzu anlatmanız yeterli."}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Teklif edilen fiyat (TL)</Label>
-            <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="örn. 15.000" />
-          </div>
+          {showPrices && (
+            <div className="space-y-2">
+              <Label>Teklif edilen fiyat (TL)</Label>
+              <Input value={price} onChange={(e) => setPrice(e.target.value)} type="number" placeholder="örn. 15.000" />
+            </div>
+          )}
           <div className="space-y-2">
             <Label>Mesaj</Label>
             <Textarea
@@ -83,7 +93,11 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
           <Button variant="outline" onClick={() => setOpen(false)}>
             İptal
           </Button>
-          <Button onClick={handleApply} disabled={!message.trim() || !price || sending} className="gap-2 bg-gradient-brand hover:opacity-90">
+          <Button
+            onClick={handleApply}
+            disabled={!message.trim() || (showPrices && !price) || sending}
+            className="gap-2 bg-gradient-brand hover:opacity-90"
+          >
             {sending ? "Gönderiliyor..." : "Başvuruyu gönder"}
           </Button>
         </DialogFooter>

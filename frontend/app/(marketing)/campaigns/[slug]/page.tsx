@@ -10,7 +10,7 @@ import { PlatformIcon } from "@/components/shared/platform-icon";
 import { ReportDialog } from "@/components/shared/report-dialog";
 import { getCampaign } from "@/lib/api/campaigns";
 import { PLATFORM_LABEL } from "@/lib/constants";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatBudgetRange, formatCurrency, formatDate } from "@/lib/format";
 
 // generateStaticParams yok: kampanyalar canlı marketplace verisidir, build
 // zamanında backend'den numaralandırılmak yerine istek anında talebe göre
@@ -119,7 +119,7 @@ export default async function CampaignDetailPage({ params }: { params: Promise<{
             <Card className="rounded-2xl border-border/70 p-5">
               <p className="text-sm text-muted-foreground">Bütçe aralığı</p>
               <p className="text-2xl font-semibold">
-                {formatCurrency(campaign.budgetMin)} – {formatCurrency(campaign.budgetMax)}
+                {formatBudgetRange(campaign.budgetMin, campaign.budgetMax, { separator: " – " })}
               </p>
               <Separator className="my-4" />
               <dl className="space-y-3 text-sm">

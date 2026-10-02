@@ -1,5 +1,5 @@
 import { apiClient } from "@/lib/api";
-import { ENDPOINTS } from "@/lib/endpoints";
+import { ENDPOINTS, posPaymentDetail } from "@/lib/endpoints";
 import type { ChartPoint } from "@/types";
 
 // Gerçek backend şekli — apps/payments/serializers.py TransactionSerializer'ı
@@ -78,4 +78,68 @@ export function bucketTransactionsByMonth(transactions: ApiTransaction[], status
       const [, month] = key.split("-");
       return { label: MONTHS_TR[Number(month) - 1], value: Math.round(value) };
     });
+}
+
+// ---------------------------------------------------------------------------
+// Sanal POS (bkz. backend/apps/payments/pos/)
+// ---------------------------------------------------------------------------
+// Ödeme her zaman sağlayıcının kendi 3D Secure sayfasında tamamlanır; kart
+// bilgisi ne bu uygulamaya ne de TRUGC sunucusuna girer. Burada yalnızca
+// ödeme oturumu başlatılır ve durumu sunucudan yoklanır.
+
+export type PosPaymentPurpose = "brand_access" | "campaign_escrow";
+
+export interface PosCheckoutResult {
+  merchant_oid: string;
+  /** "redirect" → redirect_url'e git; "html" → form_html'i göm. */
+  mode: "redirect" | "html";
+  redirect_url: string;
+  form_html: string;
+  amount: string;
+  currency: string;
+  provider: string;
+}
+
+export interface PosPaymentRecord {
+  merchant_oid: string;
+  purpose: PosPaymentPurpose;
+  amount: string | null;
+  currency: string;
+  status: "created" | "pending" | "paid" | "failed" | "cancelled";
+  provider: string;
+  access_days: number;
+  failure_reason: string;
+  created_at: string;
+  paid_at: string | null;
+}
+
+export const POS_STATUS_LABEL_TR: Record<PosPaymentRecord["status"], string> = {
+  created: "Oluşturuldu",
+  pending: "Ödeme bekleniyor",
+  paid: "Ödendi",
+  failed: "Başarısız",
+  cancelled: "İptal edildi",
+};
+
+/** Marka erişim paketi için sanal POS ödemesi başlatır. */
+export async function startBrandAccessCheckout(): Promise<PosCheckoutResult> {
+  return apiClient.post<PosCheckoutResult>(ENDPOINTS.posCheckout, { purpose: "brand_access" });
+}
+
+/** Kabul edilmiş bir başvurunun emanet ödemesini sanal POS ile başlatır. */
+export async function startEscrowCheckout(applicationId: number | string, amount: number): Promise<PosCheckoutResult> {
+  return apiClient.post<PosCheckoutResult>(ENDPOINTS.posCheckout, {
+    purpose: "campaign_escrow",
+    application_id: Number(applicationId),
+    amount,
+  });
+}
+
+/** Ödeme durumunu sunucudan okur — sağlayıcının döndürdüğü URL parametrelerine güvenilmez. */
+export async function getPosPayment(merchantOid: string): Promise<PosPaymentRecord> {
+  return apiClient.get<PosPaymentRecord>(posPaymentDetail(merchantOid));
+}
+
+export async function listPosPayments(): Promise<PosPaymentRecord[]> {
+  return apiClient.get<PosPaymentRecord[]>(ENDPOINTS.posPayments);
 }

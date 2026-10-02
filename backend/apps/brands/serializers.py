@@ -6,6 +6,7 @@ from .models import Brand
 class BrandSerializer(serializers.ModelSerializer):
     user_id = serializers.IntegerField(source="user.id", read_only=True)
     email = serializers.EmailField(source="user.email", read_only=True)
+    paid_access_active = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Brand
@@ -24,7 +25,17 @@ class BrandSerializer(serializers.ModelSerializer):
             "founded_year",
             "is_verified",
             "has_paid_access",
+            "paid_access_until",
+            "paid_access_active",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "is_verified", "has_paid_access", "created_at", "updated_at"]
+        read_only_fields = [
+            "id",
+            "is_verified",
+            "has_paid_access",
+            "paid_access_until",
+            "paid_access_active",
+            "created_at",
+            "updated_at",
+        ]

@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CampaignStatusBadge } from "./campaign-status-badge";
 import { PlatformIcon } from "@/components/shared/platform-icon";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatBudgetRange, formatCurrency, formatDate } from "@/lib/format";
 import { CATEGORY_LABEL_TR } from "@/lib/constants";
 import type { Campaign } from "@/types";
 import type { CreatorCategory } from "@/types";
@@ -71,7 +71,7 @@ export function CampaignCard({ campaign }: { campaign: Campaign }) {
               {campaign.categories[0] ? (CATEGORY_LABEL_TR[campaign.categories[0] as CreatorCategory] ?? campaign.categories[0]) : "Genel"}
             </Badge>
             <span className="text-sm font-semibold">
-              {formatCurrency(campaign.budgetMin, { compact: true })}–{formatCurrency(campaign.budgetMax, { compact: true })}
+              {formatBudgetRange(campaign.budgetMin, campaign.budgetMax, { compact: true })}
             </span>
           </div>
         </div>

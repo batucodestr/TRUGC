@@ -310,6 +310,62 @@ if not EMAIL_HOST:
     EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
 
 # ---------------------------------------------------------------------------
+# E-posta doğrulama
+# ---------------------------------------------------------------------------
+# Doğrulama bağlantısının geçerlilik süresi (saniye). Token'lar Django'nun HMAC
+# şemasıyla üretilir (apps/accounts/tokens.py), durum bilgisizdir ve
+# ``email_verified`` değiştiği an geçersizleşir — bu süre, kullanılmamış bir
+# bağlantının ne kadar süre geçerli kalacağını belirler.
+EMAIL_VERIFICATION_TIMEOUT_SECONDS = config("EMAIL_VERIFICATION_TIMEOUT_SECONDS", default=60 * 60 * 24, cast=int)
+
+# Kayıt → e-posta doğrulama → profil fotoğrafı → uygulamayı kullanma akışının
+# zorunlu olup olmadığı. Varsayılan olarak açıktır; yalnızca acil bir durumda
+# (ör. SMTP tamamen devre dışıyken) geçici olarak kapatılmak üzere vardır.
+ONBOARDING_REQUIRE_EMAIL_VERIFICATION = config("ONBOARDING_REQUIRE_EMAIL_VERIFICATION", default=True, cast=bool)
+ONBOARDING_REQUIRE_PROFILE_PHOTO = config("ONBOARDING_REQUIRE_PROFILE_PHOTO", default=True, cast=bool)
+
+# ---------------------------------------------------------------------------
+# Ücretlendirme / hafta sonu ücretsiz kullanım (bkz. apps/common/pricing.py)
+# ---------------------------------------------------------------------------
+# Takvim gününün hangi saat diliminde değerlendirileceği. Django'nun TIME_ZONE'u
+# UTC olduğu için bu ayrım şarttır: aksi halde Cumartesi 02:00 (TR) hâlâ Cuma
+# sayılır ve kullanıcıdan ücret istenirdi.
+BILLING_TIMEZONE = config("BILLING_TIMEZONE", default="Europe/Istanbul")
+# Ücretsiz günler, Python'un weekday() indeksleriyle: Pazartesi=0 ... Pazar=6.
+# Varsayılan "5,6" = Cumartesi + Pazar.
+BILLING_FREE_WEEKDAYS = config("BILLING_FREE_WEEKDAYS", default="5,6", cast=Csv(int))
+BILLING_FREE_PERIOD_ENABLED = config("BILLING_FREE_PERIOD_ENABLED", default=True, cast=bool)
+BILLING_CURRENCY = config("BILLING_CURRENCY", default="TRY")
+# Hafta içi uygulanan platform komisyonu (yüzde). Ücretsiz dönemde 0'a düşer.
+PLATFORM_COMMISSION_PERCENT = config("PLATFORM_COMMISSION_PERCENT", default="10")
+# Markanın creator dizinine erişim paketi: fiyat ve gün sayısı. Fiyat 0 ise
+# sanal POS ile satın alma akışı kapalıdır (yalnızca admin manuel açar).
+BRAND_ACCESS_PRICE = config("BRAND_ACCESS_PRICE", default="0")
+BRAND_ACCESS_DAYS = config("BRAND_ACCESS_DAYS", default=30, cast=int)
+
+# ---------------------------------------------------------------------------
+# Sanal POS (bkz. apps/payments/pos/)
+# ---------------------------------------------------------------------------
+# "" (boş) = POS entegrasyonu yapılandırılmamış; ödeme başlatma endpoint'i
+# 503 + POS_NOT_CONFIGURED döner (sessizce başarısız olmaz).
+# "iyzico" | "paytr" | "sandbox" desteklenir.
+POS_PROVIDER = config("POS_PROVIDER", default="")
+# Ödeme sonrası kullanıcının geri döndürüleceği frontend sayfası.
+POS_RETURN_URL = config("POS_RETURN_URL", default=f"{FRONTEND_URL}/payment/return")
+POS_HTTP_TIMEOUT_SECONDS = config("POS_HTTP_TIMEOUT_SECONDS", default=20, cast=int)
+# Sağlayıcıya özel kimlik bilgileri — ASLA koda yazılmaz, yalnızca ortam değişkeni.
+IYZICO_API_KEY = config("IYZICO_API_KEY", default="")
+IYZICO_SECRET_KEY = config("IYZICO_SECRET_KEY", default="")
+IYZICO_BASE_URL = config("IYZICO_BASE_URL", default="https://sandbox-api.iyzipay.com")
+PAYTR_MERCHANT_ID = config("PAYTR_MERCHANT_ID", default="")
+PAYTR_MERCHANT_KEY = config("PAYTR_MERCHANT_KEY", default="")
+PAYTR_MERCHANT_SALT = config("PAYTR_MERCHANT_SALT", default="")
+PAYTR_TEST_MODE = config("PAYTR_TEST_MODE", default=True, cast=bool)
+# Harici çağrı yapmayan sandbox sağlayıcısının production'da çalışmasına izin
+# verir. Yalnızca canlı öncesi uçtan uca test için, bilinçli olarak açılır.
+POS_SANDBOX_ALLOW_IN_PROD = config("POS_SANDBOX_ALLOW_IN_PROD", default=False, cast=bool)
+
+# ---------------------------------------------------------------------------
 # Loglama
 # ---------------------------------------------------------------------------
 LOGGING = {

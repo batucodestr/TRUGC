@@ -3,8 +3,10 @@ from django.contrib.auth.models import Group, Permission
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from rest_framework import filters, generics, permissions, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.exceptions import TokenError
@@ -24,14 +26,17 @@ from .serializers import (
     ChangePasswordSerializer,
     CustomTokenObtainPairSerializer,
     EmailVerificationConfirmSerializer,
+    OnboardingStatusSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetRequestSerializer,
+    ProfilePhotoSerializer,
     ProfileSerializer,
     RegisterSerializer,
     UserSerializer,
     VerificationQueueSerializer,
     VerificationStatusSerializer,
     VerificationSubmitSerializer,
+    build_onboarding_status,
 )
 
 
@@ -92,9 +97,54 @@ class ProfileView(generics.RetrieveUpdateAPIView):
 
     serializer_class = ProfileSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_object(self):
         return self.request.user.profile
+
+
+class ProfilePhotoView(generics.UpdateAPIView):
+    """Zorunlu profil fotoğrafının yüklenmesi/değiştirilmesi (kullanıcı başına 1 adet).
+
+    ``PATCH /auth/me/profile/`` ile de aynı alan güncellenebilir; bu endpoint
+    yalnızca fotoğrafa indirgenmiş, amacı net bir yüzdür (onboarding ekranı
+    bunu kullanır). Her iki yol da aynı serializer doğrulamasından ve "eskisini
+    sil, yerine yenisini koy" davranışından geçer.
+    """
+
+    serializer_class = ProfilePhotoSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get_object(self):
+        return self.request.user.profile
+
+    def post(self, request, *args, **kwargs):
+        # Yükleme semantiği için POST en doğal fiil; PUT/PATCH ile aynı işi yapar.
+        return self.partial_update(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        response.data = {
+            **response.data,
+            "onboarding": build_onboarding_status(request.user),
+        }
+        return response
+
+
+class OnboardingStatusView(APIView):
+    """Zorunlu akışın durumu: kayıt → e-posta doğrulama → profil fotoğrafı → kullanım.
+
+    Frontend bu endpoint'i kullanıcıyı eksik adıma yönlendirmek için okur.
+    Gerçek engelleme burada DEĞİL, her endpoint'teki izin sınıflarında yapılır
+    (apps/accounts/permissions.py::IsOnboarded) — bu yanıt yalnızca bilgilendirir.
+    """
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(responses=OnboardingStatusSerializer)
+    def get(self, request):
+        return Response(build_onboarding_status(request.user))
 
 
 class ChangePasswordView(APIView):
@@ -167,11 +217,18 @@ class VerifyEmailView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_scope = "auth"
 
+    @extend_schema(request=EmailVerificationConfirmSerializer, responses=OpenApiTypes.OBJECT)
     def post(self, request):
         serializer = EmailVerificationConfirmSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response({"detail": "Email verified successfully."})
+        user = serializer.save()
+        return Response(
+            {
+                "detail": "E-posta adresiniz doğrulandı.",
+                "email": user.email,
+                "onboarding": build_onboarding_status(user),
+            }
+        )
 
 
 class UserListView(generics.ListAPIView):
@@ -283,8 +340,10 @@ class UserAdminActionView(APIView):
             # durum hiçbir zaman "Beklemede"den çıkmazdı.
             user.is_active = True
             user.is_banned = False
-            user.email_verified = True
-            user.save(update_fields=["is_active", "is_banned", "email_verified"])
+            if not user.email_verified:
+                user.email_verified = True
+                user.email_verified_at = timezone.now()
+            user.save(update_fields=["is_active", "is_banned", "email_verified", "email_verified_at"])
         elif op == "ban":
             user.is_active = False
             user.is_banned = True

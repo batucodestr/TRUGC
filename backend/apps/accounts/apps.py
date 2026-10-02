@@ -7,4 +7,5 @@ class AccountsConfig(AppConfig):
     verbose_name = "Accounts"
 
     def ready(self):
+        import apps.accounts.checks  # noqa: F401  (sistem kontrollerini kaydeder)
         import apps.accounts.signals  # noqa: F401

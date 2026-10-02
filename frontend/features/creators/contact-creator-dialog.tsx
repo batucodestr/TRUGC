@@ -95,7 +95,7 @@ export function ContactCreatorDialog({ creatorName, creatorUserId, packages, tri
                 <SelectContent>
                   {packages.map((pkg) => (
                     <SelectItem key={pkg.id} value={pkg.id}>
-                      {pkg.title} — {formatCurrency(pkg.price)}
+                      {pkg.title}{pkg.price != null ? ` — ${formatCurrency(pkg.price)}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>

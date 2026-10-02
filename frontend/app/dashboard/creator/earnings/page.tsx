@@ -8,6 +8,7 @@ import { AnalyticsChart } from "@/components/shared/analytics-chart";
 import { EmptyState } from "@/components/shared/empty-state";
 import { listTransactions, bucketTransactionsByMonth, TRANSACTION_STATUS_LABEL_TR, TRANSACTION_STATUS_STYLE } from "@/lib/api/finance";
 import { formatCurrency, formatDate } from "@/lib/format";
+import { FreePeriodBanner, PaidPeriodNotice } from "@/components/shared/free-period-banner";
 import { cn } from "@/lib/utils";
 
 export default async function CreatorEarningsPage() {
@@ -24,11 +25,16 @@ export default async function CreatorEarningsPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Kazançlar</h1>
           <p className="text-muted-foreground">Gelirinizi ve kullanılabilir ödemelerinizi takip edin.</p>
+          <PaidPeriodNotice className="mt-1" />
         </div>
         <Button className="gap-2 rounded-full bg-gradient-brand hover:opacity-90">
           <ArrowDownToLine className="h-4 w-4" /> Para çek
         </Button>
       </div>
+
+      {/* Hafta sonu işler ücretsizdir: yeni ücret/ödeme oluşmaz, geçmiş
+          kayıtlar görünmeye devam eder. */}
+      <FreePeriodBanner />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatsCard label="Toplam kazanç" value={formatCurrency(totalEarned, { compact: true })} icon={Wallet} />

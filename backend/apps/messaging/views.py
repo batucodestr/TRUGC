@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import log_admin_action
-from apps.accounts.permissions import IsAdminRole, IsModerator
+from apps.accounts.permissions import IsAdminRole, IsModerator, IsOnboarded
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
@@ -24,6 +24,14 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return Conversation.objects.filter(participants=self.request.user).prefetch_related("participants", "messages")
+
+    def get_permissions(self):
+        # Yeni bir görüşme başlatmak işe alım hunisinin ilk adımıdır (markanın
+        # creator'la iletişime geçmesi), bu yüzden zorunlu kullanıcı akışına
+        # tabidir. Mevcut görüşmeleri okumak/yanıtlamak kısıtlanmaz.
+        if self.action == "create":
+            return [permissions.IsAuthenticated(), IsOnboarded()]
+        return super().get_permissions()
 
 
 class MessageViewSet(viewsets.ModelViewSet):

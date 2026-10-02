@@ -18,7 +18,7 @@ import { PaginationControls } from "@/components/shared/pagination-controls";
 import { listCampaignsPaginated, bulkCampaignAction } from "@/lib/api/campaigns";
 import { getErrorMessage } from "@/lib/error-message";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
-import { formatCurrency, formatDate } from "@/lib/format";
+import { formatBudgetRange, formatCurrency, formatDate } from "@/lib/format";
 import type { Campaign, CampaignStatus } from "@/types";
 
 const PAGE_SIZE = 20;
@@ -173,7 +173,7 @@ export function CampaignManagementTable() {
                         <CampaignStatusBadge status={campaign.status} />
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {formatCurrency(campaign.budgetMin)}–{formatCurrency(campaign.budgetMax)}
+                        {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{campaign.applicantsCount ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{formatDate(campaign.createdAt)}</TableCell>

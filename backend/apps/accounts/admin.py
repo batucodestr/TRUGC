@@ -24,14 +24,25 @@ class UserAdmin(DjangoUserAdmin):
     model = User
     inlines = [ProfileInline, VerificationStatusInline]
     ordering = ["-date_joined"]
-    list_display = ["email", "role", "is_verified", "is_active", "is_banned", "is_staff", "date_joined"]
-    list_filter = ["role", "is_verified", "is_active", "is_banned", "is_staff"]
+    list_display = ["email", "role", "is_verified", "email_verified", "is_active", "is_banned", "is_staff", "date_joined"]
+    list_filter = ["role", "is_verified", "email_verified", "profile_photo_required", "is_active", "is_banned", "is_staff"]
     search_fields = ["email"]
-    readonly_fields = ["date_joined", "last_login", "last_login_ip"]
+    readonly_fields = ["date_joined", "last_login", "last_login_ip", "email_verified_at"]
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
         ("Role & status", {"fields": ("role", "is_verified", "is_active", "is_banned", "ban_reason", "is_staff", "is_superuser")}),
+        (
+            "Onboarding",
+            {
+                "fields": ("email_verified", "email_verified_at", "profile_photo_required"),
+                "description": (
+                    "Zorunlu akış: e-posta doğrulama + profil fotoğrafı. "
+                    "profile_photo_required, kural getirilmeden önce var olan hesaplarda kapalıdır; "
+                    "tek bir kullanıcıyı muaf tutmak ya da zorunlu kılmak için buradan değiştirilir."
+                ),
+            },
+        ),
         ("Permissions", {"fields": ("groups", "user_permissions")}),
         ("Important dates", {"fields": ("last_login", "date_joined", "last_login_ip")}),
     )

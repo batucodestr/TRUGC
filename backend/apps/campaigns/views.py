@@ -6,7 +6,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
 from apps.accounts.models import log_admin_action
-from apps.accounts.permissions import IsAdminRole, IsBrand, IsModerator
+from apps.accounts.permissions import IsAdminRole, IsBrand, IsModerator, IsOnboarded
 
 from .models import Campaign, CampaignMedia, CampaignRequirement, CampaignStatus
 from .permissions import IsCampaignOwnerOrStaff
@@ -40,10 +40,13 @@ class CampaignViewSet(viewsets.ModelViewSet):
         return queryset.filter(status=CampaignStatus.PUBLISHED)
 
     def get_permissions(self):
+        # "İş verme" yolundaki her yazma işlemi, zorunlu kullanıcı akışının
+        # (e-posta doğrulama + profil fotoğrafı) tamamlanmasını gerektirir —
+        # IsOnboarded staff/moderatör/admin'i kendi içinde muaf tutar.
         if self.action == "create":
-            return [permissions.IsAuthenticated(), IsBrand()]
+            return [permissions.IsAuthenticated(), IsBrand(), IsOnboarded()]
         if self.action in ("update", "partial_update", "destroy"):
-            return [permissions.IsAuthenticated(), IsCampaignOwnerOrStaff()]
+            return [permissions.IsAuthenticated(), IsCampaignOwnerOrStaff(), IsOnboarded()]
         if self.action == "bulk":
             return [permissions.IsAuthenticated(), (IsAdminRole | IsModerator)()]
         return [permissions.AllowAny()]

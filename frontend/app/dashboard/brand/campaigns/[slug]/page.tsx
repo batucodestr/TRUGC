@@ -7,7 +7,7 @@ import { ApplicantRow } from "@/features/brands/applicant-row";
 import { EmptyState } from "@/components/shared/empty-state";
 import { getCampaign } from "@/lib/api/campaigns";
 import { listApplicationsForCampaign } from "@/lib/api/applications";
-import { formatCurrency } from "@/lib/format";
+import { formatBudgetRange, formatCurrency } from "@/lib/format";
 
 export default async function BrandCampaignDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -28,7 +28,7 @@ export default async function BrandCampaignDetailPage({ params }: { params: Prom
               <h1 className="text-xl font-semibold text-white">{campaign.title}</h1>
             </div>
             <span className="rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold">
-              {formatCurrency(campaign.budgetMin)}–{formatCurrency(campaign.budgetMax)}
+              {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}
             </span>
           </div>
         </div>

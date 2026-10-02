@@ -63,7 +63,8 @@ export interface CreatorPackage {
   id: string;
   title: string;
   description: string;
-  price: number;
+  /** Ücretsiz dönemde backend fiyatı `null` döndürür (bkz. Campaign.budgetMin). */
+  price: number | null;
   deliverables: string[];
   turnaroundDays: number;
   popular?: boolean;
@@ -179,8 +180,13 @@ export interface Campaign {
   platform: SocialPlatform;
   /** Back-compat convenience for UI that iterates multiple platforms; always `[platform]` here. */
   platforms: SocialPlatform[];
-  budgetMin: number;
-  budgetMax: number;
+  /** Ücretsiz dönemde (hafta sonu) backend bu alanları `null` döndürür — fiyat
+   *  gizleme sunucu tarafında yapılır, arayüz yalnızca `null`'ı "Ücretsiz"
+   *  olarak gösterir (bkz. lib/format.ts::formatBudgetRange). */
+  budgetMin: number | null;
+  budgetMax: number | null;
+  /** Kaydın ücretsiz dönemde okunduğunu belirten backend bayrağı. */
+  freePeriod?: boolean;
   description: string;
   /** Plain free-text guidelines field on Campaign (not a list) — split on newlines for bullet display. */
   requirements: string;

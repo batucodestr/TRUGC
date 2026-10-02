@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsBrand, IsCreator
+from apps.accounts.permissions import IsBrand, IsCreator, IsOnboarded
 from apps.notifications.services import notify_user
 
 from .models import Application, ApplicationStatus
@@ -33,9 +33,15 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         return queryset.filter(Q(creator__user=user) | Q(campaign__brand__user=user))
 
     def get_permissions(self):
+        # "İş alma" (creator başvurusu) ve "iş verme" (markanın kabul/red
+        # kararı) işlemleri, e-posta doğrulaması ve profil fotoğrafı olmadan
+        # yapılamaz. Okuma (listeleme/detay) kısıtlanmaz — kullanıcı mevcut
+        # başvurularını her durumda görebilir.
         if self.action == "create":
-            return [permissions.IsAuthenticated(), IsCreator()]
-        if self.action in ("accept", "reject", "hold"):
+            return [permissions.IsAuthenticated(), IsCreator(), IsOnboarded()]
+        if self.action in ("accept", "reject"):
+            return [permissions.IsAuthenticated(), IsApplicationParty(), IsOnboarded()]
+        if self.action == "hold":
             return [permissions.IsAuthenticated(), IsApplicationParty()]
         if self.action == "destroy":
             return [permissions.IsAuthenticated(), IsCreator(), IsApplicationParty()]

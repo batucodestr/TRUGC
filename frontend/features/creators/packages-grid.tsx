@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PackageEditorDialog } from "@/features/creators/package-editor-dialog";
 import { deletePackage } from "@/lib/api/creators";
 import { getErrorMessage } from "@/lib/error-message";
-import { formatCurrency } from "@/lib/format";
+import { formatPriceOrFree } from "@/lib/format";
 import type { CreatorPackage } from "@/types";
 
 export function PackagesGrid({ packages }: { packages: CreatorPackage[] }) {
@@ -73,7 +73,7 @@ export function PackagesGrid({ packages }: { packages: CreatorPackage[] }) {
             </div>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{pkg.description}</p>
-          <p className="mt-4 text-2xl font-semibold">{formatCurrency(pkg.price)}</p>
+          <p className="mt-4 text-2xl font-semibold">{formatPriceOrFree(pkg.price)}</p>
           <ul className="mt-4 flex-1 space-y-2">
             {pkg.deliverables.map((d) => (
               <li key={d} className="flex items-start gap-2 text-sm">

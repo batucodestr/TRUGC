@@ -6,12 +6,19 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
+from apps.common.validators import (
+    avatar_extension_validator,
+    validate_avatar_image,
+    validate_avatar_size,
+)
+
 from .models import AdminActionLog, Profile, Role, User, VerificationStatus
 from .tokens import email_verification_token
 
 
 class ProfileSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField(read_only=True)
+    has_photo = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Profile
@@ -20,6 +27,7 @@ class ProfileSerializer(serializers.ModelSerializer):
             "last_name",
             "full_name",
             "avatar",
+            "has_photo",
             "phone_number",
             "country",
             "city",
@@ -28,6 +36,71 @@ class ProfileSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["updated_at"]
+
+    def validate_avatar(self, value):
+        """Profil fotoğrafı zorunludur: var olan fotoğraf boş bir değerle silinemez.
+
+        Dosya tipi/boyut/içerik doğrulaması model alanının validator'ları
+        tarafından yapılır (apps/common/validators.py) — burada yalnızca
+        "fotoğrafı kaldırma" girişimi engellenir, çünkü her kullanıcının
+        profilinde her zaman tam olarak bir fotoğraf bulunmalıdır.
+        """
+        if value in (None, ""):
+            raise serializers.ValidationError("Profil fotoğrafı zorunludur ve kaldırılamaz.")
+        return value
+
+    def update(self, instance, validated_data):
+        """Yeni fotoğraf, eskisinin **yerine geçer** — depolamada tek dosya kalır.
+
+        Django, bir ``ImageField``'a yeni dosya atandığında eski dosyayı
+        kendiliğinden silmez; bu, her yüklemede diskte yetim bir dosya
+        bırakırdı ("kullanıcı başına 1 adet profil fotoğrafı" kuralının
+        depolama tarafındaki karşılığı).
+        """
+        new_avatar = validated_data.get("avatar")
+        previous = instance.avatar.name if instance.avatar else None
+
+        instance = super().update(instance, validated_data)
+
+        if new_avatar is not None and previous and previous != instance.avatar.name:
+            instance.avatar.storage.delete(previous)
+
+        return instance
+
+
+class ProfilePhotoSerializer(serializers.ModelSerializer):
+    """Yalnızca zorunlu profil fotoğrafı alanı (onboarding yüklemesi için).
+
+    Tipi/boyutu/içeriği model validator'ları doğrular; "eskisini sil, yerine
+    yenisini koy" davranışı ProfileSerializer ile aynıdır.
+    """
+
+    # Alanı açıkça tanımladığımız için model validator'ları otomatik
+    # kopyalanmaz — tip/boyut/içerik doğrulayıcıları burada elle bağlanır,
+    # aksi halde yalnızca DRF'nin genel "bu bir görsel mi" kontrolü kalırdı.
+    avatar = serializers.ImageField(
+        required=True,
+        allow_null=False,
+        validators=[avatar_extension_validator, validate_avatar_size, validate_avatar_image],
+    )
+    has_photo = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = Profile
+        fields = ["avatar", "has_photo", "updated_at"]
+        read_only_fields = ["updated_at"]
+
+    def validate_avatar(self, value):
+        if value in (None, ""):
+            raise serializers.ValidationError("Profil fotoğrafı zorunludur.")
+        return value
+
+    def update(self, instance, validated_data):
+        previous = instance.avatar.name if instance.avatar else None
+        instance = super().update(instance, validated_data)
+        if previous and previous != instance.avatar.name:
+            instance.avatar.storage.delete(previous)
+        return instance
 
 
 class VerificationStatusSerializer(serializers.ModelSerializer):
@@ -57,9 +130,51 @@ class VerificationQueueSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
 
+class OnboardingStatusSerializer(serializers.Serializer):
+    """Zorunlu kullanıcı akışının (kayıt → e-posta doğrulama → profil fotoğrafı
+    → kullanım) o anki durumu. Frontend, kullanıcıyı eksik adıma yönlendirmek
+    için bunu okur; gerçek engelleme her endpoint'te izin sınıflarıyla yapılır."""
+
+    email_verified = serializers.BooleanField()
+    has_profile_photo = serializers.BooleanField()
+    email_verification_required = serializers.BooleanField()
+    profile_photo_required = serializers.BooleanField()
+    complete = serializers.BooleanField()
+    next_step = serializers.CharField(allow_null=True)
+
+
+def build_onboarding_status(user) -> dict:
+    from django.conf import settings
+
+    email_required = bool(getattr(settings, "ONBOARDING_REQUIRE_EMAIL_VERIFICATION", True))
+    # Fotoğraf zorunluluğu kullanıcıya göre değişir: kural getirilmeden önce
+    # var olan hesaplar muaftır (bkz. User.photo_is_required).
+    photo_required = bool(user.photo_is_required)
+    email_verified = bool(user.email_verified)
+    has_photo = bool(user.has_profile_photo)
+
+    if email_required and not email_verified:
+        next_step = "verify_email"
+    elif photo_required and not has_photo:
+        next_step = "upload_photo"
+    else:
+        next_step = None
+
+    return {
+        "email_verified": email_verified,
+        "has_profile_photo": has_photo,
+        "email_verification_required": email_required,
+        "profile_photo_required": photo_required,
+        "complete": next_step is None,
+        "next_step": next_step,
+    }
+
+
 class UserSerializer(serializers.ModelSerializer):
     profile = ProfileSerializer(read_only=True)
     verification = VerificationStatusSerializer(read_only=True)
+    has_profile_photo = serializers.BooleanField(read_only=True)
+    onboarding = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -71,6 +186,10 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_verified",
             "email_verified",
+            "email_verified_at",
+            "has_profile_photo",
+            "profile_photo_required",
+            "onboarding",
             "is_active",
             "is_banned",
             "ban_reason",
@@ -86,12 +205,17 @@ class UserSerializer(serializers.ModelSerializer):
             "is_superuser",
             "is_verified",
             "email_verified",
+            "email_verified_at",
+            "profile_photo_required",
             "is_active",
             "is_banned",
             "ban_reason",
             "date_joined",
             "last_login",
         ]
+
+    def get_onboarding(self, obj):
+        return build_onboarding_status(obj)
 
 
 class AdminActionLogSerializer(serializers.ModelSerializer):
@@ -132,6 +256,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         data["user_id"] = self.user.id
         data["is_staff"] = self.user.is_staff
         data["is_superuser"] = self.user.is_superuser
+        # Zorunlu akışın durumu da token yanıtına eklenir: frontend, girişten
+        # hemen sonra kullanıcıyı doğrulama/fotoğraf adımına yönlendirebilmek
+        # için bunu ayrı bir istek atmadan bilmek zorundadır.
+        data["email_verified"] = self.user.email_verified
+        data["onboarding"] = build_onboarding_status(self.user)
         return data
 
 
@@ -198,7 +327,8 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
     def save(self):
         user = self.validated_data["user"]
         user.email_verified = True
-        user.save(update_fields=["email_verified"])
+        user.email_verified_at = timezone.now()
+        user.save(update_fields=["email_verified", "email_verified_at"])
         return user
 
 

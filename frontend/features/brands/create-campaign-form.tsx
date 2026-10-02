@@ -20,6 +20,8 @@ import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 import { createCampaign } from "@/lib/api/campaigns";
 import { getErrorMessage } from "@/lib/error-message";
+import { usePricing } from "@/components/Pricing/PricingProvider";
+import { FreePeriodBanner } from "@/components/shared/free-period-banner";
 
 /** Resolves a display category label (e.g. "Fashion") to the backend Category id. */
 async function resolveCategoryId(label: string): Promise<number | undefined> {
@@ -36,6 +38,10 @@ const PLATFORM_OPTIONS: { value: SocialPlatform; icon: React.ComponentType<{ cla
 
 export function CreateCampaignForm() {
   const router = useRouter();
+  // Hafta sonu ilan oluşturma ücretsizdir: bütçe alanları gösterilmez ve
+  // gönderilmez. Durum sunucudan gelir (bkz. components/Pricing/PricingProvider),
+  // kullanıcının cihaz saatinden DEĞİL.
+  const { showPrices } = usePricing();
   const [title, setTitle] = useState("");
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
@@ -51,7 +57,10 @@ export function CreateCampaignForm() {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
 
-  const isValid = title && category && description && budgetMin && budgetMax && deadline && platforms.length > 0;
+  const isValid =
+    Boolean(title && category && description && deadline && platforms.length > 0) &&
+    // Bütçe yalnızca ücretlendirmenin aktif olduğu günlerde zorunludur.
+    (!showPrices || Boolean(budgetMin && budgetMax));
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -64,8 +73,7 @@ export function CreateCampaignForm() {
         description,
         categoryIds: categoryId ? [categoryId] : [],
         platform: platforms[0],
-        budgetMin: Number(budgetMin),
-        budgetMax: Number(budgetMax),
+        ...(showPrices ? { budgetMin: Number(budgetMin), budgetMax: Number(budgetMax) } : {}),
         requirements,
         deadline: new Date(deadline).toISOString(),
         status: "published",
@@ -142,19 +150,22 @@ export function CreateCampaignForm() {
       </div>
 
       <aside className="space-y-6 lg:sticky lg:top-24 lg:h-fit">
+        <FreePeriodBanner />
         <Card className="rounded-2xl border-border/70 p-6">
-          <h2 className="text-base font-semibold">Bütçe ve kontenjan</h2>
+          <h2 className="text-base font-semibold">{showPrices ? "Bütçe ve kontenjan" : "Kontenjan ve tarih"}</h2>
           <div className="mt-4 space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>Min. bütçe</Label>
-                <Input type="number" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="500" />
+            {showPrices && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>Min. bütçe</Label>
+                  <Input type="number" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} placeholder="500" />
+                </div>
+                <div className="space-y-2">
+                  <Label>Maks. bütçe</Label>
+                  <Input type="number" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="2000" />
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Maks. bütçe</Label>
-                <Input type="number" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} placeholder="2000" />
-              </div>
-            </div>
+            )}
             <div className="space-y-2">
               <Label>Kontenjan sayısı</Label>
               <Input type="number" value={spots} onChange={(e) => setSpots(e.target.value)} />
@@ -168,7 +179,11 @@ export function CreateCampaignForm() {
           <Button type="submit" size="lg" disabled={!isValid || submitting} className="w-full gap-2 rounded-full bg-gradient-brand hover:opacity-90">
             <Rocket className="h-4 w-4" /> {submitting ? "Yayınlanıyor..." : "Kampanyayı yayınla"}
           </Button>
-          <p className="mt-3 text-center text-xs text-muted-foreground">Bu kampanyayı istediğiniz zaman düzenleyebilir veya duraklatabilirsiniz.</p>
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            {showPrices
+              ? "Bu kampanyayı istediğiniz zaman düzenleyebilir veya duraklatabilirsiniz."
+              : "Hafta sonu ilan oluşturmak tamamen ücretsizdir; hiçbir ücret alınmaz."}
+          </p>
         </Card>
       </aside>
     </form>

@@ -53,7 +53,15 @@ class Brand(models.Model):
     is_verified = models.BooleanField(default=False)
     has_paid_access = models.BooleanField(
         default=False,
-        help_text="Creator dizinini görüntüleme erişimi. Ödeme alındıktan sonra admin panelinden manuel olarak işaretlenir.",
+        help_text="Creator dizinini görüntüleme erişimi. Admin panelinden manuel olarak ya da sanal POS ödemesi tamamlandığında otomatik işaretlenir.",
+    )
+    paid_access_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Ücretli erişimin bitiş tarihi. Sanal POS ile satın alınan paketlerde doldurulur; "
+            "BOŞ bırakılması süresiz erişim demektir (admin tarafından manuel açılan hesaplarla geriye dönük uyumluluk)."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -65,3 +73,34 @@ class Brand(models.Model):
 
     def __str__(self):
         return self.company_name
+
+    @property
+    def paid_access_active(self) -> bool:
+        """Ücretli creator dizini erişiminin şu an geçerli olup olmadığı.
+
+        ``paid_access_until`` boşsa erişim süresizdir (admin tarafından manuel
+        açılmış hesaplar); doluysa bitiş tarihi sunucu saatine göre kontrol
+        edilir. Hafta sonu ücretsiz erişim bu alanı HİÇ değiştirmez — ücretsiz
+        dönem kontrolü izin sınıfında ayrıca yapılır, böylece Pazartesi
+        geldiğinde ödeme durumu olduğu gibi geri döner.
+        """
+        from django.utils import timezone
+
+        if not self.has_paid_access:
+            return False
+        if self.paid_access_until is None:
+            return True
+        return self.paid_access_until > timezone.now()
+
+    def grant_paid_access(self, days: int):
+        """Sanal POS ödemesi onaylandığında erişimi açar/uzatır."""
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        now = timezone.now()
+        base = self.paid_access_until if (self.paid_access_until and self.paid_access_until > now) else now
+        self.has_paid_access = True
+        self.paid_access_until = base + timedelta(days=days)
+        self.save(update_fields=["has_paid_access", "paid_access_until", "updated_at"])
+        return self.paid_access_until

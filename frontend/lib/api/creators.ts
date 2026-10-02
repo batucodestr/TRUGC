@@ -57,7 +57,8 @@ interface ApiPackage {
   id: number;
   title: string;
   description: string;
-  price: string | number;
+  // Ücretsiz dönemde backend fiyatı gizler ve `null` döndürür.
+  price: string | number | null;
   deliverables: string[];
   turnaround_days: number;
   is_popular: boolean;
@@ -100,7 +101,7 @@ function normalizePackage(pkg: ApiPackage): CreatorPackage {
     id: String(pkg.id),
     title: pkg.title,
     description: pkg.description,
-    price: Number(pkg.price),
+    price: pkg.price == null ? null : Number(pkg.price),
     deliverables: pkg.deliverables,
     turnaroundDays: pkg.turnaround_days,
     popular: pkg.is_popular,
@@ -242,21 +243,23 @@ export async function listFeaturedCreators(count = 8): Promise<Creator[]> {
 export interface PackageInput {
   title: string;
   description: string;
-  price: number;
+  /** Ücretsiz dönemde gönderilmez — backend fiyatı 0 olarak kaydeder. */
+  price?: number | null;
   deliverables: string[];
   turnaroundDays: number;
   popular?: boolean;
 }
 
 function toApiPackagePayload(input: PackageInput) {
-  return {
+  const payload: Record<string, unknown> = {
     title: input.title,
     description: input.description,
-    price: input.price,
     deliverables: input.deliverables,
     turnaround_days: input.turnaroundDays,
     is_popular: input.popular ?? false,
   };
+  if (input.price != null) payload.price = input.price;
+  return payload;
 }
 
 export async function listMyPackages(): Promise<CreatorPackage[]> {

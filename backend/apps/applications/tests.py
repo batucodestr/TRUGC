@@ -1,3 +1,4 @@
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -5,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
 from apps.campaigns.models import Campaign, CampaignStatus
+from apps.common.testing import onboard
 
 from .models import Application, ApplicationStatus
 
@@ -18,6 +20,10 @@ class ApplicationTests(APITestCase):
         self.other_creator_user = User.objects.create_user(
             email="other-creator@example.com", password="StrongPass123", role=Role.CREATOR
         )
+        # Başvuru oluşturma ve kabul/red kararları zorunlu kullanıcı akışını gerektirir.
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        onboard(self.other_creator_user)
         self.campaign = Campaign.objects.create(
             brand=self.brand_user.brand,
             title="Test Campaign",
@@ -111,3 +117,120 @@ class ApplicationTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
         application.refresh_from_db()
         self.assertEqual(application.status, ApplicationStatus.WITHDRAWN)
+
+
+@override_settings(BILLING_FREE_PERIOD_ENABLED=True, BILLING_FREE_WEEKDAYS=[0, 1, 2, 3, 4, 5, 6])
+class FreePeriodApplicationTests(APITestCase):
+    """Hafta sonu: creator işi ücretsiz alır, teklif edilen ücret kaydedilmez."""
+
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        self.creator_user = User.objects.create_user(
+            email="creator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Hafta sonu işi",
+            description="desc",
+            platform="tiktok",
+            budget_min=0,
+            budget_max=0,
+            deadline=timezone.now() + timezone.timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+
+    def test_application_without_a_rate_is_accepted(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self.client.post(
+            reverse("applications:application-list"), {"campaign_id": self.campaign.pk, "message": "Ücretsiz varım"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(Application.objects.get().proposed_rate)
+
+    def test_submitted_rate_is_ignored(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self.client.post(
+            reverse("applications:application-list"),
+            {"campaign_id": self.campaign.pk, "message": "hi", "proposed_rate": "2500.00"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertIsNone(Application.objects.get().proposed_rate)
+        self.assertIsNone(response.data["proposed_rate"])
+
+    def test_existing_rate_is_hidden_in_responses(self):
+        application = Application.objects.create(
+            creator=self.creator_user.creator, campaign=self.campaign, message="hi", proposed_rate="1200.00"
+        )
+        self.client.force_authenticate(self.brand_user)
+        response = self.client.get(reverse("applications:application-detail", args=[application.pk]))
+        self.assertIsNone(response.data["proposed_rate"])
+        self.assertTrue(response.data["free_period"])
+
+
+@override_settings(BILLING_FREE_PERIOD_ENABLED=False)
+class PaidPeriodApplicationTests(APITestCase):
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        self.creator_user = User.objects.create_user(
+            email="creator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Ücretli iş",
+            description="desc",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timezone.timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+
+    def test_rate_is_stored_and_visible(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self.client.post(
+            reverse("applications:application-list"),
+            {"campaign_id": self.campaign.pk, "message": "hi", "proposed_rate": "2500.00"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["proposed_rate"], "2500.00")
+        self.assertFalse(response.data["free_period"])
+
+
+@override_settings(BILLING_FREE_PERIOD_ENABLED=True, BILLING_FREE_WEEKDAYS=[0, 1, 2, 3, 4, 5, 6])
+class FreePeriodDoesNotDestroyExistingRateTests(APITestCase):
+    """Hafta sonu yapılan bir güncelleme, hafta içi girilmiş ücreti silmemeli."""
+
+    def setUp(self):
+        self.brand_user = User.objects.create_user(email="brand@example.com", password="StrongPass123", role=Role.BRAND)
+        self.creator_user = User.objects.create_user(
+            email="creator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Kampanya",
+            description="desc",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timezone.timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+        self.application = Application.objects.create(
+            creator=self.creator_user.creator, campaign=self.campaign, message="hi", proposed_rate="1200.00"
+        )
+
+    def test_updating_an_application_keeps_its_rate(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self.client.patch(
+            reverse("applications:application-detail", args=[self.application.pk]), {"message": "güncellendi"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.application.refresh_from_db()
+        self.assertEqual(self.application.message, "güncellendi")
+        self.assertEqual(str(self.application.proposed_rate), "1200.00")

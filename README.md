@@ -87,6 +87,18 @@ All variables live in one root `.env` (Docker) or are split across `backend/.env
 | `ACCESS_TOKEN_LIFETIME_MINUTES`, `REFRESH_TOKEN_LIFETIME_DAYS` | JWT lifetimes (SimpleJWT). |
 | `SECURE_SSL_REDIRECT`, `USE_X_FORWARDED_HOST`, `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` | Security headers/cookies — permissive in `.env.example` (plain HTTP dev), locked down in `.env.production.example` (HTTPS enforced, HSTS on, secure cookies). |
 | `EMAIL_*`, `DEFAULT_FROM_EMAIL` | SMTP for verification/password-reset emails. Dev uses Django's console backend (nothing is actually sent); set real SMTP creds in production. |
+| `EMAIL_VERIFICATION_TIMEOUT_SECONDS` | Doğrulama bağlantısının geçerlilik süresi (varsayılan 86400 = 24 saat). |
+| `ONBOARDING_REQUIRE_EMAIL_VERIFICATION`, `ONBOARDING_REQUIRE_PROFILE_PHOTO` | Zorunlu kullanıcı akışının adımlarını platform genelinde açar/kapatır. Varsayılan `True`. Fotoğraf kuralı ayrıca kullanıcı başına `User.profile_photo_required` bayrağına tabidir: kural getirilmeden önce var olan hesaplar muaftır. |
+| `BILLING_TIMEZONE` | Ücretsiz/ücretli gün hesabının yapıldığı saat dilimi (varsayılan `Europe/Istanbul`). Django'nun `TIME_ZONE`'u UTC olduğu için bu ayrım şarttır. |
+| `BILLING_FREE_WEEKDAYS` | Ücretsiz günler, `weekday()` indeksiyle (Pazartesi=0 … Pazar=6). Varsayılan `5,6` = Cumartesi + Pazar. |
+| `BILLING_FREE_PERIOD_ENABLED` | Hafta sonu ücretsiz kullanımın ana anahtarı. `False` → her gün ücretlendirme aktif. |
+| `BILLING_CURRENCY`, `PLATFORM_COMMISSION_PERCENT` | Para birimi ve hafta içi komisyon oranı (ücretsiz dönemde komisyon 0). |
+| `BRAND_ACCESS_PRICE`, `BRAND_ACCESS_DAYS` | Markanın creator dizini erişim paketinin fiyatı ve süresi. Fiyat `0` ise sanal POS ile satın alma kapalıdır (erişim yalnızca admin panelinden açılır). |
+| `POS_PROVIDER` | Sanal POS sağlayıcısı: boş (kapalı) \| `iyzico` \| `paytr` \| `sandbox`. Boşken ödeme başlatma ucu `503 POS_NOT_CONFIGURED` döner. |
+| `POS_RETURN_URL` | Ödeme sonrası kullanıcının döndüğü frontend sayfası (`/payment/return`). |
+| `IYZICO_API_KEY`, `IYZICO_SECRET_KEY`, `IYZICO_BASE_URL` | iyzico kimlik bilgileri (sandbox/canlı URL dahil). |
+| `PAYTR_MERCHANT_ID`, `PAYTR_MERCHANT_KEY`, `PAYTR_MERCHANT_SALT`, `PAYTR_TEST_MODE` | PayTR kimlik bilgileri. |
+| `POS_SANDBOX_ALLOW_IN_PROD` | Harici çağrı yapmayan test sağlayıcısının production'da çalışmasına izin verir. Canlıda `False` kalmalıdır. |
 | `USE_S3`, `AWS_*` | Flip `USE_S3=True` and fill in the AWS_* values to move media off the VPS filesystem onto S3 — no code changes needed, the storage backend already switches on this flag. |
 | `NEXT_PUBLIC_API_BASE_URL` | Client-side API base. `/api/v1` (relative, same-origin through Caddy) in both dev-via-Docker and production. |
 | `DJANGO_API_URL` | Server-side only (Next.js route handlers) — talks to Django directly over the Docker network, bypassing Caddy. |
@@ -113,6 +125,52 @@ A minimal moderation queue (`backend/apps/reports/`): any authenticated user can
 ## Message attachments
 
 A message can carry one image or PDF attachment (≤10MB — `backend/apps/common/validators.py::MESSAGE_ATTACHMENT_EXTENSIONS`/`MAX_MESSAGE_ATTACHMENT_SIZE_BYTES`), sent as a single multipart `POST` to the same conversation-messages endpoint (`body` + `attachment` fields). Files are stored under `media/message_attachments/%Y/%m/` and served back through the same `/media/*` path as every other upload (avatars, campaign media, etc.) — there's no per-file access control beyond knowing the URL, matching how the rest of the app's media already works; don't attach anything to a conversation that needs to stay private beyond "not linked from anywhere public."
+
+## Zorunlu kullanıcı akışı (e-posta doğrulama + profil fotoğrafı)
+
+Yeni bir hesabın ana özellikleri kullanabilmesi için iki adımı tamamlaması gerekir:
+
+```
+Kayıt → E-posta doğrulama → Profil fotoğrafı → Uygulamayı kullanma
+```
+
+- **Kayıt** (`POST /api/v1/auth/register/`) sonrasında doğrulama e-postası otomatik gönderilir. Bağlantı `${FRONTEND_URL}/verify-email?uid=…&token=…` adresine gider; token Django'nun HMAC şemasıyla üretilir, veritabanında saklanmaz, `EMAIL_VERIFICATION_TIMEOUT_SECONDS` sonunda geçersiz olur ve doğrulama tamamlandığı an tekrar kullanılamaz (imza `email_verified` alanını içerir). Yeni bağlantı: `POST /api/v1/auth/email/resend/` (`auth` throttle kapsamında, 10/dk).
+- **Profil fotoğrafı zorunluluğu yalnızca yeni hesaplar için geçerlidir.** Kural devreye girdiğinde var olan tüm kullanıcılar muaf tutuldu (`accounts/migrations/0008`, `User.profile_photo_required=False`); bu noktadan sonra açılan her hesap alanın `True` varsayılanını alır. Tek bir kullanıcıyı Django admin'den (`Onboarding` bölümü) muaf tutabilir veya zorunlu kılabilirsiniz; `ONBOARDING_REQUIRE_PROFILE_PHOTO=False` ise kuralı platform genelinde kapatır. Karar tarih karşılaştırmasına değil, kullanıcı başına açık bir bayrağa dayanır.
+- **Profil fotoğrafı** `POST /api/v1/auth/me/photo/` (veya `PATCH /auth/me/profile/`) ile yüklenir. Kullanıcı başına tek fotoğraf tutulur: `Profile` satırı `User` ile OneToOne'dur ve yeni yükleme eski dosyayı depolamadan da siler. Doğrulama hem frontend'de (tip/boyut ön kontrolü) hem backend'de yapılır: izinli uzantılar `jpg/jpeg/png/webp`, en fazla 5MB, dosya Pillow ile açılıp gerçekten görsel olduğu ve 100–6000px arasında olduğu doğrulanır (uzantı/MIME tek başına güvenilmez).
+- **Durum** `GET /api/v1/auth/me/onboarding/` ile okunur (`{email_verified, has_profile_photo, complete, next_step}`); login yanıtı ve `/auth/me/` de aynı bilgiyi taşır. Frontend `/onboarding` ekranında eksik adımı gösterir ve marka/creator panelleri akış tamamlanmadan açılmaz.
+- **Gerçek engel backend'dedir** (`apps/accounts/permissions.py::IsOnboarded`): kampanya oluşturma/düzenleme, başvuru gönderme, başvuru kabul/red, görüşme başlatma ve tüm ödeme uçları akış tamamlanmadan `403` döner (`EMAIL_NOT_VERIFIED` / `PROFILE_PHOTO_REQUIRED`). Okuma uçları kısıtlanmaz. Staff/moderatör/admin hesapları muaftır.
+
+> Mevcut hesaplar etkilenmez: `email_verified` alanı zaten dolu olan kullanıcılar e-posta adımını geçmiş sayılır ve fotoğraf zorunluluğu onlar için hiç açılmaz. Zorunluluk yalnızca yeni kayıtlarda devreye girer.
+
+## Hafta sonu ücretsiz / hafta içi ücretli
+
+Tek bir merkezden yönetilir: `backend/apps/common/pricing.py`.
+
+| Gün | Durum |
+|---|---|
+| Cumartesi, Pazar | Ücretsiz — hiçbir ücret alınmaz, fiyat alanları gösterilmez |
+| Pazartesi – Cuma | Ücretlendirme aktif, sanal POS kullanılabilir |
+
+- **Gün hesabı yalnızca sunucuda** yapılır (`timezone.now()` + `BILLING_TIMEZONE`). Kullanıcının cihaz saati hiçbir yerde kullanılmaz; frontend durumu `GET /api/v1/payments/pricing/` (herkese açık) ucundan okur ve yalnızca gösterir. Takvim gününün `Europe/Istanbul`'a göre değerlendirilmesi şarttır: aksi halde Cumartesi 02:00 (TR) UTC'de hâlâ Cuma olduğu için kullanıcıdan ücret istenirdi.
+- **Ücretsiz dönemde backend tarafında neler olur:**
+  - Kampanya bütçesi zorunlu değildir, istemciden gelen tutar yok sayılır ve `0` kaydedilir; API yanıtında `budget_min`/`budget_max` `null` döner.
+  - Başvurudaki `proposed_rate` yok sayılır ve yanıtlarda gizlenir.
+  - Creator paket fiyatları yanıtlarda gizlenir, fiyatsız paket oluşturulabilir.
+  - Markanın creator dizinine erişimi için ödeme koşulu (`Brand.has_paid_access`) devre dışıdır — erişim ücretsizdir, ödeme kaydına dokunulmaz.
+  - Emanet oluşturma/serbest bırakma ve sanal POS ödeme başlatma uçları `403 FREE_PERIOD` döner.
+  - Fiyat gizlemenin tek istisnası staff/moderatör/admin istekleridir; `/manage` raporlama ekranları hafta sonu da gerçek tutarları görür.
+- **Sağlayıcı bildirimleri (callback) ücretsiz dönemde de çalışır:** hafta içi başlatılmış bir ödemenin bildirimi hafta sonuna sarkabilir, parası çekilmiş bir işlem reddedilmez. Kapalı olan, ödeme *başlatma*dır.
+- Pazartesi 00:00'da durum kendiliğinden döner; açık kalan sekmeler `next_change_at` anında durumu yeniden okur.
+
+## Sanal POS
+
+`backend/apps/payments/pos/` altında sağlayıcı soyutlaması vardır: `iyzico` (Checkout Form), `paytr` (iframe/token) ve harici çağrı yapmayan `sandbox`.
+
+- **Kart verisi hiçbir zaman bu sunucuya girmez.** Her sağlayıcı, kullanıcıyı kendi barındırdığı 3D Secure sayfasına yönlendirir; uygulama yalnızca sipariş referansı, tutar, durum ve kart dışı yanıt alanlarını saklar (`payments_pos_payment`).
+- **Bildirime asla güvenilmez:** PayTR bildirimi HMAC-SHA256 imzasıyla doğrulanır, iyzico'da ödeme durumu sağlayıcıya sunucudan tekrar sorularak teyit edilir. Tutar da karşılaştırılır; yinelenen bildirimler idempotenttir (erişim iki kez uzatılmaz).
+- Uçlar: `GET /payments/pricing/` · `GET /payments/pos/config/` · `POST /payments/pos/checkout/` · `POST /payments/pos/callback/<provider>/` · `GET /payments/pos/<merchant_oid>/` · `GET /payments/pos/payments/`.
+- Callback adresi sağlayıcı paneline şu biçimde girilir: `https://$DOMAIN/api/v1/payments/pos/callback/paytr/` (veya `.../iyzico/`).
+- `POS_PROVIDER` boşken ödeme başlatma `503 POS_NOT_CONFIGURED` döner ve eksik ayar adları (yalnızca staff'a) listelenir — sessizce başarılı sayılan hiçbir varsayılan yoktur.
 
 ## Deployment (VPS)
 

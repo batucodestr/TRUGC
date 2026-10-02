@@ -1,4 +1,9 @@
+from decimal import Decimal
+
 from rest_framework import serializers
+
+from apps.common import pricing
+from apps.common.serializers import FreePeriodPricingMixin
 
 from .models import Category, Creator, CreatorPackage, PortfolioItem, SocialAccount
 
@@ -31,11 +36,31 @@ class PortfolioItemSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at"]
 
 
-class CreatorPackageSerializer(serializers.ModelSerializer):
+class CreatorPackageSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
+    """Creator'ın yayınladığı hizmet paketi.
+
+    Ücretsiz dönemde paket fiyatı yanıtta gizlenir ve yeni paket fiyat
+    zorunluluğu olmadan (0 ile) oluşturulabilir — hafta sonu kullanıcıya
+    hiçbir fiyat gösterilmez.
+    """
+
+    price_fields = ("price",)
+
+    price = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+
     class Meta:
         model = CreatorPackage
         fields = ["id", "title", "description", "price", "deliverables", "turnaround_days", "is_popular", "created_at", "updated_at"]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+    def validate(self, attrs):
+        if pricing.is_free_period():
+            attrs["price"] = Decimal("0")
+        elif attrs.get("price") is None and getattr(self.instance, "price", None) is None:
+            raise serializers.ValidationError({"price": "Bu alan zorunludur."})
+        elif attrs.get("price") is None:
+            attrs.pop("price", None)
+        return attrs
 
 
 class CreatorSerializer(serializers.ModelSerializer):

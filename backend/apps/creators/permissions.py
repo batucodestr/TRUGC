@@ -18,11 +18,18 @@ class IsCreatorOwnerViaCreator(IsOwner):
 
 class CanViewCreatorDirectory(BasePermission):
     """Creator dizinini (liste görünümü) yalnızca giriş yapmış kullanıcılara,
-    ve marka rolündeyse yalnızca ödemesi admin tarafından onaylanmış markalara açar.
+    ve marka rolündeyse yalnızca ödemesi onaylanmış markalara açar.
     Tek bir creator'ın profil detay sayfası bilinçli olarak bu kısıtlamaya tabi
     değildir (CreatorDetailView hâlâ AllowAny) — yalnızca toplu keşif/listeleme
-    kilitlenir."""
+    kilitlenir.
 
+    **Hafta sonu ücretsiz kullanım:** Cumartesi ve Pazar günleri (bkz.
+    apps/common/pricing.py) ödeme koşulu tamamen devre dışıdır — markalar
+    creator dizinine ücretsiz erişir. Pazartesi günü koşul kendiliğinden geri
+    döner; markanın ödeme kaydına dokunulmaz.
+    """
+
+    code = "PAID_ACCESS_REQUIRED"
     message = "İçerik üreticilerini görüntülemek için giriş yapmanız ve markanızın ödeme onayının tamamlanmış olması gerekir."
 
     def has_permission(self, request, view):
@@ -31,6 +38,10 @@ class CanViewCreatorDirectory(BasePermission):
             return False
         if user.role == Role.BRAND:
             from apps.brands.models import Brand
+            from apps.common import pricing
+
+            if pricing.is_free_period():
+                return True
 
             # getattr(user, "brand", ...) üzerinden gidersek, bu User nesnesinin
             # .brand ilişkisi daha önce (ör. kayıt sırasındaki post_save sinyali
@@ -38,5 +49,8 @@ class CanViewCreatorDirectory(BasePermission):
             # Python tarafında cache'lenmiş olabilir; sonraki bir has_paid_access
             # güncellemesi (ör. admin panelindeki toplu .update()) bu cache'i
             # geçersiz kılmaz. Bunun yerine her seferinde taze bir sorgu atarız.
-            return Brand.objects.filter(user_id=user.id, has_paid_access=True).exists()
+            brand = Brand.objects.filter(user_id=user.id, has_paid_access=True).only(
+                "has_paid_access", "paid_access_until"
+            ).first()
+            return bool(brand and brand.paid_access_active)
         return True

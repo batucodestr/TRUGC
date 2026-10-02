@@ -2,11 +2,22 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from apps.campaigns.models import Campaign, CampaignStatus
+from apps.common import pricing
+from apps.common.serializers import FreePeriodPricingMixin
 
 from .models import Application, ApplicationStatus
 
 
-class ApplicationSerializer(serializers.ModelSerializer):
+class ApplicationSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
+    """Başvuru (iş alma) serializer'ı.
+
+    Ücretsiz dönemde teklif edilen ücret alanı devre dışıdır: creator işi
+    ücretsiz alır, istemciden gelen ``proposed_rate`` yok sayılır ve yanıtta
+    ücret bilgisi dönmez.
+    """
+
+    price_fields = ("proposed_rate",)
+
     creator_name = serializers.CharField(source="creator.display_name", read_only=True)
     campaign_title = serializers.CharField(source="campaign.title", read_only=True)
     brand_id = serializers.IntegerField(source="campaign.brand_id", read_only=True)
@@ -35,6 +46,19 @@ class ApplicationSerializer(serializers.ModelSerializer):
         if not campaign.is_open:
             raise serializers.ValidationError("This campaign is not accepting applications.")
         return campaign
+
+    def validate(self, attrs):
+        if pricing.is_free_period():
+            if self.instance is None:
+                # Hafta sonu YAPILAN başvuru ücretsizdir — teklif edilen ücret
+                # kaydedilmez.
+                attrs["proposed_rate"] = None
+            else:
+                # Mevcut bir başvuru hafta sonu güncellenirken ücret alanına
+                # dokunulmaz: ne yeni değer yazılır ne de hafta içi girilmiş
+                # değer silinir.
+                attrs.pop("proposed_rate", None)
+        return attrs
 
     def create(self, validated_data):
         validated_data["creator"] = self.context["request"].user.creator

@@ -1,5 +1,9 @@
+from decimal import Decimal
+
 from rest_framework import serializers
 
+from apps.common import pricing
+from apps.common.serializers import FreePeriodPricingMixin
 from apps.creators.models import Category
 from apps.creators.serializers import CategorySerializer
 
@@ -20,9 +24,23 @@ class CampaignRequirementSerializer(serializers.ModelSerializer):
         read_only_fields = ["id"]
 
 
-class CampaignSerializer(serializers.ModelSerializer):
+class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
+    """Kampanya (iş ilanı) serializer'ı.
+
+    Ücretsiz dönemde (hafta sonu) bütçe alanları **hem yazmada hem okumada**
+    devre dışıdır: ilan ücretsiz oluşturulur (bütçe 0 kaydedilir, istemci ne
+    gönderirse göndersin) ve yanıtta bütçe ``null`` döner. Böylece hafta sonu
+    hiçbir yerde fiyat görünmez ve "sadece frontend'de gizleme" durumu oluşmaz.
+    """
+
+    price_fields = ("budget_min", "budget_max")
+
     brand_name = serializers.CharField(source="brand.company_name", read_only=True)
     brand_id = serializers.IntegerField(source="brand.id", read_only=True)
+    # Ücretsiz dönemde zorunlu olmamaları gerektiği için açıkça required=False;
+    # ücretli dönemde zorunluluk aşağıdaki validate() içinde uygulanır.
+    budget_min = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
+    budget_max = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
     categories = CategorySerializer(many=True, read_only=True)
     category_ids = serializers.PrimaryKeyRelatedField(
         source="categories", queryset=Category.objects.all(), many=True, write_only=True, required=False
@@ -57,6 +75,26 @@ class CampaignSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "created_at", "updated_at"]
 
     def validate(self, attrs):
+        if pricing.is_free_period():
+            if self.instance is None:
+                # Hafta sonu OLUŞTURULAN ilan tamamen ücretsizdir: istemciden
+                # gelen bütçe değerleri yok sayılır ve 0 kaydedilir.
+                attrs["budget_min"] = Decimal("0")
+                attrs["budget_max"] = Decimal("0")
+            else:
+                # Mevcut bir ilan hafta sonu düzenlenirken bütçeye DOKUNULMAZ.
+                # Aksi halde hafta içi girilmiş bütçe, Cumartesi günü yapılan
+                # bir başlık düzeltmesinde sessizce 0'a düşerdi (gerçek veri
+                # kaybı). Bu dönemde bütçe ne yazılabilir ne de silinir.
+                attrs.pop("budget_min", None)
+                attrs.pop("budget_max", None)
+        else:
+            for field in ("budget_min", "budget_max"):
+                value = attrs.get(field, getattr(self.instance, field, None))
+                if value is None:
+                    raise serializers.ValidationError({field: "Bu alan zorunludur."})
+                attrs[field] = value
+
         budget_min = attrs.get("budget_min", getattr(self.instance, "budget_min", None))
         budget_max = attrs.get("budget_max", getattr(self.instance, "budget_max", None))
         if budget_min is not None and budget_max is not None and budget_min > budget_max:

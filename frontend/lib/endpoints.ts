@@ -25,6 +25,9 @@ export const AUTH_ENDPOINTS = {
   verifyEmail: `${API_BASE}/auth/email/verify/`,
   resendVerificationEmail: `${API_BASE}/auth/email/resend/`,
   verificationSubmit: `${API_BASE}/auth/me/verification/`,
+  // Zorunlu kullanıcı akışı: kayıt → e-posta doğrulama → profil fotoğrafı → kullanım
+  onboarding: `${API_BASE}/auth/me/onboarding/`,
+  profilePhoto: `${API_BASE}/auth/me/photo/`,
 };
 
 export const ENDPOINTS = {
@@ -49,6 +52,11 @@ export const ENDPOINTS = {
     admin: `${API_BASE}/analytics/admin/dashboard/`,
   },
   payments: `${API_BASE}/payments/transactions/`,
+  // Hafta sonu ücretsiz / hafta içi ücretli durumunun tek kaynağı (sunucu saati).
+  pricingState: `${API_BASE}/payments/pricing/`,
+  posConfig: `${API_BASE}/payments/pos/config/`,
+  posCheckout: `${API_BASE}/payments/pos/checkout/`,
+  posPayments: `${API_BASE}/payments/pos/payments/`,
   verificationsPending: `${API_BASE}/auth/verifications/pending/`,
   adminConversations: `${API_BASE}/messages/admin/conversations/`,
   systemStatus: `${API_BASE}/auth/admin/system-status/`,
@@ -138,4 +146,8 @@ export function adminConversationMessages(conversationId: string | number) {
 
 export function adminMessageDetail(id: string | number) {
   return `${API_BASE}/messages/admin/messages/${id}/`;
+}
+
+export function posPaymentDetail(merchantOid: string) {
+  return `${API_BASE}/payments/pos/${merchantOid}/`;
 }
