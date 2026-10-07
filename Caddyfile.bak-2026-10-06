@@ -71,35 +71,20 @@ www.{$DOMAIN} {
     }
 }
 
-# ================= xn--kurtarcm-ykbb.com.tr (kurtarıcım.com.tr) =================
+# ================= ubercekici.com =================
 # Eklendi: UberCekici production deploy hazırlığı (/opt/UberCekici).
 # UberCekici kendi Caddy'sini çalıştırmıyor; backend/websocket/frontend/
 # static container'ları "edge" ağına katılıp burada isimleriyle proxy
 # ediliyor (ubercekici-backend, ubercekici-websocket, ubercekici-frontend,
 # ubercekici-static — bkz. /opt/UberCekici/docker-compose.yml).
-# Kaynak/versiyon takibi: /opt/UberCekici/infra/caddy/kurtaricim.com.tr.caddy
-#
-# Alan adı IDN; punycode biçimi kullanılır (tarayıcı Host/Origin'i punycode
-# gönderir, Let's Encrypt sertifikası da bu ada kesilir).
+# Kaynak/versiyon takibi: /opt/UberCekici/infra/caddy/ubercekici.site.caddy
 
-www.xn--kurtarcm-ykbb.com.tr {
-    redir https://xn--kurtarcm-ykbb.com.tr{uri} permanent
+www.ubercekici.com {
+    redir https://ubercekici.com{uri} permanent
 }
 
-xn--kurtarcm-ykbb.com.tr {
+ubercekici.com {
     encode zstd gzip
-
-    # Site Cloudflare proxy'si (orange cloud, SSL mode Full strict) arkasında.
-    # Bu yüzden gerçek ziyaretçi IP'si {remote} DEĞİL — {remote} Cloudflare
-    # edge IP'sidir. Gerçek IP CF-Connecting-IP başlığında gelir ve aşağıdaki
-    # reverse_proxy blokları XFF/X-Real-IP'yi oradan doldurur. Aksi halde DRF
-    # AnonRateThrottle (anon 60/min, auth 10/min) aynı edge'in arkasındaki tüm
-    # ziyaretçileri tek kovaya koyar ve kullanıcılar sebepsiz 429 yer.
-    #
-    # NOT: CF-Connecting-IP'ye güvenmek, origin IP'sine (93.88.201.163)
-    # doğrudan ulaşılabildiği sürece başlığın taklit edilebilmesi anlamına
-    # gelir. Tam kapatmak için origin 80/443 yalnızca Cloudflare IP
-    # aralıklarına açılmalı (cloudflare.com/ips).
 
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
@@ -107,7 +92,7 @@ xn--kurtarcm-ykbb.com.tr {
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "geolocation=(self), camera=(), microphone=()"
-        Content-Security-Policy "default-src 'self'; img-src 'self' data:; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://xn--kurtarcm-ykbb.com.tr; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https://*.tile.openstreetmap.org https://unpkg.com https://*.googleapis.com https://*.gstatic.com https://*.ggpht.com; script-src 'self' https://maps.googleapis.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://ubercekici.com https://maps.googleapis.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         -Server
     }
 
@@ -118,8 +103,8 @@ xn--kurtarcm-ykbb.com.tr {
     handle @websocket {
         reverse_proxy ubercekici-websocket:8001 {
             header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
         }
     }
 
@@ -131,24 +116,24 @@ xn--kurtarcm-ykbb.com.tr {
     handle /api/* {
         reverse_proxy ubercekici-backend:8000 {
             header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
         }
     }
 
     handle /django-admin/* {
         reverse_proxy ubercekici-backend:8000 {
             header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
         }
     }
 
     handle {
         reverse_proxy ubercekici-frontend:80 {
             header_up X-Forwarded-Proto {scheme}
-            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
-            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+            header_up X-Forwarded-For {remote}
+            header_up X-Real-IP {remote}
         }
     }
 

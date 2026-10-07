@@ -93,7 +93,7 @@ Changing domains later: edit `DOMAIN` in `.env`, `docker compose up -d caddy` (C
 - [ ] `POSTGRES_PASSWORD` changed from the dev default.
 - [ ] `DOMAIN`, `DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL` all point at the real domain.
 - [ ] `SECURE_SSL_REDIRECT=True`, `SESSION_COOKIE_SECURE=True`, `CSRF_COOKIE_SECURE=True`, `SECURE_HSTS_SECONDS=31536000` (all default `True`/set in `.env.production.example` — just confirm they weren't copy-pasted from `.env.example`).
-- [ ] Real SMTP creds (`EMAIL_*`) — without them, verification/password-reset emails silently go to the console log inside the container instead of a real inbox.
+- [ ] `RESEND_API_KEY` + a domain verified in Resend (SPF/DKIM records added, `DEFAULT_FROM_EMAIL` on that domain) — without them, verification/password-reset emails silently go to the console log inside the container instead of a real inbox. Verify with `manage.py check` (accounts.W001–W004) and `manage.py send_test_email <addr>`.
 - [ ] Run `docker compose exec backend python manage.py check --deploy` and address anything it flags beyond what's already handled above.
 - [ ] `docker compose ps` shows all 7 services `healthy` before considering the deploy complete.
 - [ ] `./scripts/healthcheck.sh` passes.

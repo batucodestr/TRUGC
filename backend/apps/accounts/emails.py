@@ -1,11 +1,16 @@
 """Hesap e-postaları (şifre sıfırlama + e-posta doğrulama).
 
-Gönderim ``fail_silently=True`` ile yapılır: SMTP erişilemezse kayıt/şifre
-sıfırlama isteği 500 ile çökmez, kullanıcı "yeniden gönder" ile tekrar
-deneyebilir. ``EMAIL_HOST`` boşken Django'nun console backend'i devrededir ve
-e-posta yalnızca container log'una yazılır — production'da gerçek SMTP
-bilgileri (``EMAIL_*``) tanımlanmak ZORUNDADIR, aksi halde doğrulama
-bağlantısı kullanıcıya hiç ulaşmaz.
+Gönderim, yapılandırılmış ``EMAIL_BACKEND`` üzerinden yapılır; production'da bu
+Resend'dir (``RESEND_API_KEY`` → ``apps.common.email.ResendEmailBackend``).
+
+``fail_silently=True`` kullanılır: sağlayıcıya ulaşılamazsa kayıt/şifre sıfırlama
+isteği 500 ile çökmez, kullanıcı "yeniden gönder" ile tekrar deneyebilir. Bunun
+bedeli, hatanın kullanıcıya görünmemesidir — backend her başarısız gönderimi
+ERROR seviyesinde loglar, sorun ararken ``docker compose logs backend`` bakılır.
+
+``RESEND_API_KEY`` ve ``EMAIL_HOST`` ikisi de boşken console backend'i devrededir
+ve e-posta yalnızca container log'una yazılır; o durumda doğrulama bağlantısı
+kullanıcıya HİÇ ulaşmaz (``manage.py check`` → accounts.W001).
 """
 
 from django.conf import settings

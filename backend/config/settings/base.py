@@ -298,16 +298,44 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = SECURE_HSTS_SECONDS > 0
 SECURE_HSTS_PRELOAD = SECURE_HSTS_SECONDS > 0
 
 # ---------------------------------------------------------------------------
-# E-posta (ileride kullanıma hazır)
+# E-posta gönderimi
 # ---------------------------------------------------------------------------
+# Birincil sağlayıcı Resend'dir (HTTP API, 443 üzerinden — VPS'te kapalı olan
+# giden SMTP portlarına ihtiyaç duymaz). Bkz. apps/common/email.py.
+RESEND_API_KEY = config("RESEND_API_KEY", default="")
+RESEND_API_URL = config("RESEND_API_URL", default="https://api.resend.com/emails")
+RESEND_TIMEOUT_SECONDS = config("RESEND_TIMEOUT_SECONDS", default=8, cast=int)
+# Geçici hatalarda (429/5xx/ağ) kaç kez daha denenecek. Kayıt isteği gönderimi
+# senkron beklediği için düşük tutulur: en kötü durumda
+# (RESEND_MAX_RETRIES + 1) * RESEND_TIMEOUT_SECONDS kadar beklenir.
+RESEND_MAX_RETRIES = config("RESEND_MAX_RETRIES", default=1, cast=int)
+# api.resend.com Cloudflare arkasında; stdlib'in varsayılan "Python-urllib/3.x"
+# imzası bot sayılıp 403 (Error 1010) ile reddedilir. Boş bırakılamaz.
+RESEND_USER_AGENT = config("RESEND_USER_AGENT", default="trugc-backend/1.0 (+https://trugc.com.tr)")
+
+# SMTP yalnızca yedek yol olarak durur (Resend anahtarı yokken kullanılır).
 EMAIL_HOST = config("EMAIL_HOST", default="")
 EMAIL_PORT = config("EMAIL_PORT", default=587, cast=int)
 EMAIL_HOST_USER = config("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = config("EMAIL_HOST_PASSWORD", default="")
 EMAIL_USE_TLS = config("EMAIL_USE_TLS", default=True, cast=bool)
+EMAIL_TIMEOUT = config("EMAIL_TIMEOUT", default=10, cast=int)
+
+# Gönderen adresi Resend'de doğrulanmış bir alan adına ait OLMALIDIR, aksi
+# halde API 403 döner (bkz. apps/accounts/checks.py → accounts.W002).
 DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="noreply@trugc.com")
-if not EMAIL_HOST:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+SERVER_EMAIL = config("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+
+# Backend seçimi: açıkça verilen EMAIL_BACKEND her şeyi ezer; yoksa Resend
+# anahtarı → Resend, SMTP host → SMTP, ikisi de yoksa console (e-posta sadece
+# container log'una yazılır, kullanıcıya ULAŞMAZ).
+from apps.common.email import select_email_backend  # noqa: E402
+
+EMAIL_BACKEND = select_email_backend(
+    explicit=config("EMAIL_BACKEND", default=""),
+    resend_api_key=RESEND_API_KEY,
+    email_host=EMAIL_HOST,
+)
 
 # ---------------------------------------------------------------------------
 # E-posta doğrulama

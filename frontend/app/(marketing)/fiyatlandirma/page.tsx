@@ -6,6 +6,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Reveal } from "@/components/Motion/Reveal";
 import { formatCurrency, convertUsdToTry } from "@/lib/format";
 import { getPricingState } from "@/lib/pricing";
+import { PaymentMethods } from "@/components/shared/payment-methods";
 import { cn } from "@/lib/utils";
 
 export const metadata = { title: "Fiyatlandırma — TRUGC" };
@@ -89,7 +90,7 @@ const BILLING_FAQS = [
     id: "billing-3",
     question: "Ödeme yöntemleri nelerdir?",
     answer:
-      "Kredi kartı, banka kartı ve banka havalesi ile ödeme yapabilirsiniz. Kurumsal hesaplar için fatura karşılığı ödeme de desteklenmektedir.",
+      "Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Kurumsal hesaplar için fatura karşılığı ödeme de desteklenmektedir.",
   },
   {
     id: "billing-4",
@@ -152,6 +153,10 @@ export default async function FiyatlandirmaPage() {
                   </span>
                   {showPrices && plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
                 </div>
+                {/* iyzico şartı: fiyatlar TL cinsinden ve KDV dahil gösterilmeli. */}
+                {showPrices && plan.price > 0 && (
+                  <p className="mt-1 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>
+                )}
                 <ul className="mt-6 flex-1 space-y-3">
                   {plan.features.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
@@ -170,6 +175,29 @@ export default async function FiyatlandirmaPage() {
             </Reveal>
           ))}
         </div>
+
+        {/* Ödeme yöntemleri — iyzico üye iş yeri şartı: ödemenin başladığı
+            sayfada iyzico, Visa ve Mastercard logoları görünür olmalıdır. */}
+        <Reveal variant="fade" className="mt-14">
+          <Card className="flex flex-col gap-6 rounded-3xl border-border/70 p-7 shadow-sm md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Güvenli ödeme</h2>
+              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler iyzico güvenli
+                ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Fiyatlar Türk Lirası cinsinden ve KDV
+                dahildir.{" "}
+                <Link href="/teslimat-ve-iade" className="font-medium text-foreground underline underline-offset-4">
+                  Teslimat ve iade koşulları
+                </Link>{" "}
+                ·{" "}
+                <Link href="/mesafeli-satis-sozlesmesi" className="font-medium text-foreground underline underline-offset-4">
+                  Mesafeli satış sözleşmesi
+                </Link>
+              </p>
+            </div>
+            <PaymentMethods showNote={false} className="shrink-0" />
+          </Card>
+        </Reveal>
       </section>
 
       <section className="border-y border-border/60 bg-muted/30 py-20">

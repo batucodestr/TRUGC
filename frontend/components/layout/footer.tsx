@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
 import { InstagramIcon, YoutubeIcon, TwitterIcon, LinkedinIcon } from "@/components/shared/brand-icons";
+import { PaymentMethods } from "@/components/shared/payment-methods";
+import { companyLegalLine } from "@/lib/company";
 
 const FOOTER_LINKS = {
   Şirket: [
@@ -22,6 +24,8 @@ const FOOTER_LINKS = {
     { label: "Yardım Merkezi", href: "/yardim-merkezi" },
     { label: "İletişim", href: "/iletisim" },
     { label: "SSS", href: "/sss" },
+    { label: "Teslimat ve İade", href: "/teslimat-ve-iade" },
+    { label: "Mesafeli Satış Sözleşmesi", href: "/mesafeli-satis-sozlesmesi" },
     { label: "Gizlilik Politikası", href: "/gizlilik-politikasi" },
     { label: "Kullanım Şartları", href: "/kullanim-sartlari" },
     { label: "KVKK", href: "/kvkk" },
@@ -36,6 +40,10 @@ const SOCIAL_LINKS = [
 ];
 
 export function Footer() {
+  // Vergi levhasındaki künye bilgileri doldurulmadıysa satır hiç basılmaz
+  // (bkz. lib/company.ts) — site boş/örnek künye göstermez.
+  const legalLine = companyLegalLine();
+
   return (
     <footer className="border-t border-border/60 bg-muted/30">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -75,9 +83,22 @@ export function Footer() {
             </div>
           ))}
         </div>
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-border/60 pt-8 text-xs text-muted-foreground sm:flex-row">
-          <p>© {new Date().getFullYear()} TRUGC. Tüm hakları saklıdır.</p>
-          <p>İşini ciddiye alan markalar ve creator&apos;lar için tasarlandı.</p>
+        {/* Ödeme yöntemleri bandı — iyzico üye iş yeri şartı: iyzico, Visa ve
+            Mastercard logoları sitenin altbilgisinde görünür olmalıdır. */}
+        <div className="mt-12 flex flex-col gap-5 border-t border-border/60 pt-8 sm:flex-row sm:items-center sm:justify-between">
+          <PaymentMethods showNote={false} />
+          <p className="max-w-xs text-xs leading-relaxed text-muted-foreground sm:text-right">
+            Ödemeleriniz iyzico güvenli ödeme altyapısı üzerinden 3D Secure ile alınır. Kart bilgileriniz TRUGC
+            sunucularında saklanmaz.
+          </p>
+        </div>
+
+        <div className="mt-8 flex flex-col gap-3 border-t border-border/60 pt-6 text-xs text-muted-foreground">
+          {legalLine && <p className="text-center sm:text-left">{legalLine}</p>}
+          <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
+            <p>© {new Date().getFullYear()} TRUGC. Tüm hakları saklıdır.</p>
+            <p>İşini ciddiye alan markalar ve creator&apos;lar için tasarlandı.</p>
+          </div>
         </div>
       </div>
     </footer>

@@ -86,7 +86,10 @@ All variables live in one root `.env` (Docker) or are split across `backend/.env
 | `CORS_ALLOWED_ORIGINS`, `CSRF_TRUSTED_ORIGINS`, `FRONTEND_URL` | Must include every origin the frontend is served from. |
 | `ACCESS_TOKEN_LIFETIME_MINUTES`, `REFRESH_TOKEN_LIFETIME_DAYS` | JWT lifetimes (SimpleJWT). |
 | `SECURE_SSL_REDIRECT`, `USE_X_FORWARDED_HOST`, `SECURE_PROXY_SSL_HEADER`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS` | Security headers/cookies — permissive in `.env.example` (plain HTTP dev), locked down in `.env.production.example` (HTTPS enforced, HSTS on, secure cookies). |
-| `EMAIL_*`, `DEFAULT_FROM_EMAIL` | SMTP for verification/password-reset emails. Dev uses Django's console backend (nothing is actually sent); set real SMTP creds in production. |
+| `RESEND_API_KEY` | Resend API key (`re_…`) — the primary mail provider, used for verification/password-reset/notification emails. Set it and `EMAIL_BACKEND` switches to Resend automatically. |
+| `RESEND_API_URL`, `RESEND_TIMEOUT_SECONDS`, `RESEND_MAX_RETRIES` | Resend endpoint, per-request timeout (default 8s) and extra attempts on 429/5xx/network errors (default 1). |
+| `DEFAULT_FROM_EMAIL` | Sender address. **Must** be on a domain verified in Resend, otherwise the API rejects it with 403. |
+| `EMAIL_*` (`EMAIL_HOST`, …) | SMTP fallback, used only when `RESEND_API_KEY` is empty. With neither configured, Django's console backend prints the mail to the container log and nothing is actually sent. |
 | `EMAIL_VERIFICATION_TIMEOUT_SECONDS` | Doğrulama bağlantısının geçerlilik süresi (varsayılan 86400 = 24 saat). |
 | `ONBOARDING_REQUIRE_EMAIL_VERIFICATION`, `ONBOARDING_REQUIRE_PROFILE_PHOTO` | Zorunlu kullanıcı akışının adımlarını platform genelinde açar/kapatır. Varsayılan `True`. Fotoğraf kuralı ayrıca kullanıcı başına `User.profile_photo_required` bayrağına tabidir: kural getirilmeden önce var olan hesaplar muaftır. |
 | `BILLING_TIMEZONE` | Ücretsiz/ücretli gün hesabının yapıldığı saat dilimi (varsayılan `Europe/Istanbul`). Django'nun `TIME_ZONE`'u UTC olduğu için bu ayrım şarttır. |
@@ -126,6 +129,58 @@ A minimal moderation queue (`backend/apps/reports/`): any authenticated user can
 
 A message can carry one image or PDF attachment (≤10MB — `backend/apps/common/validators.py::MESSAGE_ATTACHMENT_EXTENSIONS`/`MAX_MESSAGE_ATTACHMENT_SIZE_BYTES`), sent as a single multipart `POST` to the same conversation-messages endpoint (`body` + `attachment` fields). Files are stored under `media/message_attachments/%Y/%m/` and served back through the same `/media/*` path as every other upload (avatars, campaign media, etc.) — there's no per-file access control beyond knowing the URL, matching how the rest of the app's media already works; don't attach anything to a conversation that needs to stay private beyond "not linked from anywhere public."
 
+## E-posta gönderimi (Resend)
+
+Tüm giden e-postalar (doğrulama, şifre sıfırlama, bildirim) Django'nun standart
+`send_mail` arayüzünden geçer; `EMAIL_BACKEND` seçimi `config/settings/base.py`
+içinde `apps.common.email.select_email_backend()` ile yapılır:
+
+```
+EMAIL_BACKEND (açıkça verilmişse)  →  RESEND_API_KEY  →  EMAIL_HOST (SMTP)  →  console
+```
+
+Birincil sağlayıcı **Resend**'dir: `apps/common/email.py::ResendEmailBackend`,
+`POST https://api.resend.com/emails` ucuna gider. SMTP yerine HTTP seçilmesinin
+nedeni, VPS'lerin giden 25/465/587 portlarını sık sık kapatması ve SMTP
+bağlantısının o durumda sessizce zaman aşımına düşmesidir — Resend 443 üzerinden
+çalıştığı için ek bir ağ izni gerektirmez. Yeni bir bağımlılık eklenmez; tek POST
+isteği için stdlib `urllib.request` kullanılır.
+
+Backend `send_mail`'in tüm yeteneklerini destekler: düz metin + HTML
+(`html_message` / `EmailMultiAlternatives`), cc, bcc, reply-to, ek dosyalar
+(base64) ve ekstra başlıklar. Geçici hatalar (429/5xx/ağ) `RESEND_MAX_RETRIES`
+kadar tekrar denenir; 4xx tekrar denenmez.
+
+> **Dikkat — `RESEND_USER_AGENT` kaldırılamaz.** `api.resend.com` Cloudflare
+> arkasındadır ve stdlib'in varsayılan `Python-urllib/3.x` imzasını bot sayıp
+> **Error 1010 / `browser_signature_banned`** ile 403 döner. Bu durumda hata
+> mesajı Resend'den değil Cloudflare'den gelir ve "doğrulanmamış alan adı" 403'üne
+> çok benzer; ikisini ayırmak için log'daki gövdeye bakın (`cloudflare_error:true`
+> var mı?). `apps/common/test_email.py::test_request_sends_a_non_urllib_user_agent`
+> bu başlığın düşmesini engeller.
+
+**Kurulum:**
+
+1. [resend.com](https://resend.com) → **Domains** → alan adını (`trugc.com.tr`) ekle,
+   panelin verdiği SPF/DKIM DNS kayıtlarını yayınla, durum `Verified` olana kadar bekle.
+2. **API Keys** → *Create API Key* (yalnızca *Sending access* yeterli). Anahtar `re_` ile başlar.
+3. `.env`: `RESEND_API_KEY=re_…` ve `DEFAULT_FROM_EMAIL=noreply@trugc.com.tr`
+   (gönderen adresi **doğrulanmış alan adında olmak zorunda**, aksi halde Resend 403 döner).
+4. `docker compose up -d --build backend celery_worker celery_beat`
+5. Doğrula: `docker compose exec backend python manage.py send_test_email ben@ornegim.com`
+
+> Alan adı doğrulanmadan Resend yalnızca kendi hesap adresinize gönderim yapar ve
+> ücretsiz plan günlük 100 / aylık 3.000 e-posta ile sınırlıdır. Kayıt hacmi bunu
+> aşarsa plan yükseltilmelidir.
+
+**Teşhis:** `manage.py check` (her container başlangıcında entrypoint üzerinden
+çalışır) yapılandırma hatalarını açıkça söyler: `accounts.W001` hiç sağlayıcı yok,
+`W002` gönderen alan adı doğrulanamaz (gmail.com vb.), `W003` anahtar biçimi
+yanlış, `W004` anahtar dolu ama backend console'da. Uygulama akışı gönderimi
+`fail_silently=True` ile çağırdığı için sağlayıcı hataları kullanıcıya
+görünmez — her başarısız gönderim ERROR olarak loglanır:
+`docker compose logs backend | grep -i resend`.
+
 ## Zorunlu kullanıcı akışı (e-posta doğrulama + profil fotoğrafı)
 
 Yeni bir hesabın ana özellikleri kullanabilmesi için iki adımı tamamlaması gerekir:
@@ -141,6 +196,15 @@ Kayıt → E-posta doğrulama → Profil fotoğrafı → Uygulamayı kullanma
 - **Gerçek engel backend'dedir** (`apps/accounts/permissions.py::IsOnboarded`): kampanya oluşturma/düzenleme, başvuru gönderme, başvuru kabul/red, görüşme başlatma ve tüm ödeme uçları akış tamamlanmadan `403` döner (`EMAIL_NOT_VERIFIED` / `PROFILE_PHOTO_REQUIRED`). Okuma uçları kısıtlanmaz. Staff/moderatör/admin hesapları muaftır.
 
 > Mevcut hesaplar etkilenmez: `email_verified` alanı zaten dolu olan kullanıcılar e-posta adımını geçmiş sayılır ve fotoğraf zorunluluğu onlar için hiç açılmaz. Zorunluluk yalnızca yeni kayıtlarda devreye girer.
+
+> **Doğrulanmamış kullanıcının giriş yapabilmesi bilinçlidir — kapatmayın.** `POST /auth/login/`
+> doğrulamadan önce de `200` döner; kullanıcı girince yalnızca `/onboarding` ekranını görür,
+> panel ve tüm yazma uçları `403` ile kapalıdır (`IsOnboarded`). Girişin açık kalmasının nedeni
+> "maili yeniden gönder" ucunun (`POST /auth/email/resend/`) `IsAuthenticated` istemesidir:
+> giriş kapatılırsa, doğrulama e-postası eline ulaşmayan kullanıcı (spam klasörü, yanlış yazılmış
+> adres) yeni bağlantı isteyemez ve kalıcı olarak kilitlenir. Girişi gerçekten kapatmak isterseniz
+> önce kimlik doğrulaması gerektirmeyen, sıkı rate-limit'li bir yeniden-gönderme ucu eklenmelidir.
+> (2026-10-03'te gözden geçirildi ve bu haliyle bırakılmasına karar verildi.)
 
 ## Hafta sonu ücretsiz / hafta içi ücretli
 
@@ -172,11 +236,28 @@ Tek bir merkezden yönetilir: `backend/apps/common/pricing.py`.
 - Callback adresi sağlayıcı paneline şu biçimde girilir: `https://$DOMAIN/api/v1/payments/pos/callback/paytr/` (veya `.../iyzico/`).
 - `POS_PROVIDER` boşken ödeme başlatma `503 POS_NOT_CONFIGURED` döner ve eksik ayar adları (yalnızca staff'a) listelenir — sessizce başarılı sayılan hiçbir varsayılan yoktur.
 
+### iyzico üye iş yeri web sitesi kriterleri
+
+iyzico başvurusu, sanal POS entegrasyonundan ayrı olarak sitenin kendisinde bir dizi bilgiyi arar. Hepsi frontend tarafında karşılanmıştır:
+
+| Kriter | Nerede |
+| --- | --- |
+| Teslimat ve iade koşulları | `/teslimat-ve-iade` — `frontend/app/(marketing)/teslimat-ve-iade/` |
+| Mesafeli satış sözleşmesi | `/mesafeli-satis-sozlesmesi` |
+| iyzico, Visa, Mastercard logoları | `frontend/components/shared/payment-methods.tsx`; altbilgi, fiyatlandırma, iletişim ve marka ödeme panelinde basılır. Logolar `frontend/public/payment/` altında kendi sunucumuzdan verilir. |
+| Vergi levhası bilgileri (künye) | `frontend/lib/company.ts` → altbilgi, `/iletisim`, `/teslimat-ve-iade`, `/mesafeli-satis-sozlesmesi` |
+| Fiyatların TL ve KDV dahil gösterimi | `/fiyatlandirma` ve satın alma kutusu |
+| Sözleşme onayı (ödeme öncesi) | `frontend/features/brands/brand-access-purchase.tsx` — onay kutusu işaretlenmeden ödeme başlatılamaz |
+| Gizlilik politikası / KVKK / çerezler | `/gizlilik-politikasi`, `/kvkk` |
+
+> **Başvurudan önce doldurulması zorunlu:** `frontend/lib/company.ts` içindeki `legalName`, `taxOffice`, `taxNumber`, `address` ve `phone` alanları boştur ve **vergi levhasındaki bilgilerle birebir** doldurulmalıdır. `legalName` boş olduğu sürece künye blokları siteye hiç basılmaz (site uydurma künye yayınlamasın diye), dolayısıyla iyzico bu kriteri karşılanmamış sayar.
+
+
 ## Deployment (VPS)
 
 1. Point the domain's DNS `A` record at the VPS.
 2. `git clone` the repo, `cd` into it.
-3. `cp .env.production.example .env` and fill in every placeholder (secret key, DB password, domain, SMTP creds).
+3. `cp .env.production.example .env` and fill in every placeholder (secret key, DB password, domain, `RESEND_API_KEY`).
 4. `./scripts/deploy.sh` — pulls latest, builds, starts everything with `docker compose up -d`, waits for the backend healthcheck, prunes dangling images.
 5. Caddy automatically obtains and renews a Let's Encrypt certificate for `$DOMAIN` on first request — no manual TLS setup.
 
@@ -207,7 +288,7 @@ Checks Postgres (`pg_isready`), Redis (`PING`), backend (`/healthz/` — verifie
 - **`docker compose up` fails on `backend` immediately**: check `docker compose logs backend` — `entrypoint.sh` waits up to 30s for Postgres before failing loudly; a longer-than-that Postgres cold start (e.g. first-ever volume init) can race it. Restart with `docker compose up backend`.
 - **Frontend shows login/API errors, backend is healthy**: confirm `NEXT_PUBLIC_API_BASE_URL`/`DJANGO_API_URL` are set correctly — the frontend build bakes `NEXT_PUBLIC_*` vars in at build time, so changing them requires `docker compose build frontend` again, not just a restart.
 - **CORS errors in the browser console**: `CORS_ALLOWED_ORIGINS`/`CSRF_TRUSTED_ORIGINS` on the backend must include the exact origin the frontend is served from (protocol + host + port).
-- **Verification/password-reset emails never arrive**: `EMAIL_HOST` is empty by default in dev (console backend — check `docker compose logs backend` for the printed email instead). Set real SMTP creds in production.
+- **Verification/password-reset emails never arrive**: with no `RESEND_API_KEY` (the default in dev) the console backend is used — the email is printed to `docker compose logs backend` instead of being sent. In production, run `python manage.py check` (accounts.W001–W004 flag a missing key, an unverifiable sender domain or a mismatched backend) and test delivery with `docker compose exec backend python manage.py send_test_email you@example.com`. Sends fail silently by design, so provider errors (403 unverified domain, 401 bad key, 429 rate limit) only show up as ERROR lines in the backend log.
 - **Uploaded media 404s through Caddy**: confirm the `media_data` volume is mounted into both `backend` (`/app/media`) and `caddy` (`/srv/media`) — see `docker-compose.yml`.
 
 2026 TRUGC Tüm hakları saklıdır.

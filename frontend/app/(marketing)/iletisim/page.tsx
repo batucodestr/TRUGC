@@ -2,13 +2,15 @@
 
 import { useState, type FormEvent } from "react";
 import { toast } from "sonner";
-import { Mail, Clock, Send } from "lucide-react";
+import { Mail, Clock, Send, Building2, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Reveal } from "@/components/Motion/Reveal";
+import { PaymentMethods } from "@/components/shared/payment-methods";
+import { COMPANY, companyLegalRows } from "@/lib/company";
 
 export default function IletisimPage() {
   const [name, setName] = useState("");
@@ -16,6 +18,7 @@ export default function IletisimPage() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [sending, setSending] = useState(false);
+  const legalRows = companyLegalRows();
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -117,14 +120,52 @@ export default function IletisimPage() {
                 <Mail className="h-5 w-5" />
               </span>
               <h3 className="mt-4 text-sm font-semibold">E-posta</h3>
-              <p className="mt-1 text-sm text-muted-foreground">destek@trugc.com</p>
+              <a href={`mailto:${COMPANY.email}`} className="mt-1 block text-sm text-muted-foreground hover:text-foreground">
+                {COMPANY.email}
+              </a>
             </Card>
+
+            {COMPANY.phone && (
+              <Card className="rounded-3xl border-border/70 p-6 shadow-sm">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-brand text-white shadow-lg shadow-violet-600/30">
+                  <Phone className="h-5 w-5" />
+                </span>
+                <h3 className="mt-4 text-sm font-semibold">Telefon</h3>
+                <a href={`tel:${COMPANY.phoneHref}`} className="mt-1 block text-sm text-muted-foreground hover:text-foreground">
+                  {COMPANY.phone}
+                </a>
+              </Card>
+            )}
             <Card className="rounded-3xl border-border/70 p-6 shadow-sm">
               <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-brand text-white shadow-lg shadow-violet-600/30">
                 <Clock className="h-5 w-5" />
               </span>
               <h3 className="mt-4 text-sm font-semibold">Destek Saatleri</h3>
-              <p className="mt-1 text-sm text-muted-foreground">Hafta içi 09:00 - 19:00</p>
+              <p className="mt-1 text-sm text-muted-foreground">{COMPANY.supportHours}</p>
+            </Card>
+
+            {/* Künye — vergi levhasındaki bilgiler. Alanlar lib/company.ts'te
+                doldurulmadıysa kart hiç basılmaz. */}
+            {legalRows.length > 0 && (
+              <Card className="rounded-3xl border-border/70 p-6 shadow-sm">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-brand text-white shadow-lg shadow-violet-600/30">
+                  <Building2 className="h-5 w-5" />
+                </span>
+                <h3 className="mt-4 text-sm font-semibold">Künye</h3>
+                <dl className="mt-3 space-y-2 text-sm">
+                  {legalRows.map((row) => (
+                    <div key={row.label} className="flex flex-col gap-0.5">
+                      <dt className="text-xs text-muted-foreground">{row.label}</dt>
+                      <dd className="font-medium">{row.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </Card>
+            )}
+
+            <Card className="rounded-3xl border-border/70 p-6 shadow-sm">
+              <h3 className="text-sm font-semibold">Ödeme yöntemleri</h3>
+              <PaymentMethods className="mt-4" showNote={false} />
             </Card>
           </Reveal>
         </div>
