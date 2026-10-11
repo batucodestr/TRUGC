@@ -2,8 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/Motion/Reveal";
-import { BrandPackages, CommissionNote, CreatorPackages } from "@/components/Pricing/PackageCards";
-import { getPricingState } from "@/lib/pricing";
+import { BrandPackages, CommissionNote, CreatorPackages, PackageTrustBar } from "@/components/Pricing/PackageCards";
 
 /**
  * Ana sayfadaki üyelik paketleri bölümü.
@@ -12,13 +11,10 @@ import { getPricingState } from "@/lib/pricing";
  * (components/Pricing/PackageCards.tsx) — iki yüzeyde farklı fiyat gösterme
  * ihtimali böylece ortadan kalkar.
  *
- * Ücretsiz dönemde (hafta sonu) hiçbir tutar gösterilmez — durum sunucudan
- * okunur (bkz. lib/pricing.ts), istemcinin saatinden değil.
+ * Fiyat listesi her zaman görünür: hafta sonu ücretsiz kuralı kampanya
+ * bütçeleri ve ödeme uçları içindir, üyelik paketi fiyat listesi için değil.
  */
-export async function Pricing() {
-  const pricing = await getPricingState();
-  const showPrices = !pricing.free;
-
+export function Pricing() {
   return (
     <section id="pricing" className="border-y border-border/60 bg-muted/30 py-20">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -28,9 +24,8 @@ export async function Pricing() {
             Creator&apos;lar ve markalar için üyelik paketleri
           </h2>
           <p className="mx-auto mt-3 max-w-2xl text-muted-foreground">
-            {showPrices
-              ? "Creator'lar kampanyalara başvurmak, markalar doğru creator'lara ulaşmak için ihtiyacına uyan paketi seçer."
-              : `${pricing.free_weekday_labels.join(" ve ")} günleri TRUGC'nin tamamı ücretsiz — hiçbir ücret alınmaz.`}
+            Creator&apos;lar kampanyalara başvurmak, markalar doğru creator&apos;lara ulaşmak için ihtiyacına uyan
+            paketi seçer.
           </p>
         </Reveal>
 
@@ -39,7 +34,7 @@ export async function Pricing() {
             <h3 className="text-xl font-semibold tracking-tight">Creator paketleri</h3>
             <p className="text-sm text-muted-foreground">Kampanyalara katıl, markalarla çalış, gelirini artır.</p>
           </Reveal>
-          <CreatorPackages showPrices={showPrices} />
+          <CreatorPackages />
         </div>
 
         <div className="mt-14">
@@ -49,14 +44,16 @@ export async function Pricing() {
               Doğru creator&apos;larla çalış, markanı büyüt, satışlarını artır.
             </p>
           </Reveal>
-          <BrandPackages showPrices={showPrices} />
+          <BrandPackages />
         </div>
 
-        {showPrices && (
-          <Reveal variant="fade" className="mt-10">
-            <CommissionNote />
-          </Reveal>
-        )}
+        <Reveal variant="fade" className="mt-10">
+          <CommissionNote />
+        </Reveal>
+
+        <Reveal variant="fade" className="mt-6">
+          <PackageTrustBar />
+        </Reveal>
 
         <Reveal variant="fade" className="mt-10 text-center">
           <Button variant="outline" className="rounded-full" asChild>

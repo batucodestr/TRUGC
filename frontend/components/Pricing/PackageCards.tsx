@@ -1,14 +1,28 @@
 // Üyelik paketi kartları — ana sayfadaki fiyat bölümü ve /fiyatlandirma
 // sayfası aynı bileşenleri kullanır, böylece iki yüzey birbirinden ayrışamaz.
 //
-// Bileşenler fiyat durumunu kendileri okumaz: `showPrices` çağıran sunucu
-// bileşeninden gelir (bkz. lib/pricing.ts). Ücretsiz dönemde hiçbir tutar
-// basılmaz — paket içerikleri yine görünür.
+// Paket fiyatları HER ZAMAN gösterilir; hafta sonu ücretsiz kuralına
+// (lib/pricing.ts) bağlı değildir. O kural kampanya bütçeleri ve ödeme
+// uçları içindir — üyelik paketi bundan ayrı bir üründür ve fiyat listesinin
+// hafta sonu "Ücretsiz"e dönmesi fiyat listesini okunamaz hale getiriyordu.
 
-import Link from "next/link";
-import { Check, Crown, Gem, Send, Sparkles, Sprout, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  BarChart3,
+  Check,
+  Crown,
+  Gem,
+  Headphones,
+  Rocket,
+  Send,
+  ShieldCheck,
+  Sparkles,
+  Sprout,
+  Star,
+  Target,
+  Users,
+} from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { PackageCheckoutDialog } from "@/components/Pricing/PackageCheckoutDialog";
 import { Reveal } from "@/components/Motion/Reveal";
 import {
   BRAND_PACKAGES,
@@ -46,7 +60,7 @@ function FeatureList({ features }: { features: string[] }) {
 }
 
 /** Creator üyelik paketleri — her kart 3 Günlük / Haftalık / Aylık satırını taşır. */
-export function CreatorPackages({ showPrices }: { showPrices: boolean }) {
+export function CreatorPackages() {
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
       {CREATOR_PACKAGES.map((pkg, i) => {
@@ -79,9 +93,7 @@ export function CreatorPackages({ showPrices }: { showPrices: boolean }) {
                       <p className="text-[11px] font-medium uppercase tracking-wide text-violet-600 dark:text-violet-300">
                         {tier.label}
                       </p>
-                      <p className="text-xl font-semibold tracking-tight">
-                        {showPrices ? formatTryPrice(tier.price) : "Ücretsiz"}
-                      </p>
+                      <p className="text-xl font-semibold tracking-tight">{formatTryPrice(tier.price)}</p>
                     </div>
                     <p className="shrink-0 text-right text-sm text-muted-foreground">
                       <span className="font-semibold text-foreground">{tier.applications}</span> iş
@@ -93,17 +105,22 @@ export function CreatorPackages({ showPrices }: { showPrices: boolean }) {
               </ul>
 
               {/* iyzico şartı: fiyatlar TL cinsinden ve KDV dahil gösterilmeli. */}
-              {showPrices && <p className="mt-3 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>}
+              <p className="mt-3 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>
 
               <FeatureList features={pkg.features} />
 
-              <Button
-                className={cn("mt-7 rounded-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
-                variant={pkg.highlighted ? "default" : "outline"}
-                asChild
-              >
-                <Link href="/dashboard/creator">Paketi seç</Link>
-              </Button>
+              <PackageCheckoutDialog
+                packageName={pkg.name}
+                dashboardHref="/dashboard/creator"
+                triggerVariant={pkg.highlighted ? "default" : "outline"}
+                triggerClassName={cn("mt-7 w-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
+                options={pkg.tiers.map((tier) => ({
+                  id: tier.id,
+                  label: tier.label,
+                  price: tier.price,
+                  note: `${tier.applications} iş başvuru hakkı`,
+                }))}
+              />
             </Card>
           </Reveal>
         );
@@ -113,7 +130,7 @@ export function CreatorPackages({ showPrices }: { showPrices: boolean }) {
 }
 
 /** Marka üyelik paketleri — aylık sabit ücret. */
-export function BrandPackages({ showPrices }: { showPrices: boolean }) {
+export function BrandPackages() {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
       {BRAND_PACKAGES.map((pkg, i) => {
@@ -143,22 +160,20 @@ export function BrandPackages({ showPrices }: { showPrices: boolean }) {
               <p className="mt-1 text-sm text-muted-foreground">{pkg.tagline}</p>
 
               <div className="mt-5 flex items-baseline gap-1">
-                <span className="text-4xl font-semibold tracking-tight">
-                  {showPrices ? formatTryPrice(pkg.price) : "Ücretsiz"}
-                </span>
-                {showPrices && <span className="text-sm text-muted-foreground">/ay</span>}
+                <span className="text-4xl font-semibold tracking-tight">{formatTryPrice(pkg.price)}</span>
+                <span className="text-sm text-muted-foreground">/ay</span>
               </div>
-              {showPrices && <p className="mt-1 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>}
+              <p className="mt-1 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>
 
               <FeatureList features={pkg.features} />
 
-              <Button
-                className={cn("mt-7 rounded-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
-                variant={pkg.highlighted ? "default" : "outline"}
-                asChild
-              >
-                <Link href="/dashboard/brand">Paketi seç</Link>
-              </Button>
+              <PackageCheckoutDialog
+                packageName={pkg.name}
+                dashboardHref="/dashboard/brand"
+                triggerVariant={pkg.highlighted ? "default" : "outline"}
+                triggerClassName={cn("mt-7 w-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
+                options={[{ id: `${pkg.id}-monthly`, label: "Aylık", price: pkg.price }]}
+              />
             </Card>
           </Reveal>
         );
@@ -171,9 +186,7 @@ export function BrandPackages({ showPrices }: { showPrices: boolean }) {
  * Kampanya komisyonu notu.
  *
  * Üyelik ücretinden ayrı bir kalemdir: marka bir kampanya yayınladığında
- * bütçesi üzerinden komisyon eklenir. Ücretsiz dönemde komisyon sıfırdır
- * (bkz. apps/common/pricing.py: commission_percent), bu yüzden kutu yalnızca
- * fiyatların gösterildiği dönemde basılır.
+ * bütçesi üzerinden komisyon eklenir.
  */
 export function CommissionNote({ className }: { className?: string }) {
   const example = COMMISSION_EXAMPLE_BUDGET;
@@ -205,6 +218,39 @@ export function CommissionNote({ className }: { className?: string }) {
           {formatTryPrice(example)} bütçe → <span className="text-violet-600 dark:text-violet-300">+{formatTryPrice(commission)}</span> komisyon
         </p>
       </div>
+    </Card>
+  );
+}
+
+/**
+ * Paketlerin altındaki güven bandı (referans tasarımdaki alt şerit).
+ *
+ * "7/24 Destek" yerine çağrı destek hattı yazar: destek saatleri sitenin
+ * başka yerlerinde (lib/company.ts → supportHours, iletişim sayfası) hafta
+ * içi 09:00-19:00 olarak duyuruluyor, 7/24 iddiası bununla çelişirdi.
+ */
+const TRUST_ITEMS = [
+  { Icon: ShieldCheck, label: "Güvenli Ödeme Sistemi" },
+  { Icon: Headphones, label: "Çağrı Destek Hattı" },
+  { Icon: BarChart3, label: "Ölçülebilir Sonuçlar" },
+  { Icon: Users, label: "Kaliteli Creator'lar" },
+  { Icon: Target, label: "Doğru Hedefleme" },
+  { Icon: Rocket, label: "Markanızı Büyütün" },
+];
+
+export function PackageTrustBar({ className }: { className?: string }) {
+  return (
+    <Card className={cn("rounded-3xl border-border/70 px-6 py-7 shadow-sm", className)}>
+      <ul className="grid grid-cols-2 gap-x-6 gap-y-6 sm:grid-cols-3 lg:grid-cols-6">
+        {TRUST_ITEMS.map(({ Icon, label }) => (
+          <li key={label} className="flex flex-col items-center gap-2.5 text-center">
+            <span className="flex size-10 items-center justify-center rounded-2xl bg-violet-600/10 text-violet-600 dark:bg-violet-400/15 dark:text-violet-300">
+              <Icon className="size-5" />
+            </span>
+            <span className="text-sm font-medium leading-snug">{label}</span>
+          </li>
+        ))}
+      </ul>
     </Card>
   );
 }

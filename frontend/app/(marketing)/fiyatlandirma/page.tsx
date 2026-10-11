@@ -3,9 +3,8 @@ import { Check, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Reveal } from "@/components/Motion/Reveal";
-import { BrandPackages, CommissionNote, CreatorPackages } from "@/components/Pricing/PackageCards";
+import { BrandPackages, CommissionNote, CreatorPackages, PackageTrustBar } from "@/components/Pricing/PackageCards";
 import { ShareCampaign } from "@/features/marketing/share-campaign";
-import { getPricingState } from "@/lib/pricing";
 import { BRAND_PACKAGES, CAMPAIGN_COMMISSION_PERCENT, CREATOR_PACKAGES } from "@/lib/content/packages";
 import { PaymentMethods } from "@/components/shared/payment-methods";
 import { BankTransferCard } from "@/components/shared/bank-transfer-card";
@@ -71,12 +70,7 @@ function ComparisonCell({ value }: { value: string | boolean }) {
   return <>{value}</>;
 }
 
-export default async function FiyatlandirmaPage() {
-  // Hafta sonu ücretsiz dönemde paket fiyatları gösterilmez; durum sunucudan
-  // (sunucu saatiyle) okunur.
-  const pricing = await getPricingState();
-  const showPrices = !pricing.free;
-
+export default function FiyatlandirmaPage() {
   return (
     <div>
       <section className="mx-auto max-w-7xl px-4 pb-12 pt-16 text-center sm:px-6 sm:pt-24 lg:px-8">
@@ -86,17 +80,8 @@ export default async function FiyatlandirmaPage() {
             Creator&apos;lar ve markalar için <span className="text-gradient-brand">net paketler</span>
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-balance text-lg text-muted-foreground">
-            {showPrices ? (
-              <>
-                TRUGC&apos;ye kayıt olmak ve profil oluşturmak ücretsizdir. Kampanyalara başvurmak ve creator&apos;lara
-                ulaşmak için ihtiyacınıza uyan paketi seçin.
-              </>
-            ) : (
-              <>
-                {pricing.free_weekday_labels.join(" ve ")} günleri TRUGC&apos;nin tamamı ücretsizdir: iş ilanı
-                oluşturmak, iş almak ve creator&apos;lara erişmek için hiçbir ücret alınmaz.
-              </>
-            )}
+            TRUGC&apos;ye kayıt olmak ve profil oluşturmak ücretsizdir. Kampanyalara başvurmak ve creator&apos;lara
+            ulaşmak için ihtiyacınıza uyan paketi seçin.
           </p>
         </Reveal>
       </section>
@@ -106,7 +91,7 @@ export default async function FiyatlandirmaPage() {
           <h2 className="text-2xl font-semibold tracking-tight">Creator paketleri</h2>
           <p className="text-sm text-muted-foreground">Kampanyalara katıl, markalarla çalış, gelirini artır.</p>
         </Reveal>
-        <CreatorPackages showPrices={showPrices} />
+        <CreatorPackages />
 
         <Reveal className="mb-6 mt-16 flex flex-col gap-1">
           <h2 className="text-2xl font-semibold tracking-tight">Marka paketleri</h2>
@@ -114,13 +99,15 @@ export default async function FiyatlandirmaPage() {
             Doğru creator&apos;larla çalış, markanı büyüt, satışlarını artır.
           </p>
         </Reveal>
-        <BrandPackages showPrices={showPrices} />
+        <BrandPackages />
 
-        {showPrices && (
-          <Reveal variant="fade" className="mt-10">
-            <CommissionNote />
-          </Reveal>
-        )}
+        <Reveal variant="fade" className="mt-10">
+          <CommissionNote />
+        </Reveal>
+
+        <Reveal variant="fade" className="mt-6">
+          <PackageTrustBar />
+        </Reveal>
 
         {/* Ödeme yöntemleri — iyzico üye iş yeri şartı: ödemenin başladığı
             sayfada iyzico, Visa ve Mastercard logoları görünür olmalıdır. */}

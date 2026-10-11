@@ -1,34 +1,17 @@
-"use client";
-
 // Havale/EFT ödeme bilgileri kutusu.
 //
 // Sanal POS açılana kadar ödemelerin alındığı kanal budur; IBAN'ın yanlış
-// kopyalanması ödemenin kaybolması demek olduğundan tek dokunuşluk bir
-// "kopyala" düğmesi vardır (bu yüzden bileşen istemci tarafındadır).
+// kopyalanması ödemenin kaybolması demek olduğundan değerler CopyField ile
+// tek dokunuşta kopyalanır. Paket seçiminde aynı bilgiler
+// PackageCheckoutDialog içinde tutarla birlikte gösterilir.
 
-import { useState } from "react";
-import { Building2, Check, Copy } from "lucide-react";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { Building2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { CopyField } from "@/components/shared/copy-field";
 import { BANK_ACCOUNT, COMPANY } from "@/lib/company";
 import { cn } from "@/lib/utils";
 
 export function BankTransferCard({ className }: { className?: string }) {
-  const [copied, setCopied] = useState(false);
-
-  async function copyIban() {
-    try {
-      await navigator.clipboard.writeText(BANK_ACCOUNT.ibanPlain);
-      setCopied(true);
-      toast.success("IBAN kopyalandı");
-      window.setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard izni yoksa kullanıcı numarayı elle seçebilir.
-      toast.error("IBAN kopyalanamadı, numarayı elle kopyalayabilirsiniz.");
-    }
-  }
-
   return (
     <Card className={cn("rounded-3xl border-border/70 p-7 shadow-sm", className)}>
       <div className="flex items-start gap-3">
@@ -44,24 +27,10 @@ export function BankTransferCard({ className }: { className?: string }) {
         </div>
       </div>
 
-      <dl className="mt-5 space-y-3 text-sm">
-        <div className="flex flex-col gap-0.5">
-          <dt className="text-xs text-muted-foreground">Hesap adı</dt>
-          <dd className="font-medium">{BANK_ACCOUNT.accountName}</dd>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <dt className="text-xs text-muted-foreground">Şirket IBAN</dt>
-          <dd className="flex flex-wrap items-center gap-2">
-            <span className="select-all break-all font-mono text-sm font-medium tracking-tight">
-              {BANK_ACCOUNT.iban}
-            </span>
-            <Button type="button" size="sm" variant="outline" className="h-8 gap-1.5 rounded-full" onClick={copyIban}>
-              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
-              {copied ? "Kopyalandı" : "Kopyala"}
-            </Button>
-          </dd>
-        </div>
-      </dl>
+      <div className="mt-5 space-y-3">
+        <CopyField label="Hesap adı" value={BANK_ACCOUNT.accountName} mono={false} />
+        <CopyField label="Şirket IBAN" value={BANK_ACCOUNT.iban} copyValue={BANK_ACCOUNT.ibanPlain} />
+      </div>
 
       <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
         Ödemeniz ekibimiz tarafından kontrol edildikten sonra paketiniz hesabınıza tanımlanır. Dekontunuzu{" "}
