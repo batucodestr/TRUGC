@@ -54,6 +54,8 @@ export const ENDPOINTS = {
   payments: `${API_BASE}/payments/transactions/`,
   // Hafta sonu ücretsiz / hafta içi ücretli durumunun tek kaynağı (sunucu saati).
   pricingState: `${API_BASE}/payments/pricing/`,
+  packageCatalog: `${API_BASE}/payments/admin/packages/`,
+  myWallet: `${API_BASE}/payments/me/wallet/`,
   posConfig: `${API_BASE}/payments/pos/config/`,
   posCheckout: `${API_BASE}/payments/pos/checkout/`,
   posPayments: `${API_BASE}/payments/pos/payments/`,
@@ -150,4 +152,14 @@ export function adminMessageDetail(id: string | number) {
 
 export function posPaymentDetail(merchantOid: string) {
   return `${API_BASE}/payments/pos/${merchantOid}/`;
+}
+
+// Bakiye ve üyelik paketi — admin uçları yalnızca admin rolüne açıktır
+// (bkz. apps/payments/views.py: IsAdminRole).
+export function userWallet(id: string | number) {
+  return `${API_BASE}/payments/admin/users/${id}/wallet/`;
+}
+
+export function userMembership(id: string | number) {
+  return `${API_BASE}/payments/admin/users/${id}/membership/`;
 }

@@ -1,12 +1,14 @@
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import permissions, viewsets
+from rest_framework import permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from apps.accounts.exceptions import error_response
 from apps.accounts.permissions import IsBrand, IsCreator, IsOnboarded
 from apps.notifications.services import notify_user
+from apps.payments import membership as membership_rules
 
 from .models import Application, ApplicationStatus
 from .permissions import IsApplicationParty
@@ -50,10 +52,25 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def _is_staff_reviewer(self, request):
         return request.user.is_staff or request.user.role in ("admin", "moderator")
 
+    def create(self, request, *args, **kwargs):
+        """Başvuru hakkı kontrolü, doğrulamadan ÖNCE yapılır.
+
+        Hak bittiğinde kullanıcıya alan bazlı bir doğrulama hatası değil,
+        ne yapması gerektiğini söyleyen tek bir mesaj döner.
+        """
+        try:
+            membership_rules.check_application_slot(request.user)
+        except membership_rules.MembershipRequired as exc:
+            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "creator"):
             raise PermissionDenied("Only creators with a profile can apply to campaigns.")
         application = serializer.save()
+        # Hak, başvuru gerçekten oluştuktan SONRA harcanır: doğrulamaya takılan
+        # bir istek kullanıcının hakkını yemez.
+        membership_rules.consume_application(self.request.user)
         notify_user(
             user=application.campaign.brand.user,
             title="New application received",

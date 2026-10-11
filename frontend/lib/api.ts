@@ -39,7 +39,16 @@ async function getServerAccessToken(): Promise<string | null> {
   }
 }
 
-export type ApiErrorKind = "network" | "unauthorized" | "forbidden" | "not_found" | "validation" | "rate_limited" | "server" | "unknown";
+export type ApiErrorKind =
+  | "network"
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "validation"
+  | "payment_required"
+  | "rate_limited"
+  | "server"
+  | "unknown";
 
 /**
  * Matches backend/apps/accounts/exceptions.py::custom_exception_handler exactly:
@@ -58,6 +67,8 @@ function kindForStatus(status: number): ApiErrorKind {
   if (status === 403) return "forbidden";
   if (status === 404) return "not_found";
   if (status === 400 || status === 422) return "validation";
+  // 402: aktif üyelik paketi gerekiyor (bkz. apps/payments/membership.py).
+  if (status === 402) return "payment_required";
   if (status === 429) return "rate_limited";
   if (status >= 500) return "server";
   return "unknown";

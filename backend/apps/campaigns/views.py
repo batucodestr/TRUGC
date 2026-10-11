@@ -1,12 +1,14 @@
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, permissions, viewsets
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 
+from apps.accounts.exceptions import error_response
 from apps.accounts.models import log_admin_action
 from apps.accounts.permissions import IsAdminRole, IsBrand, IsModerator, IsOnboarded
+from apps.payments import membership as membership_rules
 
 from .models import Campaign, CampaignMedia, CampaignRequirement, CampaignStatus
 from .permissions import IsCampaignOwnerOrStaff
@@ -50,6 +52,14 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if self.action == "bulk":
             return [permissions.IsAuthenticated(), (IsAdminRole | IsModerator)()]
         return [permissions.AllowAny()]
+
+    def create(self, request, *args, **kwargs):
+        """Paketin aktif kampanya limiti, doğrulamadan ÖNCE kontrol edilir."""
+        try:
+            membership_rules.check_campaign_slot(request.user)
+        except membership_rules.MembershipRequired as exc:
+            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "brand"):

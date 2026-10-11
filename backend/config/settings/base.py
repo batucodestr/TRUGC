@@ -371,6 +371,13 @@ PLATFORM_COMMISSION_PERCENT = config("PLATFORM_COMMISSION_PERCENT", default="10"
 BRAND_ACCESS_PRICE = config("BRAND_ACCESS_PRICE", default="0")
 BRAND_ACCESS_DAYS = config("BRAND_ACCESS_DAYS", default=30, cast=int)
 
+# Üyelik paketi kurallarının ENGELLEME kısmı (bkz. apps/payments/membership.py).
+# Varsayılan False: sayaçlar her zaman işler ama kimse engellenmez. Paketler
+# satılmadan açılırsa platformdaki bütün creator'lar bir anda başvuru yapamaz
+# hale gelir — bu yüzden anahtar bilinçli olarak kapalı başlar ve paketler
+# dağıtıldıktan sonra açılır.
+MEMBERSHIP_ENFORCED = config("MEMBERSHIP_ENFORCED", default=False, cast=bool)
+
 # ---------------------------------------------------------------------------
 # Sanal POS (bkz. apps/payments/pos/)
 # ---------------------------------------------------------------------------

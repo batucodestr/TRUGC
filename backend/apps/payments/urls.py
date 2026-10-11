@@ -17,6 +17,11 @@ urlpatterns = [
     path("pos/checkout/", views.PosCheckoutView.as_view(), name="pos-checkout"),
     path("pos/payments/", views.MyPosPaymentListView.as_view(), name="pos-payment-list"),
     path("pos/callback/<str:provider_name>/", views.PosCallbackView.as_view(), name="pos-callback"),
+    # Bakiye ve üyelik paketi
+    path("me/wallet/", views.MyWalletView.as_view(), name="my-wallet"),
+    path("admin/packages/", views.PackageCatalogView.as_view(), name="package-catalog"),
+    path("admin/users/<int:pk>/wallet/", views.UserWalletView.as_view(), name="user-wallet"),
+    path("admin/users/<int:pk>/membership/", views.UserMembershipView.as_view(), name="user-membership"),
     path("pos/<str:merchant_oid>/", views.PosPaymentDetailView.as_view(), name="pos-payment-detail"),
     *router.urls,
 ]

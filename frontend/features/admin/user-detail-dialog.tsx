@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { UserBillingPanel } from "@/features/admin/user-billing-panel";
 import { getUser, performUserAction, type PlatformUserDetail } from "@/lib/api/admin";
 import { getErrorMessage } from "@/lib/error-message";
 import { formatDate } from "@/lib/format";
@@ -63,10 +65,10 @@ export function UserDetailDialog({ userId, onClose, onChanged }: UserDetailDialo
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[88vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Kullanıcı detayı</DialogTitle>
-          <DialogDescription>Profil bilgileri ve rol yönetimi.</DialogDescription>
+          <DialogDescription>Profil, rol, bakiye ve üyelik paketi yönetimi.</DialogDescription>
         </DialogHeader>
 
         {loading || !user ? (
@@ -110,26 +112,43 @@ export function UserDetailDialog({ userId, onClose, onChanged }: UserDetailDialo
               </div>
             )}
 
-            <div className="space-y-2 border-t border-border/60 pt-4">
-              <p className="text-xs font-medium text-muted-foreground">Rol değiştir</p>
-              <div className="flex gap-2">
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger className="flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button onClick={saveRole} disabled={saving || role === user.role} className="bg-gradient-brand hover:opacity-90">
-                  {saving ? "Kaydediliyor..." : "Kaydet"}
-                </Button>
-              </div>
-            </div>
+            <Tabs defaultValue="profile" className="border-t border-border/60 pt-4">
+              <TabsList className="w-full">
+                <TabsTrigger value="profile" className="flex-1">
+                  Profil ve rol
+                </TabsTrigger>
+                <TabsTrigger value="billing" className="flex-1">
+                  Bakiye ve paket
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="profile" className="mt-4 space-y-2">
+                <p className="text-xs font-medium text-muted-foreground">Rol değiştir</p>
+                <div className="flex gap-2">
+                  <Select value={role} onValueChange={setRole}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {ROLE_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={saveRole} disabled={saving || role === user.role} className="bg-gradient-brand hover:opacity-90">
+                    {saving ? "Kaydediliyor..." : "Kaydet"}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Bakiye/paket yalnızca admin uçlarına gider; moderatör açtığında
+                  istekler 403 döner ve panel hata bildirir (bkz. IsAdminRole). */}
+              <TabsContent value="billing" className="mt-4">
+                <UserBillingPanel userId={user.id} />
+              </TabsContent>
+            </Tabs>
           </div>
         )}
 

@@ -1,8 +1,10 @@
 import logging
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.db import transaction as db_transaction
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
@@ -15,14 +17,32 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.exceptions import error_response
-from apps.accounts.permissions import IsBrand, IsOnboarded, PaymentsEnabled
+from apps.accounts.models import log_admin_action
+from apps.accounts.permissions import IsAdminRole, IsBrand, IsOnboarded, PaymentsEnabled
 from apps.common import pricing
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
-from .models import PaymentPurpose, PosPayment, PosPaymentStatus, Transaction, TransactionStatus
+from . import packages
+from . import wallet as wallet_service
+from .models import (
+    PaymentPurpose,
+    PosPayment,
+    PosPaymentStatus,
+    Transaction,
+    TransactionStatus,
+    WalletEntryKind,
+)
 from .pos import PosError, PosNotConfigured, get_pos_provider, pos_status
-from .serializers import PosCheckoutSerializer, PosPaymentSerializer, TransactionSerializer
+from .serializers import (
+    MembershipAssignSerializer,
+    MembershipSerializer,
+    PosCheckoutSerializer,
+    PosPaymentSerializer,
+    TransactionSerializer,
+    WalletAdjustSerializer,
+    WalletSerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -375,3 +395,144 @@ class MyPosPaymentListView(APIView):
     def get(self, request):
         payments = PosPayment.objects.filter(user=request.user)[:50]
         return Response(PosPaymentSerializer(payments, many=True, context={"request": request}).data)
+
+
+# ---------------------------------------------------------------------------
+# Admin: kullanıcı bakiyesi ve üyelik paketi
+# ---------------------------------------------------------------------------
+# Otomatik tahsilat açılana kadar paketler havale/EFT ile satılıyor ve admin
+# tarafından elle tanımlanıyor. Bu uçlar o işi yapar.
+#
+# Yetki bilerek ``IsAdminRole`` ile sınırlıdır — moderatörler bu uçlara
+# erişemez. Bakiye yüklemek para basmakla eşdeğerdir; içerik moderasyonu
+# yetkisi bunu kapsamamalıdır.
+
+
+class PackageCatalogView(APIView):
+    """Üyelik paketleri kataloğu — admin panelindeki paket seçicisini besler."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        return Response({"packages": packages.catalog_payload()})
+
+
+class UserWalletView(APIView):
+    """GET: kullanıcının bakiyesi + hareket defteri. POST: bakiye yükle/düş."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def _target(self, pk):
+        return get_object_or_404(get_user_model(), pk=pk)
+
+    @extend_schema(responses=WalletSerializer)
+    def get(self, request, pk):
+        wallet = wallet_service.get_wallet(self._target(pk))
+        return Response(WalletSerializer(wallet).data)
+
+    @extend_schema(request=WalletAdjustSerializer, responses=WalletSerializer)
+    def post(self, request, pk):
+        user = self._target(pk)
+        serializer = WalletAdjustSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        amount = serializer.validated_data["amount"]
+        note = serializer.validated_data["note"]
+
+        kind = WalletEntryKind.ADMIN_CREDIT if amount > 0 else WalletEntryKind.ADMIN_DEBIT
+        try:
+            entry = wallet_service.adjust_balance(user, amount, kind=kind, note=note, actor=request.user)
+        except wallet_service.WalletError as exc:
+            return error_response("VALIDATION_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+
+        log_admin_action(
+            request.user,
+            "user.wallet_credit" if amount > 0 else "user.wallet_debit",
+            "user",
+            user.id,
+            f"{amount} TL → bakiye {entry.balance_after} TL. {note}".strip(),
+        )
+        notify_user(
+            user=user,
+            title="Bakiyeniz güncellendi" if amount > 0 else "Bakiyenizden düşüm yapıldı",
+            body=f"Hesabınıza {amount} TL işlendi. Güncel bakiyeniz: {entry.balance_after} TL.",
+            notification_type=NotificationType.PAYMENT,
+        )
+        # Defteri de içeren güncel cüzdanı döner; panel ikinci bir istek atmaz.
+        return Response(WalletSerializer(wallet_service.get_wallet(user)).data)
+
+
+class UserMembershipView(APIView):
+    """GET: kullanıcının paketi. POST: paket ata/değiştir. DELETE: paketi kaldır."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def _target(self, pk):
+        return get_object_or_404(get_user_model(), pk=pk)
+
+    @extend_schema(responses=MembershipSerializer)
+    def get(self, request, pk):
+        membership = wallet_service.get_membership(self._target(pk))
+        return Response(MembershipSerializer(membership).data)
+
+    @extend_schema(request=MembershipAssignSerializer, responses=OpenApiTypes.OBJECT)
+    def post(self, request, pk):
+        user = self._target(pk)
+        serializer = MembershipAssignSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        try:
+            membership = wallet_service.assign_membership(
+                user,
+                data["package_code"],
+                data["tier_code"],
+                actor=request.user,
+                charge_wallet=data["charge_wallet"],
+                note=data["note"],
+            )
+        except wallet_service.WalletError as exc:
+            return error_response("VALIDATION_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+
+        log_admin_action(
+            request.user,
+            "user.membership_assign",
+            "user",
+            user.id,
+            f"{membership.package_name} · {membership.tier_label}"
+            + (" (bakiyeden tahsil edildi)" if data["charge_wallet"] else ""),
+        )
+        notify_user(
+            user=user,
+            title="Üyelik paketiniz tanımlandı",
+            body=f"{membership.package_name} · {membership.tier_label} paketiniz aktif edildi.",
+            notification_type=NotificationType.PAYMENT,
+        )
+        return Response(
+            {
+                "membership": MembershipSerializer(membership).data,
+                "wallet": WalletSerializer(wallet_service.get_wallet(user)).data,
+            }
+        )
+
+    @extend_schema(responses=MembershipSerializer)
+    def delete(self, request, pk):
+        user = self._target(pk)
+        membership = wallet_service.clear_membership(user, actor=request.user)
+        log_admin_action(request.user, "user.membership_clear", "user", user.id, "")
+        return Response(MembershipSerializer(membership).data)
+
+
+class MyWalletView(APIView):
+    """Kullanıcının kendi bakiyesi ve paketi — panelde gösterilir."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        return Response(
+            {
+                "wallet": WalletSerializer(wallet_service.get_wallet(request.user)).data,
+                "membership": MembershipSerializer(wallet_service.get_membership(request.user)).data,
+            }
+        )

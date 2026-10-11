@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatsCard } from "@/components/Cards/StatsCard";
 import { AnalyticsChart } from "@/components/shared/analytics-chart";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MembershipStatusCard } from "@/components/shared/membership-status-card";
 import { CampaignStatusBadge } from "@/features/campaigns/campaign-status-badge";
 import { listMyCampaigns } from "@/lib/api/campaigns";
 import { listApplications } from "@/lib/api/applications";
@@ -37,6 +38,8 @@ export default async function BrandDashboardPage() {
           </Link>
         </Button>
       </div>
+
+      <MembershipStatusCard audience="brand" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard label="Aktif kampanyalar" value={String(dashboard.active_campaigns)} icon={Megaphone} />

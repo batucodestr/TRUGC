@@ -5,10 +5,10 @@
 // tek dokunuşta kopyalanır. Paket seçiminde aynı bilgiler
 // PackageCheckoutDialog içinde tutarla birlikte gösterilir.
 
-import { Building2 } from "lucide-react";
+import { Building2, Timer } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { CopyField } from "@/components/shared/copy-field";
-import { BANK_ACCOUNT, COMPANY } from "@/lib/company";
+import { BANK_ACCOUNT, COMPANY, PAYMENT_APPROVAL_MINUTES, PAYMENT_APPROVAL_NOTICE } from "@/lib/company";
 import { cn } from "@/lib/utils";
 
 export function BankTransferCard({ className }: { className?: string }) {
@@ -27,13 +27,21 @@ export function BankTransferCard({ className }: { className?: string }) {
         </div>
       </div>
 
+      <div
+        className="mt-5 flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-50 px-3.5 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+        role="status"
+      >
+        <Timer className="size-4 shrink-0" />
+        Ödemeniz {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır
+      </div>
+
       <div className="mt-5 space-y-3">
         <CopyField label="Hesap adı" value={BANK_ACCOUNT.accountName} mono={false} />
         <CopyField label="Şirket IBAN" value={BANK_ACCOUNT.iban} copyValue={BANK_ACCOUNT.ibanPlain} />
       </div>
 
       <p className="mt-5 text-xs leading-relaxed text-muted-foreground">
-        Ödemeniz ekibimiz tarafından kontrol edildikten sonra paketiniz hesabınıza tanımlanır. Dekontunuzu{" "}
+        {PAYMENT_APPROVAL_NOTICE} Dekontunuzu{" "}
         <a href={`mailto:${COMPANY.email}`} className="font-medium text-foreground underline underline-offset-4">
           {COMPANY.email}
         </a>{" "}

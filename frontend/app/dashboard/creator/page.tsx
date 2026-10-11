@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatsCard } from "@/components/Cards/StatsCard";
 import { AnalyticsChart } from "@/components/shared/analytics-chart";
 import { EmptyState } from "@/components/shared/empty-state";
+import { MembershipStatusCard } from "@/components/shared/membership-status-card";
 import { listMyApplications } from "@/lib/api/applications";
 import { getCreatorDashboard } from "@/lib/api/analytics";
 import { listTransactions, bucketTransactionsByMonth } from "@/lib/api/finance";
@@ -27,6 +28,8 @@ export default async function CreatorDashboardPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Tekrar hoş geldiniz, {firstName}</h1>
         <p className="text-muted-foreground">Creator işinizin genel bir görünümü.</p>
       </div>
+
+      <MembershipStatusCard audience="creator" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard label="Toplam kazanç" value={formatCurrency(dashboard.earnings, { compact: true })} icon={Wallet} />

@@ -6,7 +6,8 @@ from apps.applications.models import Application, ApplicationStatus
 from apps.common import pricing
 from apps.common.serializers import FreePeriodPricingMixin
 
-from .models import PaymentPurpose, PosPayment, Transaction
+from .models import Membership, PaymentPurpose, PosPayment, Transaction, Wallet, WalletEntry
+from .packages import resolve
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -128,4 +129,86 @@ class PosCheckoutSerializer(serializers.Serializer):
             raise serializers.ValidationError("Yalnızca kendi kampanyanızın başvurusu için ödeme yapabilirsiniz.")
         attrs["application"] = application
         attrs["access_days"] = 0
+        return attrs
+
+
+# ---------------------------------------------------------------------------
+# Bakiye ve üyelik paketi (admin paneli)
+# ---------------------------------------------------------------------------
+
+
+class WalletEntrySerializer(serializers.ModelSerializer):
+    created_by_email = serializers.CharField(source="created_by.email", read_only=True, default="")
+    kind_label = serializers.CharField(source="get_kind_display", read_only=True)
+
+    class Meta:
+        model = WalletEntry
+        fields = ["id", "amount", "balance_after", "kind", "kind_label", "note", "created_by_email", "created_at"]
+        read_only_fields = fields
+
+
+class WalletSerializer(serializers.ModelSerializer):
+    entries = WalletEntrySerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Wallet
+        fields = ["balance", "currency", "updated_at", "entries"]
+        read_only_fields = fields
+
+
+class MembershipSerializer(serializers.ModelSerializer):
+    is_active = serializers.BooleanField(read_only=True)
+    days_remaining = serializers.IntegerField(read_only=True)
+    remaining_applications = serializers.IntegerField(read_only=True, allow_null=True)
+    assigned_by_email = serializers.CharField(source="assigned_by.email", read_only=True, default="")
+
+    class Meta:
+        model = Membership
+        fields = [
+            "package_code",
+            "package_name",
+            "tier_code",
+            "tier_label",
+            "application_quota",
+            "applications_used",
+            "remaining_applications",
+            "campaign_quota",
+            "starts_at",
+            "expires_at",
+            "is_active",
+            "days_remaining",
+            "assigned_by_email",
+            "updated_at",
+        ]
+        read_only_fields = fields
+
+
+class WalletAdjustSerializer(serializers.Serializer):
+    """Admin bakiye yükleme/düşme isteği.
+
+    ``amount`` işaretlidir: pozitif yükler, negatif düşer. Sıfır reddedilir —
+    hiçbir şey yapmayan bir defter satırı oluşturmanın anlamı yok.
+    """
+
+    amount = serializers.DecimalField(max_digits=12, decimal_places=2)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+    def validate_amount(self, value):
+        if value == 0:
+            raise serializers.ValidationError("Tutar sıfır olamaz.")
+        return value
+
+
+class MembershipAssignSerializer(serializers.Serializer):
+    """Admin paket atama isteği."""
+
+    package_code = serializers.CharField(max_length=32)
+    tier_code = serializers.CharField(max_length=16)
+    #: True ise paket ücreti kullanıcının bakiyesinden düşülür.
+    charge_wallet = serializers.BooleanField(required=False, default=False)
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        if resolve(attrs["package_code"], attrs["tier_code"]) is None:
+            raise serializers.ValidationError("Geçersiz paket veya süre seçimi.")
         return attrs

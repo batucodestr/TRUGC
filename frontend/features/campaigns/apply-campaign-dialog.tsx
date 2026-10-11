@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,10 +19,11 @@ import { Label } from "@/components/ui/label";
 import { Send } from "lucide-react";
 import { useAuth } from "@/components/Auth/AuthProvider";
 import { applyToCampaign } from "@/lib/api/applications";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, isMembershipRequired } from "@/lib/error-message";
 import { usePricing } from "@/components/Pricing/PricingProvider";
 
 export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId: string; campaignTitle: string }) {
+  const router = useRouter();
   const { session } = useAuth();
   // Hafta sonu iş almak ücretsizdir: ücret teklifi alanı gösterilmez ve
   // gönderilmez (backend de bu dönemde teklif edilen ücreti yok sayar).
@@ -46,6 +48,15 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
         description: `Marka, "${campaignTitle}" kampanyasına başvurunuzu kısa süre içinde inceleyecek.`,
       });
     } catch (err) {
+      // 402 = aktif paket yok/hak bitti. Kullanıcıyı kuru bir hata mesajıyla
+      // bırakmak yerine doğrudan paketlere götüren bir eylem sunulur.
+      if (isMembershipRequired(err)) {
+        toast.error("Başvuru hakkınız yok", {
+          description: getErrorMessage(err),
+          action: { label: "Paketleri gör", onClick: () => router.push("/fiyatlandirma") },
+        });
+        return;
+      }
       toast.error("Başvuru gönderilemedi", { description: getErrorMessage(err) });
     } finally {
       setSending(false);

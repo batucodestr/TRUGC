@@ -12,6 +12,7 @@ const MESSAGE_BY_KIND: Record<string, string> = {
   forbidden: "Bu işlemi gerçekleştirme yetkiniz bulunmuyor.",
   not_found: "Aradığınız kaynak bulunamadı.",
   validation: "Gönderilen bilgilerde bir hata var.",
+  payment_required: "Bu işlem için aktif bir üyelik paketiniz olmalı.",
   rate_limited: "Çok fazla istek gönderdiniz. Lütfen biraz bekleyip tekrar deneyin.",
   server: "Sunucuda beklenmeyen bir hata oluştu.",
   unknown: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
@@ -25,6 +26,11 @@ export function getErrorMessage(err: unknown): string {
     return MESSAGE_BY_KIND.network;
   }
   return MESSAGE_BY_KIND.unknown;
+}
+
+/** True for the 402 "aktif paket gerekiyor" case — callers can point the user at /fiyatlandirma. */
+export function isMembershipRequired(err: unknown): boolean {
+  return err instanceof ApiError && err.kind === "payment_required";
 }
 
 /** True for ApiError(kind: "unauthorized") — callers can use this to also redirect to /login. */

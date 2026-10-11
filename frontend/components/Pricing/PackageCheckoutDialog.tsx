@@ -13,7 +13,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Banknote, Check, Clock, Info } from "lucide-react";
+import { Banknote, Check, Clock, Info, Timer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -25,7 +25,13 @@ import {
 } from "@/components/ui/dialog";
 import { CopyField } from "@/components/shared/copy-field";
 import { PaymentMethods } from "@/components/shared/payment-methods";
-import { BANK_ACCOUNT, COMPANY } from "@/lib/company";
+import {
+  BANK_ACCOUNT,
+  COMPANY,
+  PAYMENT_APPROVAL_BADGE,
+  PAYMENT_APPROVAL_MINUTES,
+  PAYMENT_APPROVAL_NOTICE,
+} from "@/lib/company";
 import { formatTryPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -71,10 +77,18 @@ export function PackageCheckoutDialog({
         <DialogHeader>
           <DialogTitle className="text-lg">{packageName}</DialogTitle>
           <DialogDescription>
-            Paketinizi aktifleştirmek için aşağıdaki hesaba ödeme yapın; ödemeniz onaylandığında paket hesabınıza
-            tanımlanır.
+            Paketinizi aktifleştirmek için aşağıdaki hesaba ödeme yapın. {PAYMENT_APPROVAL_NOTICE}
           </DialogDescription>
         </DialogHeader>
+
+        {/* Ödeme akışının her adımında aynı söz: onay süresi. */}
+        <div
+          className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-50 px-3.5 py-2 text-sm font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+          role="status"
+        >
+          <Timer className="size-4 shrink-0" />
+          Ödemeniz {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır
+        </div>
 
         {options.length > 1 && (
           <div className="flex flex-col gap-2">
@@ -118,7 +132,9 @@ export function PackageCheckoutDialog({
             <p className="shrink-0 text-2xl font-semibold tracking-tight">{formatTryPrice(selected.price)}</p>
           </div>
           {/* iyzico şartı: fiyatlar TL cinsinden ve KDV dahil gösterilmeli. */}
-          <p className="mt-1 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            KDV dahil, Türk Lirası (TL) · Ödeme sonrası {PAYMENT_APPROVAL_BADGE}
+          </p>
         </div>
 
         {/* Havale/EFT — şu anki aktif tahsilat kanalı */}
@@ -127,7 +143,10 @@ export function PackageCheckoutDialog({
             <span className="flex size-9 shrink-0 items-center justify-center rounded-2xl bg-gradient-brand text-white shadow-lg shadow-violet-600/25">
               <Banknote className="size-4.5" />
             </span>
-            <h3 className="text-sm font-semibold">Havale / EFT ile ödeme</h3>
+            <div className="min-w-0">
+              <h3 className="text-sm font-semibold">Havale / EFT ile ödeme</h3>
+              <p className="text-xs text-muted-foreground">Ödemeniz {PAYMENT_APPROVAL_BADGE}.</p>
+            </div>
           </div>
 
           <CopyField label="Hesap adı" value={BANK_ACCOUNT.accountName} mono={false} />
@@ -170,7 +189,7 @@ export function PackageCheckoutDialog({
           </p>
           <p className="flex items-start gap-2">
             <Clock className="mt-0.5 size-3.5 shrink-0 text-violet-600" />
-            <span>Ödemeler {COMPANY.supportHours} saatleri içinde kontrol edilir ve paketiniz tanımlanır.</span>
+            <span>{PAYMENT_APPROVAL_NOTICE}</span>
           </p>
         </div>
 

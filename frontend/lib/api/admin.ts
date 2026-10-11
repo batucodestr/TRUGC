@@ -1,6 +1,15 @@
 import { apiClient } from "@/lib/api";
 import { getAccessToken } from "@/lib/token-store";
-import { ENDPOINTS, adminConversationMessages, adminMessageDetail, userAction, userDetail, verificationReview } from "@/lib/endpoints";
+import {
+  ENDPOINTS,
+  adminConversationMessages,
+  adminMessageDetail,
+  userAction,
+  userDetail,
+  userMembership,
+  userWallet,
+  verificationReview,
+} from "@/lib/endpoints";
 import type { PlatformUser, UserRole } from "@/types";
 
 interface Paginated<T> {
@@ -374,4 +383,163 @@ export async function downloadAnalyticsCsv(): Promise<void> {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+}
+
+
+// --- Bakiye ve üyelik paketi --------------------------------------------
+//
+// Sanal POS açılana kadar paketler havale/EFT ile satılıyor: admin dekontu
+// görünce kullanıcının bakiyesine parayı yükler, sonra paketi bu bakiyeden
+// tanımlar. Uçlar yalnızca admin rolüne açıktır (apps/payments/views.py).
+
+export interface WalletEntry {
+  id: number;
+  /** İşaretli tutar: pozitif yükleme, negatif düşüm. */
+  amount: string;
+  balanceAfter: string;
+  kind: "admin_credit" | "admin_debit" | "package_purchase" | "refund";
+  kindLabel: string;
+  note: string;
+  createdByEmail: string;
+  createdAt: string;
+}
+
+export interface Wallet {
+  balance: string;
+  currency: string;
+  updatedAt: string;
+  entries: WalletEntry[];
+}
+
+export interface Membership {
+  packageCode: string;
+  packageName: string;
+  tierCode: string;
+  tierLabel: string;
+  /** null = sınırsız başvuru hakkı. */
+  applicationQuota: number | null;
+  applicationsUsed: number;
+  remainingApplications: number | null;
+  startsAt: string | null;
+  expiresAt: string | null;
+  isActive: boolean;
+  daysRemaining: number;
+  assignedByEmail: string;
+}
+
+interface ApiWallet {
+  balance: string;
+  currency: string;
+  updated_at: string;
+  entries: {
+    id: number;
+    amount: string;
+    balance_after: string;
+    kind: WalletEntry["kind"];
+    kind_label: string;
+    note: string;
+    created_by_email: string;
+    created_at: string;
+  }[];
+}
+
+interface ApiMembership {
+  package_code: string;
+  package_name: string;
+  tier_code: string;
+  tier_label: string;
+  application_quota: number | null;
+  applications_used: number;
+  remaining_applications: number | null;
+  starts_at: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+  days_remaining: number;
+  assigned_by_email: string;
+}
+
+function mapWallet(raw: ApiWallet): Wallet {
+  return {
+    balance: raw.balance,
+    currency: raw.currency,
+    updatedAt: raw.updated_at,
+    entries: raw.entries.map((e) => ({
+      id: e.id,
+      amount: e.amount,
+      balanceAfter: e.balance_after,
+      kind: e.kind,
+      kindLabel: e.kind_label,
+      note: e.note,
+      createdByEmail: e.created_by_email,
+      createdAt: e.created_at,
+    })),
+  };
+}
+
+function mapMembership(raw: ApiMembership): Membership {
+  return {
+    packageCode: raw.package_code,
+    packageName: raw.package_name,
+    tierCode: raw.tier_code,
+    tierLabel: raw.tier_label,
+    applicationQuota: raw.application_quota,
+    applicationsUsed: raw.applications_used,
+    remainingApplications: raw.remaining_applications,
+    startsAt: raw.starts_at,
+    expiresAt: raw.expires_at,
+    isActive: raw.is_active,
+    daysRemaining: raw.days_remaining,
+    assignedByEmail: raw.assigned_by_email,
+  };
+}
+
+export interface PackageCatalogTier {
+  code: string;
+  label: string;
+  days: number;
+  price: string;
+  applications: number | null;
+}
+
+export interface PackageCatalogEntry {
+  code: string;
+  name: string;
+  audience: "creator" | "brand";
+  tiers: PackageCatalogTier[];
+}
+
+/** Paket kataloğu — admin paket seçicisini besler (sunucu tek kaynak). */
+export async function getPackageCatalog(): Promise<PackageCatalogEntry[]> {
+  const res = await apiClient.get<{ packages: PackageCatalogEntry[] }>(ENDPOINTS.packageCatalog);
+  return res.packages;
+}
+
+export async function getUserWallet(id: string): Promise<Wallet> {
+  return mapWallet(await apiClient.get<ApiWallet>(userWallet(id)));
+}
+
+/** Bakiye yükle (pozitif) veya düş (negatif). Defter satırı backend'de açılır. */
+export async function adjustUserBalance(id: string, amount: number, note: string): Promise<Wallet> {
+  return mapWallet(await apiClient.post<ApiWallet>(userWallet(id), { amount: String(amount), note }));
+}
+
+export async function getUserMembership(id: string): Promise<Membership> {
+  return mapMembership(await apiClient.get<ApiMembership>(userMembership(id)));
+}
+
+export async function assignUserMembership(
+  id: string,
+  input: { packageCode: string; tierCode: string; chargeWallet: boolean; note?: string },
+): Promise<{ membership: Membership; wallet: Wallet }> {
+  const raw = await apiClient.post<{ membership: ApiMembership; wallet: ApiWallet }>(userMembership(id), {
+    package_code: input.packageCode,
+    tier_code: input.tierCode,
+    charge_wallet: input.chargeWallet,
+    note: input.note ?? "",
+  });
+  return { membership: mapMembership(raw.membership), wallet: mapWallet(raw.wallet) };
+}
+
+export async function clearUserMembership(id: string): Promise<Membership> {
+  return mapMembership(await apiClient.delete<ApiMembership>(userMembership(id)));
 }

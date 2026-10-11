@@ -161,6 +161,24 @@ xn--kurtarcm-ykbb.com.tr {
     }
 }
 
+api.xn--kurtarcm-ykbb.com.tr {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        -Server
+    }
+
+    handle {
+        reverse_proxy ubercekici-backend:8000 {
+            header_up X-Forwarded-Proto {scheme}
+            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+            header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+        }
+    }
+}
+
 # ================= kurtaricim.com.tr (ASCII alan adı) =================
 # www bu apex'e yönlenir. /api ve /django-admin ubercekici-backend:8000.
 # api.kurtaricim.com.tr üzerindeki tüm istekler aynı backend'e gider.

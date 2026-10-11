@@ -45,6 +45,15 @@ class ApplicationSerializer(FreePeriodPricingMixin, serializers.ModelSerializer)
     def validate_campaign_id(self, campaign):
         if not campaign.is_open:
             raise serializers.ValidationError("This campaign is not accepting applications.")
+        # (creator, campaign) model düzeyinde benzersizdir, ancak `creator`
+        # istemciden gelmediği için DRF bunun için otomatik bir doğrulayıcı
+        # üretemez: kontrol olmadan ikinci başvuru veritabanı hatasına düşer
+        # ve kullanıcı "aynı kampanyaya zaten başvurdunuz" yerine 500 görürdü
+        # (ör. "Başvur" düğmesine iki kez basmak).
+        if self.instance is None:
+            creator = getattr(self.context["request"].user, "creator", None)
+            if creator and Application.objects.filter(creator=creator, campaign=campaign).exists():
+                raise serializers.ValidationError("Bu kampanyaya zaten başvurdunuz.")
         return campaign
 
     def validate(self, attrs):

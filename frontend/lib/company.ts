@@ -80,6 +80,20 @@ export const BANK_ACCOUNT: BankAccountInfo = {
 };
 
 /**
+ * Havale/EFT ödemelerinin onaylanma süresi.
+ *
+ * Ödeme bilgisi gösterilen her yerde (paket seçme diyaloğu, havale kutusu,
+ * fiyatlandırma SSS'i) **aynı** ifade kullanılsın diye tek yerde durur —
+ * ekranlar arasında farklı süre vaat etmek güven kaybıdır.
+ */
+export const PAYMENT_APPROVAL_MINUTES = 5;
+
+export const PAYMENT_APPROVAL_NOTICE = `Ödemeniz ortalama ${PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır ve paketiniz hesabınıza tanımlanır.`;
+
+/** Kısa biçim — rozet/şerit gibi dar alanlar için. */
+export const PAYMENT_APPROVAL_BADGE = `${PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır`;
+
+/**
  * Künyede gösterilecek satırlar — yalnızca doldurulmuş alanlar döner.
  *
  * Ticaret unvanı girilmemişse hiç satır dönmez: yalnızca e-postadan oluşan

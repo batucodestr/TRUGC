@@ -8,6 +8,7 @@ import { ShareCampaign } from "@/features/marketing/share-campaign";
 import { BRAND_PACKAGES, CAMPAIGN_COMMISSION_PERCENT, CREATOR_PACKAGES } from "@/lib/content/packages";
 import { PaymentMethods } from "@/components/shared/payment-methods";
 import { BankTransferCard } from "@/components/shared/bank-transfer-card";
+import { PAYMENT_APPROVAL_MINUTES, PAYMENT_APPROVAL_NOTICE } from "@/lib/company";
 
 export const metadata = { title: "Fiyatlandırma — TRUGC" };
 
@@ -53,7 +54,12 @@ const BILLING_FAQS = [
     id: "billing-4",
     question: "Ödeme yöntemleri nelerdir?",
     answer:
-      "Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Dilerseniz şirket hesabımıza havale/EFT ile de ödeyebilir, kurumsal hesaplar için fatura karşılığı ödeme talep edebilirsiniz.",
+      `Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Dilerseniz şirket hesabımıza havale/EFT ile de ödeyebilir, kurumsal hesaplar için fatura karşılığı ödeme talep edebilirsiniz. ${PAYMENT_APPROVAL_NOTICE}`,
+  },
+  {
+    id: "billing-6",
+    question: "Ödemem ne kadar sürede onaylanır?",
+    answer: `${PAYMENT_APPROVAL_NOTICE} Havale/EFT açıklamasına TRUGC kullanıcı adınızı yazmanız onayı hızlandırır; açıklama eksikse ödemeyi hesabınızla eşleştiremeyiz.`,
   },
   {
     id: "billing-5",
@@ -119,7 +125,7 @@ export default function FiyatlandirmaPage() {
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler iyzico
                   güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Fiyatlar Türk Lirası cinsinden
-                  ve KDV dahildir.{" "}
+                  ve KDV dahildir. Ödemeniz ortalama {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır.{" "}
                   <Link href="/teslimat-ve-iade" className="font-medium text-foreground underline underline-offset-4">
                     Teslimat ve iade koşulları
                   </Link>{" "}

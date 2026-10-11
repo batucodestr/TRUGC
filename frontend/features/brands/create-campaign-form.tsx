@@ -19,7 +19,7 @@ import type { SocialPlatform } from "@/types";
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 import { createCampaign } from "@/lib/api/campaigns";
-import { getErrorMessage } from "@/lib/error-message";
+import { getErrorMessage, isMembershipRequired } from "@/lib/error-message";
 import { usePricing } from "@/components/Pricing/PricingProvider";
 import { FreePeriodBanner } from "@/components/shared/free-period-banner";
 
@@ -81,6 +81,15 @@ export function CreateCampaignForm() {
       toast.success("Kampanya oluşturuldu!", { description: `"${title}" artık yayında ve başvuru kabul ediyor.` });
       router.push("/dashboard/brand/campaigns");
     } catch (err) {
+      // 402 = aktif paket yok/hak bitti. Kullanıcıyı kuru bir hata mesajıyla
+      // bırakmak yerine doğrudan paketlere götüren bir eylem sunulur.
+      if (isMembershipRequired(err)) {
+        toast.error("Kampanya hakkınız yok", {
+          description: getErrorMessage(err),
+          action: { label: "Paketleri gör", onClick: () => router.push("/fiyatlandirma") },
+        });
+        return;
+      }
       toast.error("Kampanya oluşturulamadı", { description: getErrorMessage(err) });
     } finally {
       setSubmitting(false);

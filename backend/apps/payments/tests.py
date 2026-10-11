@@ -1,15 +1,21 @@
-from django.test import override_settings
+import re
+from datetime import timedelta
+from decimal import Decimal
+from pathlib import Path
+
+from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APITestCase
 
-from apps.accounts.models import Role, User
+from apps.accounts.models import AdminActionLog, Role, User
 from apps.applications.models import Application, ApplicationStatus
 from apps.campaigns.models import Campaign, CampaignStatus
 from apps.common.testing import onboard
 
-from .models import PosPayment, PosPaymentStatus, TransactionStatus
+from .models import Membership, PosPayment, PosPaymentStatus, TransactionStatus
+from .packages import PACKAGES
 
 
 # Ödeme uçları hafta sonu (ücretsiz dönem) kapalıdır; bu sınıf ücretli dönem
@@ -350,3 +356,390 @@ class PosCallbackTests(APITestCase):
         own = self.client.get(reverse("payments:pos-payment-detail", args=[self.payment.merchant_oid]))
         self.assertEqual(own.status_code, status.HTTP_200_OK)
         self.assertEqual(own.data["merchant_oid"], self.payment.merchant_oid)
+
+
+# ---------------------------------------------------------------------------
+# Bakiye ve üyelik paketi (admin paneli)
+# ---------------------------------------------------------------------------
+class WalletAndMembershipTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="admin@example.com", password="StrongPass123", role=Role.ADMIN)
+        self.moderator = User.objects.create_user(
+            email="mod@example.com", password="StrongPass123", role=Role.MODERATOR
+        )
+        self.creator = User.objects.create_user(
+            email="walletcreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        self.wallet_url = reverse("payments:user-wallet", args=[self.creator.id])
+        self.membership_url = reverse("payments:user-membership", args=[self.creator.id])
+
+    def test_admin_can_credit_balance_and_ledger_records_it(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.wallet_url, {"amount": "699.00", "note": "Havale · dekont #12"})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["balance"]), Decimal("699.00"))
+
+        entries = response.data["entries"]
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["kind"], "admin_credit")
+        self.assertEqual(Decimal(entries[0]["balance_after"]), Decimal("699.00"))
+        self.assertEqual(entries[0]["created_by_email"], self.admin.email)
+
+    def test_credits_accumulate(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "100"})
+        response = self.client.post(self.wallet_url, {"amount": "49.50"})
+        self.assertEqual(Decimal(response.data["balance"]), Decimal("149.50"))
+        self.assertEqual(len(response.data["entries"]), 2)
+
+    def test_debit_cannot_push_balance_below_zero(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "100"})
+        response = self.client.post(self.wallet_url, {"amount": "-150"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Reddedilen düşüm bakiyeyi ve defteri hiç değiştirmemeli.
+        wallet = self.client.get(self.wallet_url)
+        self.assertEqual(Decimal(wallet.data["balance"]), Decimal("100.00"))
+        self.assertEqual(len(wallet.data["entries"]), 1)
+
+    def test_zero_amount_is_rejected(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.wallet_url, {"amount": "0"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_moderator_cannot_touch_balances(self):
+        self.client.force_authenticate(self.moderator)
+        self.assertEqual(self.client.get(self.wallet_url).status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(
+            self.client.post(self.wallet_url, {"amount": "100"}).status_code, status.HTTP_403_FORBIDDEN
+        )
+
+    def test_user_cannot_credit_their_own_balance(self):
+        self.client.force_authenticate(self.creator)
+        response = self.client.post(self.wallet_url, {"amount": "10000"})
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_admin_can_assign_package_with_quota_and_expiry(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.membership_url, {"package_code": "premium-creator", "tier_code": "monthly"}
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        membership = response.data["membership"]
+        self.assertEqual(membership["package_name"], "Premium Creator")
+        self.assertEqual(membership["tier_label"], "Aylık")
+        self.assertEqual(membership["application_quota"], 50)
+        self.assertEqual(membership["remaining_applications"], 50)
+        self.assertTrue(membership["is_active"])
+        self.assertEqual(membership["days_remaining"], 29)  # 30 gün − kesirli ilk gün
+
+    def test_assigning_package_can_charge_the_wallet(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "1500"})
+        response = self.client.post(
+            self.membership_url,
+            {"package_code": "premium-creator", "tier_code": "monthly", "charge_wallet": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["wallet"]["balance"]), Decimal("201.00"))  # 1500 − 1299
+        kinds = [entry["kind"] for entry in response.data["wallet"]["entries"]]
+        self.assertIn("package_purchase", kinds)
+
+    def test_insufficient_balance_leaves_no_package_and_no_charge(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "100"})
+        response = self.client.post(
+            self.membership_url,
+            {"package_code": "premium-creator", "tier_code": "monthly", "charge_wallet": True},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        # Tahsilat da paket ataması da geri alınmalı (tek transaction).
+        self.assertEqual(Decimal(self.client.get(self.wallet_url).data["balance"]), Decimal("100.00"))
+        self.assertEqual(self.client.get(self.membership_url).data["package_code"], "")
+
+    def test_changing_package_resets_usage_and_replaces_the_previous_one(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.membership_url, {"package_code": "classic-creator", "tier_code": "weekly"})
+        Membership.objects.filter(user=self.creator).update(applications_used=7)
+
+        response = self.client.post(
+            self.membership_url, {"package_code": "premium-creator", "tier_code": "3d"}
+        )
+        membership = response.data["membership"]
+        self.assertEqual(membership["package_code"], "premium-creator")
+        self.assertEqual(membership["applications_used"], 0)
+        self.assertEqual(membership["application_quota"], 5)
+        # Kullanıcı başına tek satır kalmalı.
+        self.assertEqual(Membership.objects.filter(user=self.creator).count(), 1)
+
+    def test_unlimited_package_reports_null_quota(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.membership_url, {"package_code": "kurumsal-marka", "tier_code": "monthly"}
+        )
+        membership = response.data["membership"]
+        self.assertIsNone(membership["application_quota"])
+        self.assertIsNone(membership["remaining_applications"])
+
+    def test_unknown_package_is_rejected(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.membership_url, {"package_code": "altin-paket", "tier_code": "monthly"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_tier_must_belong_to_the_package(self):
+        self.client.force_authenticate(self.admin)
+        # Marka paketlerinin haftalık süresi yok.
+        response = self.client.post(self.membership_url, {"package_code": "baslangic-marka", "tier_code": "weekly"})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_admin_can_clear_a_package(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.membership_url, {"package_code": "classic-creator", "tier_code": "monthly"})
+        response = self.client.delete(self.membership_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["package_code"], "")
+        self.assertFalse(response.data["is_active"])
+
+    def test_expired_package_is_not_active(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.membership_url, {"package_code": "classic-creator", "tier_code": "3d"})
+        Membership.objects.filter(user=self.creator).update(expires_at=timezone.now() - timedelta(minutes=1))
+        response = self.client.get(self.membership_url)
+        self.assertFalse(response.data["is_active"])
+        self.assertEqual(response.data["days_remaining"], 0)
+
+    def test_user_sees_their_own_balance_and_package(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "250"})
+        self.client.post(self.membership_url, {"package_code": "classic-creator", "tier_code": "weekly"})
+
+        self.client.force_authenticate(self.creator)
+        response = self.client.get(reverse("payments:my-wallet"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(Decimal(response.data["wallet"]["balance"]), Decimal("250.00"))
+        self.assertEqual(response.data["membership"]["package_code"], "classic-creator")
+
+    def test_admin_action_is_written_to_the_audit_log(self):
+        self.client.force_authenticate(self.admin)
+        self.client.post(self.wallet_url, {"amount": "500", "note": "dekont"})
+        self.assertTrue(
+            AdminActionLog.objects.filter(
+                actor=self.admin, action="user.wallet_credit", target_id=str(self.creator.id)
+            ).exists()
+        )
+
+
+class PackageCatalogParityTests(SimpleTestCase):
+    """Sunucudaki katalog ile pazarlama sayfalarındaki fiyat listesi aynı olmalı.
+
+    Fiyatlar iki dilde iki dosyada yaşıyor (bkz. apps/payments/packages.py
+    başlığı). Biri güncellenip diğeri unutulursa site bir fiyat gösterip
+    sistem başka bir fiyat tahsil ederdi; bu test o ayrışmayı yakalar.
+    Frontend kaynağı imajda bulunmadığında (yalnızca backend imajı içinde
+    koşarken) test atlanır.
+    """
+
+    TS_PATH = Path(__file__).resolve().parents[3] / "frontend" / "lib" / "content" / "packages.ts"
+
+    def test_prices_match_the_frontend_catalog(self):
+        if not self.TS_PATH.exists():
+            self.skipTest("frontend/lib/content/packages.ts bu ortamda yok")
+        source = self.TS_PATH.read_text(encoding="utf-8")
+
+        backend_prices = sorted(int(tier.price) for package in PACKAGES for tier in package.tiers)
+        ts_prices = sorted(int(match) for match in re.findall(r"price:\s*(\d+)", source))
+        self.assertEqual(backend_prices, ts_prices)
+
+    def test_package_names_match_the_frontend_catalog(self):
+        if not self.TS_PATH.exists():
+            self.skipTest("frontend/lib/content/packages.ts bu ortamda yok")
+        source = self.TS_PATH.read_text(encoding="utf-8")
+        for package in PACKAGES:
+            self.assertIn(f'name: "{package.name}"', source)
+            self.assertIn(f'id: "{package.code}"', source)
+
+
+# ---------------------------------------------------------------------------
+# Üyelik kurallarının uygulanması
+# ---------------------------------------------------------------------------
+# Ücretsiz dönemde paket şartı aranmaz; bu sınıf kuralın kendisini test ettiği
+# için ücretsiz dönem kapatılır (aksi halde test hafta sonu koşunca yeşil
+# kalır ama hiçbir şey doğrulamaz).
+@override_settings(BILLING_FREE_PERIOD_ENABLED=False)
+class MembershipEnforcementTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="enfadmin@example.com", password="StrongPass123", role=Role.ADMIN)
+        self.creator_user = User.objects.create_user(
+            email="enfcreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.creator_user)
+        self.brand_user = User.objects.create_user(
+            email="enfbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        onboard(self.brand_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Enforcement Campaign",
+            description="desc",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+        self.apply_url = reverse("applications:application-list")
+
+    def _apply(self, campaign=None):
+        return self.client.post(
+            self.apply_url,
+            {"campaign_id": (campaign or self.campaign).id, "message": "Başvuruyorum", "proposed_rate": "250"},
+        )
+
+    def _give_package(self, user, package_code, tier_code):
+        self.client.force_authenticate(self.admin)
+        self.client.post(
+            reverse("payments:user-membership", args=[user.id]),
+            {"package_code": package_code, "tier_code": tier_code},
+        )
+        self.client.force_authenticate(user)
+
+    # --- Sayaçlar bayraktan bağımsız işler ---
+    def test_application_consumes_a_slot_even_when_enforcement_is_off(self):
+        self._give_package(self.creator_user, "classic-creator", "3d")  # 3 hak
+        response = self._apply()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        membership = Membership.objects.get(user=self.creator_user)
+        self.assertEqual(membership.applications_used, 1)
+        self.assertEqual(membership.remaining_applications, 2)
+
+    def test_counter_is_not_touched_for_a_user_without_a_package(self):
+        # Engelleme kapalıyken paketsiz başvuru serbest; sayaç şişmemeli,
+        # yoksa kullanıcı paket aldığında hakkını yemiş görünürdü.
+        self.client.force_authenticate(self.creator_user)
+        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 0)
+
+    def test_unlimited_package_does_not_increment_the_counter(self):
+        self._give_package(self.brand_user, "kurumsal-marka", "monthly")
+        membership = Membership.objects.get(user=self.brand_user)
+        self.assertIsNone(membership.application_quota)
+
+    # --- Engelleme açıkken ---
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_creator_without_a_package_cannot_apply(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self._apply()
+        self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        self.assertEqual(response.data["code"], "MEMBERSHIP_REQUIRED")
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_creator_with_a_package_can_apply(self):
+        self._give_package(self.creator_user, "classic-creator", "weekly")
+        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_exhausted_quota_blocks_further_applications(self):
+        self._give_package(self.creator_user, "classic-creator", "3d")  # 3 hak
+        Membership.objects.filter(user=self.creator_user).update(applications_used=3)
+        response = self._apply()
+        self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        self.assertIn("başvuru hakkının tamamını", response.data["message"])
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_expired_package_blocks_applications(self):
+        self._give_package(self.creator_user, "classic-creator", "monthly")
+        Membership.objects.filter(user=self.creator_user).update(expires_at=timezone.now() - timedelta(hours=1))
+        self.assertEqual(self._apply().status_code, status.HTTP_402_PAYMENT_REQUIRED)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_a_rejected_application_does_not_burn_a_slot(self):
+        self._give_package(self.creator_user, "classic-creator", "3d")
+        # Aynı kampanyaya ikinci kez başvuru doğrulamaya takılır; hak
+        # harcanmamalı (hak yalnızca başvuru gerçekten oluşunca düşer).
+        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+        second = self._apply()
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 1)
+
+    def test_applying_twice_to_the_same_campaign_is_a_clean_validation_error(self):
+        self.client.force_authenticate(self.creator_user)
+        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+        second = self._apply()
+        # Veritabanı hatasına (500) değil, anlaşılır bir doğrulama hatasına düşmeli.
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True, BILLING_FREE_PERIOD_ENABLED=True, BILLING_FREE_WEEKDAYS=[0, 1, 2, 3, 4, 5, 6])
+    def test_free_period_bypasses_the_package_requirement(self):
+        self.client.force_authenticate(self.creator_user)
+        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+
+    # --- Marka: aktif kampanya limiti ---
+    def _create_campaign(self):
+        return self.client.post(
+            reverse("campaigns:campaign-list"),
+            {
+                "title": "Yeni kampanya",
+                "description": "açıklama",
+                "platform": "tiktok",
+                "budget_min": "100",
+                "budget_max": "500",
+                "deadline": (timezone.now() + timedelta(days=10)).isoformat(),
+                "status": CampaignStatus.PUBLISHED,
+            },
+        )
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_brand_without_a_package_cannot_publish_a_campaign(self):
+        self.client.force_authenticate(self.brand_user)
+        response = self._create_campaign()
+        self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_brand_is_blocked_once_the_active_campaign_limit_is_reached(self):
+        self._give_package(self.brand_user, "baslangic-marka", "monthly")  # 5 aktif kampanya
+        # setUp bir kampanya açtı; limite kadar doldur.
+        for i in range(4):
+            Campaign.objects.create(
+                brand=self.brand_user.brand,
+                title=f"Dolgu {i}",
+                description="d",
+                platform="tiktok",
+                budget_min=10,
+                budget_max=20,
+                deadline=timezone.now() + timedelta(days=5),
+                status=CampaignStatus.PUBLISHED,
+            )
+        response = self._create_campaign()
+        self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        self.assertIn("aktif kampanyaya izin veriyor", response.data["message"])
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_unlimited_brand_package_has_no_campaign_limit(self):
+        self._give_package(self.brand_user, "kurumsal-marka", "monthly")
+        for i in range(8):
+            Campaign.objects.create(
+                brand=self.brand_user.brand,
+                title=f"Sınırsız {i}",
+                description="d",
+                platform="tiktok",
+                budget_min=10,
+                budget_max=20,
+                deadline=timezone.now() + timedelta(days=5),
+                status=CampaignStatus.PUBLISHED,
+            )
+        self.assertEqual(self._create_campaign().status_code, status.HTTP_201_CREATED)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_quota_check_is_not_fooled_by_a_stale_cached_membership(self):
+        """Sayaç UPDATE ile artırıldığı için örnek üzerindeki one-to-one
+        önbelleği eskir; kontrol taze okumazsa hakkı biten kullanıcı başvuru
+        yapmaya devam ederdi."""
+        from apps.payments import membership as rules
+
+        self._give_package(self.creator_user, "classic-creator", "3d")  # 3 hak
+        user = User.objects.get(pk=self.creator_user.pk)
+        rules.consume_application(user)  # user.membership artık önbellekte
+        Membership.objects.filter(user=user).update(applications_used=3)
+
+        with self.assertRaises(rules.MembershipRequired):
+            rules.check_application_slot(user)
