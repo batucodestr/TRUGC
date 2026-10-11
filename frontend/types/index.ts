@@ -349,17 +349,6 @@ export interface ChartPoint {
   value: number;
 }
 
-export interface PricingPlan {
-  id: string;
-  name: string;
-  price: number;
-  period: "ay" | "yıl";
-  description: string;
-  features: string[];
-  highlighted?: boolean;
-  ctaLabel: string;
-}
-
 export interface Testimonial {
   id: string;
   name: string;

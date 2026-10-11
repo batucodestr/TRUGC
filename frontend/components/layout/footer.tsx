@@ -2,7 +2,8 @@ import Link from "next/link";
 import { Logo } from "@/components/shared/logo";
 import { InstagramIcon, YoutubeIcon, TwitterIcon, LinkedinIcon } from "@/components/shared/brand-icons";
 import { PaymentMethods } from "@/components/shared/payment-methods";
-import { companyLegalLine } from "@/lib/company";
+import { Phone } from "lucide-react";
+import { COMPANY, companyLegalLine } from "@/lib/company";
 
 const FOOTER_LINKS = {
   Şirket: [
@@ -53,6 +54,18 @@ export function Footer() {
             <p className="mt-4 max-w-xs text-sm text-muted-foreground">
               Markaları, işini gerçekten büyüten içerik üreticileriyle buluşturan premium platform.
             </p>
+            {COMPANY.phone && (
+              <a
+                href={`tel:${COMPANY.phoneHref}`}
+                className="mt-5 inline-flex items-center gap-2 rounded-full border border-violet-600/30 bg-violet-50 px-3.5 py-2 text-sm font-medium text-violet-700 transition-colors hover:bg-violet-100 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/20"
+              >
+                <Phone className="size-4" />
+                <span>
+                  Çağrı destek hattı: <span className="whitespace-nowrap">{COMPANY.phone}</span>
+                </span>
+              </a>
+            )}
+            <p className="mt-2 text-xs text-muted-foreground">{COMPANY.supportHours}</p>
             <div className="mt-5 flex gap-3">
               {SOCIAL_LINKS.map(({ Icon, href, label }) => (
                 <Link

@@ -1,76 +1,35 @@
 import Link from "next/link";
 import { Check, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Reveal } from "@/components/Motion/Reveal";
-import { formatCurrency, convertUsdToTry } from "@/lib/format";
+import { BrandPackages, CommissionNote, CreatorPackages } from "@/components/Pricing/PackageCards";
+import { ShareCampaign } from "@/features/marketing/share-campaign";
 import { getPricingState } from "@/lib/pricing";
+import { BRAND_PACKAGES, CAMPAIGN_COMMISSION_PERCENT, CREATOR_PACKAGES } from "@/lib/content/packages";
 import { PaymentMethods } from "@/components/shared/payment-methods";
-import { cn } from "@/lib/utils";
+import { BankTransferCard } from "@/components/shared/bank-transfer-card";
 
 export const metadata = { title: "Fiyatlandırma — TRUGC" };
 
-interface Plan {
-  id: string;
-  name: string;
-  price: number;
-  period: string;
-  description: string;
-  features: string[];
-  highlighted?: boolean;
-  ctaLabel: string;
-}
-
-const PLANS: Plan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 0,
-    period: "ay",
-    description: "Influencer pazarlamasına yeni başlayan markalar için.",
-    features: ["2 aktif kampanyaya kadar", "Temel creator arama", "Standart mesajlaşma", "Topluluk desteği"],
-    ctaLabel: "Ücretsiz başla",
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: 149,
-    period: "ay",
-    description: "Her ay yeni creator iş birlikleri kuran büyüyen markalar için.",
-    features: [
-      "Sınırsız aktif kampanya",
-      "Gelişmiş filtreler ve analitik",
-      "Öncelikli creator eşleştirme",
-      "Özel hesap desteği",
-      "Kampanya performans raporları",
-    ],
-    highlighted: true,
-    ctaLabel: "Ücretsiz deneyin",
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: 499,
-    period: "ay",
-    description: "Yüksek hacimli kampanyalar yürüten ajanslar ve büyük ekipler için.",
-    features: [
-      "Growth planındaki her şey",
-      "Çoklu kullanıcı erişimi",
-      "Özel sözleşme ve faturalandırma",
-      "API erişimi",
-      "Uçtan uca kurulum desteği",
-    ],
-    ctaLabel: "Satış ekibiyle görüşün",
-  },
+const CREATOR_COMPARISON: { label: string; values: [string | boolean, string | boolean] }[] = [
+  { label: "Kampanyaları görüntüleme", values: [true, true] },
+  { label: "Kampanyalara başvuru yapma", values: [true, true] },
+  { label: "Aylık başvuru hakkı", values: ["22", "50"] },
+  { label: "Premium rozet", values: [false, true] },
+  { label: "Öne çıkarılmış profil", values: [false, true] },
+  { label: "Kampanyalarda öncelik", values: [false, true] },
+  { label: "Gelişmiş istatistikler", values: [false, true] },
+  { label: "Premium kampanyalara erişim", values: [false, true] },
 ];
 
-const COMPARISON_ROWS: { label: string; values: [string | boolean, string | boolean, string | boolean] }[] = [
-  { label: "Aktif kampanya sayısı", values: ["2", "Sınırsız", "Sınırsız"] },
-  { label: "Creator arama filtreleri", values: ["Temel", "Gelişmiş", "Gelişmiş"] },
-  { label: "Öncelikli eşleştirme", values: [false, true, true] },
+const BRAND_COMPARISON: { label: string; values: [string | boolean, string | boolean, string | boolean] }[] = [
+  { label: "Aktif kampanya sayısı", values: ["5", "15", "Sınırsız"] },
+  { label: "Aylık creator başvuru hakkı", values: ["50", "150", "Sınırsız"] },
+  { label: "Creator filtreleme", values: ["Temel", "Gelişmiş", "Gelişmiş"] },
+  { label: "Öne çıkarılmış kampanyalar", values: [false, true, true] },
+  { label: "Raporlama", values: ["Standart", "Detaylı", "Detaylı analiz"] },
   { label: "Özel hesap yöneticisi", values: [false, false, true] },
-  { label: "API erişimi", values: [false, false, true] },
 ];
 
 const BILLING_FAQS = [
@@ -78,30 +37,42 @@ const BILLING_FAQS = [
     id: "billing-1",
     question: "İstediğim zaman iptal edebilir miyim?",
     answer:
-      "Evet, planınızı marka panelinizden istediğiniz zaman iptal edebilir veya değiştirebilirsiniz. İptal işlemi anında geçerli olur ve ek bir taahhüt gerekmez.",
+      "Evet, paketinizi panelinizden istediğiniz zaman iptal edebilir veya değiştirebilirsiniz. İptal işlemi anında geçerli olur, uzun süreli bir taahhüt verilmez. Süresi devam eden paketin kalan günlerini kullanmaya devam edersiniz.",
   },
   {
     id: "billing-2",
-    question: "Creator olmak ücretli mi?",
+    question: "Creator paketleri ne işe yarar?",
     answer:
-      "Hayır, creator'lar için platform tamamen ücretsizdir. Yukarıdaki planlar yalnızca markalar içindir; creator'lar herhangi bir üyelik ücreti ödemeden TRUGC'ye katılabilir.",
+      "Creator paketleri, kampanyalara kaç iş başvurusu yapabileceğinizi ve profilinizin ne kadar öne çıkacağını belirler. Classic paket başlangıç için yeterlidir; Premium paket ise premium rozet, öne çıkarılmış profil, başvurularda öncelik ve premium kampanyalara erişim sağlar. TRUGC'ye kayıt olmak ve profil oluşturmak ücretsizdir; paket yalnızca başvuru yapmak için gereklidir.",
   },
   {
     id: "billing-3",
-    question: "Ödeme yöntemleri nelerdir?",
-    answer:
-      "Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Kurumsal hesaplar için fatura karşılığı ödeme de desteklenmektedir.",
+    question: "Kampanya komisyonu nasıl hesaplanır?",
+    answer: `Üyelik ücretinden ayrı olarak, marka bir kampanya yayınladığında kampanya bütçesi üzerinden %${CAMPAIGN_COMMISSION_PERCENT} platform komisyonu alınır. Örneğin 5.000 TL bütçeli bir reklam için 500 TL komisyon eklenir. Komisyon, güvenli ödeme altyapısını, kampanya eşleştirmeyi ve platform desteğini kapsar.`,
   },
   {
     id: "billing-4",
-    question: "Yıllık ödemede indirim var mı?",
+    question: "Ödeme yöntemleri nelerdir?",
     answer:
-      "Evet, planınızı yıllık olarak ödemeyi seçtiğinizde tüm ücretli planlarda %20 indirim uygulanır.",
+      "Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Dilerseniz şirket hesabımıza havale/EFT ile de ödeyebilir, kurumsal hesaplar için fatura karşılığı ödeme talep edebilirsiniz.",
+  },
+  {
+    id: "billing-5",
+    question: "Ücretsiz üyelik kazanabilir miyim?",
+    answer:
+      "Evet. TRUGC tanıtım videomuzu Instagram Reels veya TikTok hesabınızda paylaşıp bizi etiketler ve paylaşım bağlantınızı bize gönderirseniz 1 hafta ücretsiz üyelik kazanırsınız. Detaylar bu sayfadaki kampanya kutusunda.",
   },
 ];
 
+function ComparisonCell({ value }: { value: string | boolean }) {
+  if (typeof value === "boolean") {
+    return value ? <Check className="h-4 w-4 text-violet-600" /> : <X className="h-4 w-4 text-muted-foreground" />;
+  }
+  return <>{value}</>;
+}
+
 export default async function FiyatlandirmaPage() {
-  // Hafta sonu ücretsiz dönemde plan fiyatları gösterilmez; durum sunucudan
+  // Hafta sonu ücretsiz dönemde paket fiyatları gösterilmez; durum sunucudan
   // (sunucu saatiyle) okunur.
   const pricing = await getPricingState();
   const showPrices = !pricing.free;
@@ -111,14 +82,14 @@ export default async function FiyatlandirmaPage() {
       <section className="mx-auto max-w-7xl px-4 pb-12 pt-16 text-center sm:px-6 sm:pt-24 lg:px-8">
         <Reveal>
           <p className="text-sm font-medium text-violet-600">Fiyatlandırma</p>
-          <h1 className="mx-auto mt-2 max-w-2xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-            Her büyüklükteki marka için <span className="text-gradient-brand">basit planlar</span>
+          <h1 className="mx-auto mt-2 max-w-3xl text-balance text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+            Creator&apos;lar ve markalar için <span className="text-gradient-brand">net paketler</span>
           </h1>
-          <p className="mx-auto mt-5 max-w-xl text-balance text-lg text-muted-foreground">
+          <p className="mx-auto mt-5 max-w-2xl text-balance text-lg text-muted-foreground">
             {showPrices ? (
               <>
-                Creator&apos;lar için katılım ve kampanyaları görüntüleme her zaman ücretsizdir. Markalar için
-                ihtiyacınıza uygun planı seçin.
+                TRUGC&apos;ye kayıt olmak ve profil oluşturmak ücretsizdir. Kampanyalara başvurmak ve creator&apos;lara
+                ulaşmak için ihtiyacınıza uyan paketi seçin.
               </>
             ) : (
               <>
@@ -130,125 +101,137 @@ export default async function FiyatlandirmaPage() {
         </Reveal>
       </section>
 
-      <section className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {PLANS.map((plan, i) => (
-            <Reveal key={plan.id} variant="scale" delay={i * 0.08} className={cn("relative h-full", plan.highlighted && "md:-translate-y-3")}>
-              {plan.highlighted && (
-                <span className="absolute -top-3 left-1/2 z-10 -translate-x-1/2 rounded-full bg-gradient-brand px-3 py-1 text-xs font-medium text-white shadow">
-                  En popüler
-                </span>
-              )}
-              <Card
-                className={cn(
-                  "flex h-full flex-col rounded-3xl border-border/70 p-7 shadow-sm",
-                  plan.highlighted && "border-violet-600 shadow-xl shadow-violet-600/15",
-                )}
-              >
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
-                <div className="mt-5 flex items-baseline gap-1">
-                  <span className="text-4xl font-semibold tracking-tight">
-                    {!showPrices || plan.price === 0 ? "Ücretsiz" : formatCurrency(convertUsdToTry(plan.price))}
-                  </span>
-                  {showPrices && plan.price > 0 && <span className="text-sm text-muted-foreground">/{plan.period}</span>}
-                </div>
-                {/* iyzico şartı: fiyatlar TL cinsinden ve KDV dahil gösterilmeli. */}
-                {showPrices && plan.price > 0 && (
-                  <p className="mt-1 text-xs text-muted-foreground">KDV dahil, Türk Lirası (TL)</p>
-                )}
-                <ul className="mt-6 flex-1 space-y-3">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-violet-600" /> {f}
-                    </li>
-                  ))}
-                </ul>
-                <Button
-                  className={cn("mt-7 rounded-full", plan.highlighted ? "bg-gradient-brand hover:opacity-90" : "")}
-                  variant={plan.highlighted ? "default" : "outline"}
-                  asChild
-                >
-                  <Link href="/dashboard/brand">{plan.ctaLabel}</Link>
-                </Button>
-              </Card>
-            </Reveal>
-          ))}
-        </div>
+      <section className="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <Reveal className="mb-6 flex flex-col gap-1">
+          <h2 className="text-2xl font-semibold tracking-tight">Creator paketleri</h2>
+          <p className="text-sm text-muted-foreground">Kampanyalara katıl, markalarla çalış, gelirini artır.</p>
+        </Reveal>
+        <CreatorPackages showPrices={showPrices} />
+
+        <Reveal className="mb-6 mt-16 flex flex-col gap-1">
+          <h2 className="text-2xl font-semibold tracking-tight">Marka paketleri</h2>
+          <p className="text-sm text-muted-foreground">
+            Doğru creator&apos;larla çalış, markanı büyüt, satışlarını artır.
+          </p>
+        </Reveal>
+        <BrandPackages showPrices={showPrices} />
+
+        {showPrices && (
+          <Reveal variant="fade" className="mt-10">
+            <CommissionNote />
+          </Reveal>
+        )}
 
         {/* Ödeme yöntemleri — iyzico üye iş yeri şartı: ödemenin başladığı
             sayfada iyzico, Visa ve Mastercard logoları görünür olmalıdır. */}
-        <Reveal variant="fade" className="mt-14">
-          <Card className="flex flex-col gap-6 rounded-3xl border-border/70 p-7 shadow-sm md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Güvenli ödeme</h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">
-                Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler iyzico güvenli
-                ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Fiyatlar Türk Lirası cinsinden ve KDV
-                dahildir.{" "}
-                <Link href="/teslimat-ve-iade" className="font-medium text-foreground underline underline-offset-4">
-                  Teslimat ve iade koşulları
-                </Link>{" "}
-                ·{" "}
-                <Link href="/mesafeli-satis-sozlesmesi" className="font-medium text-foreground underline underline-offset-4">
-                  Mesafeli satış sözleşmesi
-                </Link>
-              </p>
-            </div>
-            <PaymentMethods showNote={false} className="shrink-0" />
-          </Card>
-        </Reveal>
+        <div className="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Reveal variant="fade" className="h-full">
+            <Card className="flex h-full flex-col gap-6 rounded-3xl border-border/70 p-7 shadow-sm">
+              <div>
+                <h2 className="text-base font-semibold">Güvenli ödeme</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler iyzico
+                  güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Fiyatlar Türk Lirası cinsinden
+                  ve KDV dahildir.{" "}
+                  <Link href="/teslimat-ve-iade" className="font-medium text-foreground underline underline-offset-4">
+                    Teslimat ve iade koşulları
+                  </Link>{" "}
+                  ·{" "}
+                  <Link
+                    href="/mesafeli-satis-sozlesmesi"
+                    className="font-medium text-foreground underline underline-offset-4"
+                  >
+                    Mesafeli satış sözleşmesi
+                  </Link>
+                </p>
+              </div>
+              <PaymentMethods showNote={false} className="mt-auto" />
+            </Card>
+          </Reveal>
+          <Reveal variant="fade" delay={0.08} className="h-full">
+            <BankTransferCard className="h-full" />
+          </Reveal>
+        </div>
       </section>
 
       <section className="border-y border-border/60 bg-muted/30 py-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">
           <Reveal className="text-center">
             <p className="text-sm font-medium text-violet-600">Karşılaştırma</p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Planları detaylı karşılaştırın</h2>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Paketleri detaylı karşılaştırın</h2>
           </Reveal>
-          <Reveal delay={0.1} className="mt-10 overflow-x-auto">
-            <table className="w-full min-w-[560px] border-separate border-spacing-0 overflow-hidden rounded-2xl bg-card text-sm shadow-sm">
-              <thead>
-                <tr>
-                  <th className="border-b border-border/70 px-5 py-4 text-left font-medium text-muted-foreground">
-                    Özellik
-                  </th>
-                  {PLANS.map((plan) => (
-                    <th
-                      key={plan.id}
-                      className="border-b border-border/70 px-5 py-4 text-left font-semibold"
-                    >
-                      {plan.name}
+
+          <Reveal delay={0.1} className="mt-10">
+            <h3 className="mb-4 text-lg font-semibold">Creator paketleri</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] border-separate border-spacing-0 overflow-hidden rounded-2xl bg-card text-sm shadow-sm">
+                <thead>
+                  <tr>
+                    <th className="border-b border-border/70 px-5 py-4 text-left font-medium text-muted-foreground">
+                      Özellik
                     </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {COMPARISON_ROWS.map((row, idx) => (
-                  <tr key={row.label} className={idx % 2 === 1 ? "bg-muted/30" : undefined}>
-                    <td className="px-5 py-4 text-muted-foreground">{row.label}</td>
-                    {row.values.map((value, i) => (
-                      <td key={i} className="px-5 py-4">
-                        {typeof value === "boolean" ? (
-                          value ? (
-                            <Check className="h-4 w-4 text-violet-600" />
-                          ) : (
-                            <X className="h-4 w-4 text-muted-foreground" />
-                          )
-                        ) : (
-                          value
-                        )}
-                      </td>
+                    {CREATOR_PACKAGES.map((pkg) => (
+                      <th key={pkg.id} className="border-b border-border/70 px-5 py-4 text-left font-semibold">
+                        {pkg.name}
+                      </th>
                     ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {CREATOR_COMPARISON.map((row, idx) => (
+                    <tr key={row.label} className={idx % 2 === 1 ? "bg-muted/30" : undefined}>
+                      <td className="px-5 py-4 text-muted-foreground">{row.label}</td>
+                      {row.values.map((value, i) => (
+                        <td key={i} className="px-5 py-4">
+                          <ComparisonCell value={value} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Reveal>
+
+          <Reveal delay={0.1} className="mt-12">
+            <h3 className="mb-4 text-lg font-semibold">Marka paketleri</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[560px] border-separate border-spacing-0 overflow-hidden rounded-2xl bg-card text-sm shadow-sm">
+                <thead>
+                  <tr>
+                    <th className="border-b border-border/70 px-5 py-4 text-left font-medium text-muted-foreground">
+                      Özellik
+                    </th>
+                    {BRAND_PACKAGES.map((pkg) => (
+                      <th key={pkg.id} className="border-b border-border/70 px-5 py-4 text-left font-semibold">
+                        {pkg.name}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {BRAND_COMPARISON.map((row, idx) => (
+                    <tr key={row.label} className={idx % 2 === 1 ? "bg-muted/30" : undefined}>
+                      <td className="px-5 py-4 text-muted-foreground">{row.label}</td>
+                      {row.values.map((value, i) => (
+                        <td key={i} className="px-5 py-4">
+                          <ComparisonCell value={value} />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </Reveal>
         </div>
       </section>
 
-      <section className="mx-auto max-w-3xl px-4 py-20 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+        <ShareCampaign />
+      </section>
+
+      <section className="mx-auto max-w-3xl px-4 pb-20 sm:px-6 lg:px-8">
         <Reveal className="text-center">
           <p className="text-sm font-medium text-violet-600">Faturalandırma</p>
           <h2 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Faturalandırma hakkında sorular</h2>

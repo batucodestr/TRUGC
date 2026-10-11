@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Reveal } from "@/components/Motion/Reveal";
 import { PaymentMethods } from "@/components/shared/payment-methods";
+import { BankTransferCard } from "@/components/shared/bank-transfer-card";
 import { COMPANY, companyLegalRows } from "@/lib/company";
 
 export default function IletisimPage() {
@@ -130,7 +131,7 @@ export default function IletisimPage() {
                 <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-brand text-white shadow-lg shadow-violet-600/30">
                   <Phone className="h-5 w-5" />
                 </span>
-                <h3 className="mt-4 text-sm font-semibold">Telefon</h3>
+                <h3 className="mt-4 text-sm font-semibold">Çağrı Destek Hattı</h3>
                 <a href={`tel:${COMPANY.phoneHref}`} className="mt-1 block text-sm text-muted-foreground hover:text-foreground">
                   {COMPANY.phone}
                 </a>
@@ -167,6 +168,8 @@ export default function IletisimPage() {
               <h3 className="text-sm font-semibold">Ödeme yöntemleri</h3>
               <PaymentMethods className="mt-4" showNote={false} />
             </Card>
+
+            <BankTransferCard />
           </Reveal>
         </div>
       </section>

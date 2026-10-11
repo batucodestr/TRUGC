@@ -24,7 +24,7 @@ const SECTIONS = [
     icon: PiggyBank,
     title: "Platform komisyon oranı",
     description:
-      "TRUGC, tamamlanan her kampanyadan %8.5 hizmet bedeli keser — bu oran, güvenli ödeme altyapısı, kampanya eşleştirme ve platform desteğini kapsar. Komisyon, ödeme creator hesabına aktarılmadan otomatik olarak düşülür; ekstra bir işlem yapmanız gerekmez. Creator olarak platforma katılmak ve profil oluşturmak tamamen ücretsizdir.",
+      "TRUGC, markanın yayınladığı kampanyanın bütçesi üzerinden %10 platform komisyonu alır — bu oran, güvenli ödeme altyapısı, kampanya eşleştirme ve platform desteğini kapsar. Komisyon markanın bütçesine eklenir; creator olarak hak ettiğiniz tutardan bir kesinti yapılmaz. Platforma kayıt olmak ve profil oluşturmak ücretsizdir; kampanyalara başvurmak içinse bir creator üyelik paketi gerekir.",
   },
   {
     icon: TrendingUp,

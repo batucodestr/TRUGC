@@ -46,12 +46,37 @@ export const COMPANY: CompanyInfo = {
   mersisNumber: "",
   /** Bildirimdeki faaliyet adresi. */
   address: "Cengizhan Mahallesi, 1620/25 Sokak No: 67/1 İç Kapı No: 3, Bayraklı / İzmir",
-  /** Bildirimdeki cep telefonu. */
+  /** Çağrı destek hattı — bildirimdeki cep telefonu, müşteri hattı olarak yayınlanır. */
   phone: "+90 538 779 02 35",
   /** Telefon bağlantıları (tel:) için sade biçim. */
   phoneHref: "+905387790235",
   email: "akcagokhan3525@gmail.com",
   supportHours: "Hafta içi 09:00 - 19:00",
+};
+
+/**
+ * Havale/EFT ile ödeme için şirket banka hesabı.
+ *
+ * Sanal POS entegrasyonu açılana kadar (ve kurumsal müşterilerin fatura
+ * karşılığı ödemesi için) tek ödeme kanalı budur, bu yüzden IBAN sitede
+ * yayınlanır. Hesap adı, künyedeki ticaret unvanıyla aynı gerçek kişidir —
+ * havale yapan kullanıcı alıcı adını doğrulayabilsin diye ayrıca yazılır.
+ */
+interface BankAccountInfo {
+  accountName: string;
+  /** Gösterim biçimi (4'erli gruplar). */
+  iban: string;
+  /** Kopyalama/`clipboard` için boşluksuz biçim. */
+  ibanPlain: string;
+  currency: string;
+}
+
+export const BANK_ACCOUNT: BankAccountInfo = {
+  /** Havale ekranında alıcı adı olarak görünecek isim. */
+  accountName: "Gökhan Akça",
+  iban: "TR55 0001 0008 0396 8668 8550 01",
+  ibanPlain: "TR550001000803968668855001",
+  currency: "TRY",
 };
 
 /**
@@ -69,7 +94,7 @@ export function companyLegalRows(): { label: string; value: string }[] {
     { label: "Vergi dairesi", value: COMPANY.taxOffice },
     { label: "Vergi kimlik no", value: COMPANY.taxNumber },
     { label: "MERSİS no", value: COMPANY.mersisNumber },
-    { label: "Telefon", value: COMPANY.phone },
+    { label: "Çağrı destek hattı", value: COMPANY.phone },
     { label: "E-posta", value: COMPANY.email },
   ].filter((row) => row.value.length > 0);
 }

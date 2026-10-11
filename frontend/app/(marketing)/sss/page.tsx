@@ -26,7 +26,7 @@ const GENEL_FAQS: FaqItem[] = [
     id: "genel-3",
     question: "Platformu kullanmak için ücret ödemem gerekiyor mu?",
     answer:
-      "Creator olarak katılım tamamen ücretsizdir. Markalar için ise ihtiyaca göre değişen ücretsiz ve ücretli planlarımız bulunur; detayları fiyatlandırma sayfamızdan inceleyebilirsiniz.",
+      "TRUGC'ye kayıt olmak ve profil oluşturmak hem creator'lar hem markalar için ücretsizdir. Kampanyalara başvurmak için creator üyelik paketlerinden, creator'lara ulaşıp kampanya yayınlamak için marka paketlerinden birini seçmeniz gerekir; tüm paketleri ve fiyatları fiyatlandırma sayfamızdan inceleyebilirsiniz.",
   },
   {
     id: "genel-4",
@@ -53,7 +53,7 @@ const CREATOR_FAQS: FaqItem[] = [
     id: "creator-2",
     question: "Creator olmak ücretli mi?",
     answer:
-      "Hayır, creator'lar için TRUGC'ye katılım ve profil oluşturmak tamamen ücretsizdir. Yalnızca tamamlanan bir iş birliğinde küçük bir hizmet bedeli kesintisi uygulanır.",
+      "TRUGC'ye kayıt olmak ve creator profili oluşturmak ücretsizdir. Kampanyalara başvuru yapabilmek için bir creator üyelik paketi (Classic veya Premium) gerekir; paketler 3 günlük, haftalık ve aylık sürelerle sunulur ve her paket belirli sayıda iş başvuru hakkı içerir.",
   },
   {
     id: "creator-3",
@@ -119,7 +119,7 @@ const ODEME_FAQS: FaqItem[] = [
     id: "odeme-2",
     question: "Hizmet bedeli oranı nedir?",
     answer:
-      "Tamamlanan iş birliklerinde %8,5 oranında bir hizmet bedeli uygulanır. Bu bedel, platformun güvenli ödeme altyapısını ve destek hizmetlerini sürdürmek için kullanılır.",
+      "Markanın yayınladığı kampanyanın bütçesi üzerinden %10 platform komisyonu alınır; örneğin 5.000 TL bütçeli bir reklam için 500 TL komisyon eklenir. Komisyon markanın bütçesine eklenir, creator'ın hak edişinden düşülmez; bu bedel güvenli ödeme altyapısını ve destek hizmetlerini sürdürmek için kullanılır.",
   },
   {
     id: "odeme-3",

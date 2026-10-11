@@ -70,11 +70,13 @@ export default function KullanimSartlariPage() {
           <h2 className="text-xl font-semibold tracking-tight">4. Ödeme ve Komisyon Şartları</h2>
           <p className="mt-3 text-muted-foreground leading-relaxed">
             Markalar, bir kampanyayı başlatmadan önce anlaşılan tutarı TRUGC emanet (escrow) hesabına yatırır.
-            Ödeme, creator&apos;ın teslimatı onaylandıktan sonra serbest bırakılır. TRUGC, creator&apos;a yapılan
-            her ödemeden <span className="font-medium text-foreground">%8.5 oranında platform hizmet bedeli</span>{" "}
-            keser; bu bedel platformun işletilmesi, güvenli ödeme altyapısı ve müşteri desteği maliyetlerini
-            karşılamak için kullanılır. Güncel komisyon oranı creator panelinde ve kampanya özetlerinde açıkça
-            gösterilir. İade ve anlaşmazlık durumlarında emanet tutarı, ilgili sürecin sonuçlanmasına kadar bloke
+            Ödeme, creator&apos;ın teslimatı onaylandıktan sonra serbest bırakılır. TRUGC, markanın yayınladığı
+            kampanyanın bütçesi üzerinden{" "}
+            <span className="font-medium text-foreground">%10 oranında platform komisyonu</span> alır; bu bedel
+            markanın bütçesine eklenir, creator&apos;ın hak edişinden düşülmez ve platformun işletilmesi, güvenli
+            ödeme altyapısı ile müşteri desteği maliyetlerini karşılamak için kullanılır. Üyelik paketleri bu
+            komisyondan ayrı olarak faturalanır. Güncel komisyon oranı marka panelinde ve kampanya özetlerinde
+            açıkça gösterilir. İade ve anlaşmazlık durumlarında emanet tutarı, ilgili sürecin sonuçlanmasına kadar bloke
             halinde tutulur.
           </p>
         </section>

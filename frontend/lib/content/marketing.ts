@@ -1,51 +1,10 @@
-// Statik pazarlama sitesi içeriği (fiyatlandırma planları, referanslar, SSS).
+// Statik pazarlama sitesi içeriği (referanslar, SSS).
 // Bu, sitenin birlikte geldiği gerçek içeriktir; API-fallback/demo verisi
-// değildir — backend'de "fiyatlandırma planları" veya "referanslar" diye bir
-// kavram olmadığından bu içerik bir API çağrısının arkasında değil burada yaşar.
-import type { FaqItem, PricingPlan, Testimonial } from "@/types";
-
-export const PRICING_PLANS: PricingPlan[] = [
-  {
-    id: "starter",
-    name: "Starter",
-    price: 0,
-    period: "ay",
-    description: "Influencer pazarlamasına yeni başlayan markalar için.",
-    features: ["2 aktif kampanyaya kadar", "Temel creator arama", "Standart mesajlaşma", "Topluluk desteği"],
-    ctaLabel: "Ücretsiz başla",
-  },
-  {
-    id: "growth",
-    name: "Growth",
-    price: 149,
-    period: "ay",
-    description: "Her ay yeni creator iş birlikleri kuran büyüyen markalar için.",
-    features: [
-      "Sınırsız aktif kampanya",
-      "Gelişmiş filtreler ve analitik",
-      "Öncelikli creator eşleştirme",
-      "Özel hesap desteği",
-      "Kampanya performans raporları",
-    ],
-    highlighted: true,
-    ctaLabel: "Ücretsiz deneyin",
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: 499,
-    period: "ay",
-    description: "Yüksek hacimli kampanyalar yürüten ajanslar ve büyük ekipler için.",
-    features: [
-      "Growth planındaki her şey",
-      "Çoklu kullanıcı erişimi",
-      "Özel sözleşme ve faturalandırma",
-      "API erişimi",
-      "Uçtan uca kurulum desteği",
-    ],
-    ctaLabel: "Satış ekibiyle görüşün",
-  },
-];
+// değildir — backend'de "referanslar" diye bir kavram olmadığından bu içerik
+// bir API çağrısının arkasında değil burada yaşar.
+//
+// Üyelik paketleri ve fiyatları burada DEĞİL, lib/content/packages.ts'tedir.
+import type { FaqItem, Testimonial } from "@/types";
 
 export const TESTIMONIALS: Testimonial[] = [
   {
@@ -115,7 +74,7 @@ export const FAQS: FaqItem[] = [
     id: "faq5",
     question: "Komisyon oranı nedir?",
     answer:
-      "TRUGC'ye creator olarak katılmak tamamen ücretsizdir. Platform, yalnızca tamamlanan kampanyalardan %8,5 oranında hizmet bedeli keser; bu oran güvenli ödeme altyapısını ve platform desteğini kapsar.",
+      "TRUGC'ye kayıt olmak ve profil oluşturmak ücretsizdir; kampanyalara başvurmak için bir creator üyelik paketi gerekir. Platform ayrıca markanın yayınladığı kampanyanın bütçesi üzerinden %10 komisyon alır — bu tutar markanın bütçesine eklenir, creator'ın hak edişinden düşülmez.",
   },
   {
     id: "faq6",

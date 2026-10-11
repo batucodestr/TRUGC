@@ -30,6 +30,18 @@ export function formatCurrency(value: number, opts?: { compact?: boolean }): str
   }).format(value);
 }
 
+/**
+ * Paket fiyatları için "1.299 TL" biçimi.
+ *
+ * formatCurrency (Intl `style: "currency"`) "₺1.299" üretir; üyelik
+ * paketlerinde fiyat listesi "149 TL / 1.299 TL" biçiminde yazıldığı için
+ * paket kartları bu yardımcıyı kullanır. Tutar zaten TL'dir — USD dönüşümü
+ * (convertUsdToTry) uygulanmaz.
+ */
+export function formatTryPrice(value: number): string {
+  return `${new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 0 }).format(value)} TL`;
+}
+
 export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }

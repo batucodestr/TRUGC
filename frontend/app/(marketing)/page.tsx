@@ -7,6 +7,7 @@ import { FeaturedBrands } from "@/features/marketing/featured-brands";
 import { Categories } from "@/features/marketing/categories";
 import { HowItWorks } from "@/features/marketing/how-it-works";
 import { Testimonials } from "@/features/marketing/testimonials";
+import { ShareCampaignSection } from "@/features/marketing/share-campaign";
 import { Pricing } from "@/features/marketing/pricing";
 import { Faq } from "@/features/marketing/faq";
 import { Cta } from "@/features/marketing/cta";
@@ -23,6 +24,7 @@ export default function HomePage() {
       <Categories />
       <HowItWorks />
       <Testimonials />
+      <ShareCampaignSection />
       <Pricing />
       <Faq />
       <Cta />
