@@ -97,14 +97,22 @@ export interface ApplyInput {
 }
 
 /** Creator applies to a campaign. POSTs `campaign_id` (the serializer's write-only field name). */
-export async function applyToCampaign(input: ApplyInput): Promise<Application> {
+/**
+ * Kampanyaya başvurur.
+ *
+ * Uç idempotenttir: aynı kampanyaya ikinci kez başvurmak hata değildir, var
+ * olan başvuru döner (bkz. apps/applications/views.py). Çağıran tarafın
+ * ayrımı görebilmesi için `alreadyExisted` işaretlenir — kullanıcıya
+ * "başvurun alındı" yerine "zaten başvurmuştun" demek gerekir.
+ */
+export async function applyToCampaign(input: ApplyInput): Promise<Application & { alreadyExisted: boolean }> {
   const payload = {
     campaign_id: Number(input.campaignId),
     message: input.message,
     proposed_rate: input.proposedRate ?? null,
   };
-  const raw = await apiClient.post<RawApplication>(ENDPOINTS.applications, payload);
-  return normalizeApplication(raw);
+  const { data, status } = await apiClient.postWithStatus<RawApplication>(ENDPOINTS.applications, payload);
+  return { ...normalizeApplication(data), alreadyExisted: status === 200 };
 }
 
 /** Brand accepts an application. Custom action route: POST /applications/{id}/accept/. */

@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, re_path
 from rest_framework.routers import DefaultRouter
 
 from . import views
@@ -22,6 +22,16 @@ urlpatterns = [
     path("admin/packages/", views.PackageCatalogView.as_view(), name="package-catalog"),
     path("admin/users/<int:pk>/wallet/", views.UserWalletView.as_view(), name="user-wallet"),
     path("admin/users/<int:pk>/membership/", views.UserMembershipView.as_view(), name="user-membership"),
+    # Ödeme bildirimi ("ödemeyi yaptım") ve admin onayı
+    path("declarations/", views.PaymentDeclarationListCreateView.as_view(), name="declaration-list"),
+    # decision yalnızca approve|reject olabilir; serbest bir <str:> yerine
+    # kalıbı burada daraltmak, view'a hiç ulaşmayan yazım hatalarını 404'e
+    # çevirir (sessizce "reddet" gibi davranmaz).
+    re_path(
+        r"^declarations/(?P<pk>\d+)/(?P<decision>approve|reject)/$",
+        views.PaymentDeclarationReviewView.as_view(),
+        name="declaration-review",
+    ),
     path("pos/<str:merchant_oid>/", views.PosPaymentDetailView.as_view(), name="pos-payment-detail"),
     *router.urls,
 ]

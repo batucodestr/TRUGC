@@ -6,7 +6,15 @@ from apps.applications.models import Application, ApplicationStatus
 from apps.common import pricing
 from apps.common.serializers import FreePeriodPricingMixin
 
-from .models import Membership, PaymentPurpose, PosPayment, Transaction, Wallet, WalletEntry
+from .models import (
+    Membership,
+    PaymentDeclaration,
+    PaymentPurpose,
+    PosPayment,
+    Transaction,
+    Wallet,
+    WalletEntry,
+)
 from .packages import resolve
 
 
@@ -212,3 +220,60 @@ class MembershipAssignSerializer(serializers.Serializer):
         if resolve(attrs["package_code"], attrs["tier_code"]) is None:
             raise serializers.ValidationError("Geçersiz paket veya süre seçimi.")
         return attrs
+
+
+class PaymentDeclarationSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_name = serializers.CharField(source="user.profile.full_name", read_only=True, default="")
+    user_id = serializers.IntegerField(source="user.id", read_only=True)
+    campaign_title = serializers.CharField(source="application.campaign.title", read_only=True, default="")
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    reviewed_by_email = serializers.CharField(source="reviewed_by.email", read_only=True, default="")
+
+    class Meta:
+        model = PaymentDeclaration
+        fields = [
+            "id",
+            "user_id",
+            "user_email",
+            "user_name",
+            "package_code",
+            "package_name",
+            "tier_code",
+            "tier_label",
+            "amount",
+            "currency",
+            "status",
+            "status_label",
+            "sender_note",
+            "review_note",
+            "reviewed_by_email",
+            "reviewed_at",
+            "campaign_title",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class PaymentDeclarationCreateSerializer(serializers.Serializer):
+    """Kullanıcının "ödemeyi yaptım" bildirimi.
+
+    Tutar istemciden **alınmaz**: paket + süreden sunucuda türetilir, aksi
+    halde kullanıcı 1 TL ödeyip 1.299 TL'lik paket bildirebilirdi.
+    """
+
+    package_code = serializers.CharField(max_length=32)
+    tier_code = serializers.CharField(max_length=16)
+    application_id = serializers.IntegerField(required=False, allow_null=True)
+    sender_note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+
+    def validate(self, attrs):
+        if resolve(attrs["package_code"], attrs["tier_code"]) is None:
+            raise serializers.ValidationError("Geçersiz paket veya süre seçimi.")
+        return attrs
+
+
+class PaymentDeclarationReviewSerializer(serializers.Serializer):
+    note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
+    #: Onayda paketin de tanımlanıp tanımlanmayacağı. Varsayılan: tanımlanır.
+    assign_package = serializers.BooleanField(required=False, default=True)

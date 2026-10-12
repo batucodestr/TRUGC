@@ -10,7 +10,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
-from rest_framework import mixins, permissions, status, viewsets
+from rest_framework import generics, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
@@ -19,13 +19,16 @@ from rest_framework.views import APIView
 from apps.accounts.exceptions import error_response
 from apps.accounts.models import log_admin_action
 from apps.accounts.permissions import IsAdminRole, IsBrand, IsOnboarded, PaymentsEnabled
+from apps.applications.models import Application
 from apps.common import pricing
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
+from . import declarations
 from . import packages
 from . import wallet as wallet_service
 from .models import (
+    PaymentDeclaration,
     PaymentPurpose,
     PosPayment,
     PosPaymentStatus,
@@ -37,6 +40,9 @@ from .pos import PosError, PosNotConfigured, get_pos_provider, pos_status
 from .serializers import (
     MembershipAssignSerializer,
     MembershipSerializer,
+    PaymentDeclarationCreateSerializer,
+    PaymentDeclarationReviewSerializer,
+    PaymentDeclarationSerializer,
     PosCheckoutSerializer,
     PosPaymentSerializer,
     TransactionSerializer,
@@ -536,3 +542,91 @@ class MyWalletView(APIView):
                 "membership": MembershipSerializer(wallet_service.get_membership(request.user)).data,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Ödeme bildirimi ("ödemeyi yaptım" → admin onayı)
+# ---------------------------------------------------------------------------
+class PaymentDeclarationListCreateView(generics.ListCreateAPIView):
+    """GET: adminler hepsini, kullanıcılar kendi bildirimlerini görür.
+    POST: kullanıcı ödeme bildiriminde bulunur (adminlere bildirim gider).
+    """
+
+    serializer_class = PaymentDeclarationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = PaymentDeclaration.objects.select_related(
+            "user", "user__profile", "reviewed_by", "application__campaign"
+        )
+        if not pricing.is_privileged(self.request.user):
+            queryset = queryset.filter(user=self.request.user)
+        status_filter = self.request.query_params.get("status")
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        return queryset
+
+    @extend_schema(request=PaymentDeclarationCreateSerializer, responses=PaymentDeclarationSerializer)
+    def post(self, request, *args, **kwargs):
+        serializer = PaymentDeclarationCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        application = None
+        application_id = data.get("application_id")
+        if application_id:
+            # Yalnızca kendi başvurusuna bağlanabilir; aksi halde bildirim
+            # başkasının başvurusunu adminlere kendi adına gösterirdi.
+            application = Application.objects.filter(
+                pk=application_id, creator__user=request.user
+            ).select_related("campaign").first()
+            if application is None:
+                return error_response("NOT_FOUND", "Başvuru bulunamadı.", status.HTTP_404_NOT_FOUND)
+
+        try:
+            declaration = declarations.create_declaration(
+                user=request.user,
+                package_code=data["package_code"],
+                tier_code=data["tier_code"],
+                application=application,
+                sender_note=data["sender_note"],
+            )
+        except wallet_service.WalletError as exc:
+            return error_response("VALIDATION_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+
+        return Response(PaymentDeclarationSerializer(declaration).data, status=status.HTTP_201_CREATED)
+
+
+class PaymentDeclarationReviewView(APIView):
+    """Admin: ödeme bildirimini onayla veya reddet."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    @extend_schema(request=PaymentDeclarationReviewSerializer, responses=PaymentDeclarationSerializer)
+    def post(self, request, pk, decision):
+        declaration = get_object_or_404(PaymentDeclaration, pk=pk)
+        serializer = PaymentDeclarationReviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note = serializer.validated_data["note"]
+
+        try:
+            if decision == "approve":
+                declaration = declarations.approve_declaration(
+                    declaration,
+                    actor=request.user,
+                    note=note,
+                    assign_package=serializer.validated_data["assign_package"],
+                )
+            else:
+                declaration = declarations.reject_declaration(declaration, actor=request.user, note=note)
+        except wallet_service.WalletError as exc:
+            return error_response("VALIDATION_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+
+        log_admin_action(
+            request.user,
+            f"payment_declaration.{decision}",
+            "payment_declaration",
+            declaration.id,
+            f"{declaration.user.email} · {declaration.amount} TL · {note}".strip(),
+        )
+        return Response(PaymentDeclarationSerializer(declaration).data)

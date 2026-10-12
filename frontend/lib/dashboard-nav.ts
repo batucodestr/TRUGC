@@ -17,6 +17,7 @@ import {
   Bell,
   KeyRound,
   ScrollText,
+  Wallet,
 } from "lucide-react";
 import type { UserRole } from "@/types";
 
@@ -55,6 +56,7 @@ export const ADMIN_NAV: DashboardNavItem[] = [
   { label: "Markalar", href: "/manage/brands", icon: Building2 },
   { label: "Kampanyalar", href: "/manage/campaigns", icon: Megaphone },
   { label: "Başvurular", href: "/manage/applications", icon: FileText },
+  { label: "Ödemeler", href: "/manage/payments", icon: Wallet },
   { label: "Mesajlar", href: "/manage/messages", icon: MessageSquare },
   { label: "Raporlar", href: "/manage/reports", icon: Flag },
   { label: "Doğrulamalar", href: "/manage/verifications", icon: ShieldCheck },

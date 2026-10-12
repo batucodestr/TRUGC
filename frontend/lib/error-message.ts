@@ -18,9 +18,30 @@ const MESSAGE_BY_KIND: Record<string, string> = {
   unknown: "Bir şeyler ters gitti. Lütfen tekrar deneyin.",
 };
 
+/**
+ * Alan bazlı doğrulama hatalarını tek bir cümleye çevirir.
+ *
+ * Backend, 400 yanıtlarında `message` alanına her zaman aynı genel metni
+ * ("Gönderilen bilgilerde bir hata var.") koyar ve asıl sebebi `fields`
+ * içinde döner (bkz. apps/accounts/exceptions.py). Yalnızca `message`
+ * okunduğunda kullanıcı neyin yanlış olduğunu asla öğrenemiyordu — bu yüzden
+ * alan hataları varsa onlar gösterilir.
+ *
+ * En fazla üç mesaj birleştirilir: bir toast'a sığmayan uzunlukta bir liste
+ * okunmaz hale gelir ve ilk hatalar zaten en açıklayıcı olanlardır.
+ */
+function fieldErrorText(err: ApiError): string | null {
+  if (!err.fieldErrors) return null;
+  const messages = Object.values(err.fieldErrors)
+    .flat()
+    .filter((message): message is string => typeof message === "string" && message.length > 0);
+  if (messages.length === 0) return null;
+  return messages.slice(0, 3).join(" ");
+}
+
 export function getErrorMessage(err: unknown): string {
   if (err instanceof ApiError) {
-    return err.message || MESSAGE_BY_KIND[err.kind] || MESSAGE_BY_KIND.unknown;
+    return fieldErrorText(err) || err.message || MESSAGE_BY_KIND[err.kind] || MESSAGE_BY_KIND.unknown;
   }
   if (err instanceof NetworkError) {
     return MESSAGE_BY_KIND.network;

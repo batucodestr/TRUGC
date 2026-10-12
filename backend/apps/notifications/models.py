@@ -25,7 +25,10 @@ class Notification(models.Model):
 
     class Meta:
         db_table = "notifications_notification"
-        ordering = ["-created_at"]
+        # created_at'e ek olarak id: aynı istekte arka arkaya üretilen iki
+        # bildirim (ör. "ödeme bildirimi" + "yeni başvuru") aynı zaman damgasına
+        # düşebilir; id olmadan sıraları her sorguda değişebilirdi.
+        ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["user", "is_read"])]
 
     def __str__(self):

@@ -57,12 +57,46 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
         Hak bittiğinde kullanıcıya alan bazlı bir doğrulama hatası değil,
         ne yapması gerektiğini söyleyen tek bir mesaj döner.
+
+        Ayrıca uç **idempotent**tir: aynı kampanyaya ikinci kez başvurmak hata
+        değildir, var olan başvuru 200 ile döner. (creator, campaign) zaten
+        benzersiz olduğu için ikinci kayıt hiçbir zaman oluşmaz; eskiden bu
+        durum 400'e düşüyor ve kullanıcı "Gönderilen bilgilerde bir hata var"
+        görüp akışta ilerleyemiyordu. Oysa yapılacak doğru şey bellidir:
+        başvuru zaten var, kullanıcı ödeme adımına geçmelidir. 201 yerine 200
+        dönülür, böylece istemci yeni mi oluştu yoksa var olan mı döndü
+        ayırt edebilir.
         """
         try:
             membership_rules.check_application_slot(request.user)
         except membership_rules.MembershipRequired as exc:
             return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+
+        existing = self._existing_application(request)
+        if existing is not None:
+            return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
+
         return super().create(request, *args, **kwargs)
+
+    def _existing_application(self, request):
+        """Kullanıcının bu kampanyaya daha önce yaptığı başvuru (varsa).
+
+        Geçersiz/eksik ``campaign_id`` burada sessizce yutulur: o durumun
+        hata mesajını serializer üretir, bu yardımcı yalnızca "zaten var mı"
+        sorusunu yanıtlar.
+        """
+        campaign_id = request.data.get("campaign_id")
+        if not campaign_id or not hasattr(request.user, "creator"):
+            return None
+        try:
+            campaign_id = int(campaign_id)
+        except (TypeError, ValueError):
+            return None
+        return (
+            Application.objects.filter(creator=request.user.creator, campaign_id=campaign_id)
+            .select_related("campaign", "creator")
+            .first()
+        )
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "creator"):

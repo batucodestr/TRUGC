@@ -56,6 +56,7 @@ export const ENDPOINTS = {
   pricingState: `${API_BASE}/payments/pricing/`,
   packageCatalog: `${API_BASE}/payments/admin/packages/`,
   myWallet: `${API_BASE}/payments/me/wallet/`,
+  declarations: `${API_BASE}/payments/declarations/`,
   posConfig: `${API_BASE}/payments/pos/config/`,
   posCheckout: `${API_BASE}/payments/pos/checkout/`,
   posPayments: `${API_BASE}/payments/pos/payments/`,
@@ -162,4 +163,8 @@ export function userWallet(id: string | number) {
 
 export function userMembership(id: string | number) {
   return `${API_BASE}/payments/admin/users/${id}/membership/`;
+}
+
+export function declarationReview(id: string | number, decision: "approve" | "reject") {
+  return `${API_BASE}/payments/declarations/${id}/${decision}/`;
 }

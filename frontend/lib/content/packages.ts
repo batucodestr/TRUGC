@@ -20,6 +20,9 @@ export const COMMISSION_EXAMPLE_BUDGET = 5000;
 /** Paket süresi başına fiyat + o sürede kullanılabilen başvuru hakkı. */
 export interface PackageTier {
   id: string;
+  /** Sunucudaki süre kodu (apps/payments/packages.py: Tier.code). Ödeme
+   *  bildirimi bu kodla gönderilir; kimlikten türetmeye çalışmayın. */
+  code: "3d" | "weekly" | "monthly";
   /** "3 Günlük" / "Haftalık" / "Aylık" */
   label: string;
   /** TL, KDV dahil. */
@@ -56,9 +59,9 @@ export const CREATOR_PACKAGES: CreatorPackage[] = [
     name: "Classic Creator",
     tagline: "Başlangıç için ideal.",
     tiers: [
-      { id: "classic-3d", label: "3 Günlük", price: 149, applications: 3 },
-      { id: "classic-weekly", label: "Haftalık", price: 399, applications: 10 },
-      { id: "classic-monthly", label: "Aylık", price: 699, applications: 22 },
+      { id: "classic-3d", code: "3d", label: "3 Günlük", price: 149, applications: 3 },
+      { id: "classic-weekly", code: "weekly", label: "Haftalık", price: 399, applications: 10 },
+      { id: "classic-monthly", code: "monthly", label: "Aylık", price: 699, applications: 22 },
     ],
     features: [
       "Kampanyaları görüntüleme",
@@ -74,9 +77,9 @@ export const CREATOR_PACKAGES: CreatorPackage[] = [
     tagline: "Daha fazla görünürlük, daha fazla fırsat.",
     highlighted: true,
     tiers: [
-      { id: "premium-3d", label: "3 Günlük", price: 249, applications: 5 },
-      { id: "premium-weekly", label: "Haftalık", price: 699, applications: 20 },
-      { id: "premium-monthly", label: "Aylık", price: 1299, applications: 50 },
+      { id: "premium-3d", code: "3d", label: "3 Günlük", price: 249, applications: 5 },
+      { id: "premium-weekly", code: "weekly", label: "Haftalık", price: 699, applications: 20 },
+      { id: "premium-monthly", code: "monthly", label: "Aylık", price: 1299, applications: 50 },
     ],
     features: [
       "Classic'teki tüm özellikler",

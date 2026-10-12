@@ -13,8 +13,9 @@ from apps.accounts.models import AdminActionLog, Role, User
 from apps.applications.models import Application, ApplicationStatus
 from apps.campaigns.models import Campaign, CampaignStatus
 from apps.common.testing import onboard
+from apps.notifications.models import Notification
 
-from .models import Membership, PosPayment, PosPaymentStatus, TransactionStatus
+from .models import Membership, PosPayment, PosPaymentStatus, TransactionStatus, Wallet
 from .packages import PACKAGES
 
 
@@ -654,19 +655,45 @@ class MembershipEnforcementTests(APITestCase):
     @override_settings(MEMBERSHIP_ENFORCED=True)
     def test_a_rejected_application_does_not_burn_a_slot(self):
         self._give_package(self.creator_user, "classic-creator", "3d")
-        # Aynı kampanyaya ikinci kez başvuru doğrulamaya takılır; hak
+        # Yayınlanmamış bir kampanyaya başvuru doğrulamaya takılır; hak
         # harcanmamalı (hak yalnızca başvuru gerçekten oluşunca düşer).
-        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
-        second = self._apply()
-        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 1)
-
-    def test_applying_twice_to_the_same_campaign_is_a_clean_validation_error(self):
+        draft = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Taslak kampanya",
+            description="d",
+            platform="tiktok",
+            budget_min=10,
+            budget_max=20,
+            deadline=timezone.now() + timedelta(days=5),
+            status=CampaignStatus.DRAFT,
+        )
         self.client.force_authenticate(self.creator_user)
-        self.assertEqual(self._apply().status_code, status.HTTP_201_CREATED)
+        rejected = self._apply(campaign=draft)
+        self.assertEqual(rejected.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 0)
+
+    def test_applying_twice_to_the_same_campaign_returns_the_existing_one(self):
+        """İkinci başvuru hata değil, var olan başvurudur.
+
+        Eskiden 400 dönüyordu ve kullanıcı ödeme adımına hiç geçemiyordu;
+        uç artık idempotent, 200 ile mevcut kaydı döner.
+        """
+        self.client.force_authenticate(self.creator_user)
+        first = self._apply()
+        self.assertEqual(first.status_code, status.HTTP_201_CREATED)
+
         second = self._apply()
-        # Veritabanı hatasına (500) değil, anlaşılır bir doğrulama hatasına düşmeli.
-        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(second.status_code, status.HTTP_200_OK)
+        self.assertEqual(second.data["id"], first.data["id"])
+        self.assertEqual(Application.objects.filter(creator=self.creator_user.creator).count(), 1)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_repeating_an_application_does_not_burn_another_slot(self):
+        self._give_package(self.creator_user, "classic-creator", "3d")
+        self._apply()
+        self._apply()
+        self._apply()
+        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 1)
 
     @override_settings(MEMBERSHIP_ENFORCED=True, BILLING_FREE_PERIOD_ENABLED=True, BILLING_FREE_WEEKDAYS=[0, 1, 2, 3, 4, 5, 6])
     def test_free_period_bypasses_the_package_requirement(self):
@@ -743,3 +770,180 @@ class MembershipEnforcementTests(APITestCase):
 
         with self.assertRaises(rules.MembershipRequired):
             rules.check_application_slot(user)
+
+
+# ---------------------------------------------------------------------------
+# Ödeme bildirimi akışı
+# ---------------------------------------------------------------------------
+@override_settings(BILLING_FREE_PERIOD_ENABLED=False)
+class PaymentDeclarationTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="decadmin@example.com", password="StrongPass123", role=Role.ADMIN)
+        self.other_admin = User.objects.create_user(
+            email="decadmin2@example.com", password="StrongPass123", role=Role.MODERATOR
+        )
+        self.creator_user = User.objects.create_user(
+            email="deccreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.creator_user)
+        self.brand_user = User.objects.create_user(
+            email="decbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        onboard(self.brand_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Bildirim Kampanyası",
+            description="d",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+        self.application = Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign)
+        self.list_url = reverse("payments:declaration-list")
+
+    def _declare(self, **overrides):
+        payload = {
+            "package_code": "classic-creator",
+            "tier_code": "monthly",
+            "application_id": self.application.id,
+            "sender_note": "Ziraat · 12:40",
+        }
+        payload.update(overrides)
+        return self.client.post(self.list_url, payload)
+
+    def test_declaring_a_payment_creates_a_pending_record(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self._declare()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], "pending")
+        self.assertEqual(Decimal(response.data["amount"]), Decimal("699.00"))
+        self.assertEqual(response.data["campaign_title"], "Bildirim Kampanyası")
+
+    def test_amount_comes_from_the_catalog_not_the_client(self):
+        self.client.force_authenticate(self.creator_user)
+        # İstemci tutar göndermeye çalışsa bile dikkate alınmaz.
+        response = self._declare(amount="1")
+        self.assertEqual(Decimal(response.data["amount"]), Decimal("699.00"))
+
+    def test_admins_get_payment_then_application_notification_in_that_order(self):
+        self.client.force_authenticate(self.creator_user)
+        self._declare()
+
+        for staff in (self.admin, self.other_admin):
+            titles = list(
+                Notification.objects.filter(user=staff).order_by("created_at", "id").values_list("title", flat=True)
+            )
+            self.assertEqual(titles, ["Ödeme bildirimi geldi", "Yeni kampanya başvurusu"])
+
+        # Panelde en yeni üstte listelenir; sıra deterministik olmalı.
+        newest_first = list(
+            Notification.objects.filter(user=self.admin).values_list("title", flat=True)
+        )
+        self.assertEqual(newest_first, ["Yeni kampanya başvurusu", "Ödeme bildirimi geldi"])
+
+    def test_declaration_without_an_application_only_notifies_about_the_payment(self):
+        self.client.force_authenticate(self.creator_user)
+        self._declare(application_id=None)
+        titles = list(Notification.objects.filter(user=self.admin).values_list("title", flat=True))
+        self.assertEqual(titles, ["Ödeme bildirimi geldi"])
+
+    def test_cannot_attach_someone_elses_application(self):
+        stranger = User.objects.create_user(email="stranger@example.com", password="StrongPass123", role=Role.CREATOR)
+        onboard(stranger)
+        self.client.force_authenticate(stranger)
+        response = self._declare()
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_users_only_see_their_own_declarations(self):
+        self.client.force_authenticate(self.creator_user)
+        self._declare()
+        other = User.objects.create_user(email="nosy2@example.com", password="StrongPass123", role=Role.CREATOR)
+        self.client.force_authenticate(other)
+        self.assertEqual(self.client.get(self.list_url).data["count"], 0)
+
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.get(self.list_url).data["count"], 1)
+
+    def test_approval_credits_the_balance_and_assigns_the_package(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"}),
+            {"note": "dekont görüldü"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["status"], "approved")
+
+        membership = Membership.objects.get(user=self.creator_user)
+        self.assertEqual(membership.package_code, "classic-creator")
+        self.assertTrue(membership.is_active)
+        # 699 yüklendi, 699 pakete gitti → bakiye 0, defterde iki satır.
+        wallet = Wallet.objects.get(user=self.creator_user)
+        self.assertEqual(wallet.balance, Decimal("0.00"))
+        self.assertEqual(wallet.entries.count(), 2)
+
+    def test_approval_can_credit_without_assigning_a_package(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        self.client.force_authenticate(self.admin)
+        self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"}),
+            {"assign_package": False},
+        )
+        self.assertEqual(Wallet.objects.get(user=self.creator_user).balance, Decimal("699.00"))
+        # Paket tanımlanmadığı için üyelik satırı hiç açılmamış olmalı.
+        self.assertFalse(Membership.objects.filter(user=self.creator_user).exists())
+
+    def test_rejection_leaves_the_balance_untouched(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "reject"}),
+            {"note": "Hesabımıza ulaşmadı"},
+        )
+        self.assertEqual(response.data["status"], "rejected")
+        self.assertEqual(Wallet.objects.filter(user=self.creator_user).count(), 0)
+        self.assertFalse(Membership.objects.filter(user=self.creator_user).exists())
+
+    def test_a_declaration_cannot_be_reviewed_twice(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        url = reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"})
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(url, {}).status_code, status.HTTP_200_OK)
+        second = self.client.post(url, {})
+        self.assertEqual(second.status_code, status.HTTP_400_BAD_REQUEST)
+        # Çift onay bakiyeyi iki kez yüklememeli.
+        self.assertEqual(Wallet.objects.get(user=self.creator_user).entries.count(), 2)
+
+    def test_moderator_cannot_approve_a_declaration(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        self.client.force_authenticate(self.other_admin)
+        response = self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"}), {}
+        )
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_user_is_notified_when_their_payment_is_approved(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        self.client.force_authenticate(self.admin)
+        self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"}), {}
+        )
+        self.assertTrue(
+            Notification.objects.filter(user=self.creator_user, title="Ödemeniz onaylandı").exists()
+        )
+
+    def test_invalid_decision_is_a_404_not_a_silent_rejection(self):
+        self.client.force_authenticate(self.creator_user)
+        declaration_id = self._declare().data["id"]
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f"/api/v1/payments/declarations/{declaration_id}/onayla/", {})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)

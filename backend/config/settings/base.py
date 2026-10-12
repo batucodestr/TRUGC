@@ -120,7 +120,15 @@ AUTH_PASSWORD_VALIDATORS = [
 # ---------------------------------------------------------------------------
 # Dil ve bölge ayarları
 # ---------------------------------------------------------------------------
-LANGUAGE_CODE = "en-us"
+# Arayüzün tamamı Türkçe ve kullanıcıya dönen doğrulama hatalarının bir kısmı
+# DRF'nin kendi varsayılan metinleridir ("This field is required."). Frontend
+# bu alan hatalarını kullanıcıya gösterdiği için (bkz. lib/error-message.ts)
+# dilin Türkçe olması gerekir; DRF ve Django kendi `tr` çevirilerini bu ayara
+# göre seçer.
+LANGUAGE_CODE = "tr"
+# TIME_ZONE UTC kalır: veritabanına her şey UTC yazılır ve takvim günü
+# gerektiren tek yer (ücretlendirme) kendi saat dilimini ayrıca uygular
+# (bkz. BILLING_TIMEZONE / apps/common/pricing.py).
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True

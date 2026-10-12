@@ -195,9 +195,28 @@ const FALLBACK_MESSAGE_BY_STATUS: Record<number, string> = {
   504: "Sunucu yanıt vermedi. Lütfen birazdan tekrar deneyin.",
 };
 
+/**
+ * `request` ile aynıdır, ama gövdenin yanında HTTP durum kodunu da döner.
+ *
+ * Bazı uçlar "oluşturdum" (201) ile "zaten vardı" (200) arasında ayrım yapar
+ * (ör. kampanya başvurusu); çağıran taraf kullanıcıya hangi mesajı
+ * göstereceğine buna bakarak karar verir.
+ */
+async function requestWithStatus<T>(
+  endpoint: string,
+  options: RequestOptions,
+): Promise<{ data: T; status: number }> {
+  const res = await rawFetch(endpoint, options, false);
+  const data = await handleResponse<T>(res);
+  return { data, status: res.status };
+}
+
 async function request<T>(endpoint: string, options: RequestOptions): Promise<T> {
   const res = await rawFetch(endpoint, options, false);
+  return handleResponse<T>(res);
+}
 
+async function handleResponse<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let data: ApiErrorBody | undefined;
     try {
@@ -217,6 +236,9 @@ async function request<T>(endpoint: string, options: RequestOptions): Promise<T>
 export const apiClient = {
   get: <T>(endpoint: string) => request<T>(endpoint, { method: "GET" }),
   post: <T>(endpoint: string, body?: unknown) => request<T>(endpoint, { method: "POST", body }),
+  /** POST, gövdeyle birlikte HTTP durum kodunu da döner (201 "oluşturuldu" vs 200 "zaten vardı"). */
+  postWithStatus: <T>(endpoint: string, body?: unknown) =>
+    requestWithStatus<T>(endpoint, { method: "POST", body }),
   patch: <T>(endpoint: string, body?: unknown) => request<T>(endpoint, { method: "PATCH", body }),
   put: <T>(endpoint: string, body?: unknown) => request<T>(endpoint, { method: "PUT", body }),
   delete: <T>(endpoint: string) => request<T>(endpoint, { method: "DELETE" }),

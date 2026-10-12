@@ -258,3 +258,67 @@ class Membership(models.Model):
             return False
         remaining = self.remaining_applications
         return remaining is None or remaining > 0
+
+
+class PaymentDeclarationStatus(models.TextChoices):
+    PENDING = "pending", _("Onay bekliyor")
+    APPROVED = "approved", _("Onaylandı")
+    REJECTED = "rejected", _("Reddedildi")
+
+
+class PaymentDeclaration(models.Model):
+    """Kullanıcının "ödemeyi yaptım" bildirimi.
+
+    Sanal POS açılana kadar ödeme havale/EFT ile yapılıyor ve platform parayı
+    kendi göremiyor. Kullanıcı ödeme ekranında bildirimde bulunur, bu satır
+    açılır ve adminlere bildirim gider; admin dekontu görünce onaylar, onay
+    anında bakiye yüklenir ve paket tanımlanır.
+
+    **Bu satır "para geldi" demek değildir**, "kullanıcı gönderdiğini söyledi"
+    demektir. Bakiyeye tek dokunan yer onay adımıdır (bkz. apps/payments/
+    declarations.py), bu yüzden bildirimde bulunmak tek başına hiçbir hak
+    kazandırmaz.
+
+    ``application`` doldurulduğunda bildirim bir kampanya başvurusunun
+    ardından yapılmıştır; admin paneli iki olayı yan yana gösterir.
+    """
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payment_declarations")
+    application = models.ForeignKey(
+        "applications.Application",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_declarations",
+    )
+    package_code = models.CharField(max_length=32, blank=True)
+    package_name = models.CharField(max_length=64, blank=True)
+    tier_code = models.CharField(max_length=16, blank=True)
+    tier_label = models.CharField(max_length=32, blank=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    currency = models.CharField(max_length=3, default="TRY")
+
+    status = models.CharField(
+        max_length=16, choices=PaymentDeclarationStatus.choices, default=PaymentDeclarationStatus.PENDING, db_index=True
+    )
+    #: Kullanıcının yazdığı not (dekont no, gönderen ad vb.).
+    sender_note = models.CharField(max_length=255, blank=True)
+    #: Adminin onay/red gerekçesi.
+    review_note = models.CharField(max_length=255, blank=True)
+    reviewed_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="payment_declarations_reviewed",
+    )
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        db_table = "payments_payment_declaration"
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["status", "created_at"])]
+
+    def __str__(self):
+        return f"PaymentDeclaration<{self.user_id}:{self.amount}:{self.status}>"

@@ -36,7 +36,7 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
   async function handleApply() {
     setSending(true);
     try {
-      await applyToCampaign({
+      const application = await applyToCampaign({
         campaignId,
         message,
         proposedRate: showPrices && price ? Number(price) : undefined,
@@ -44,9 +44,17 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
       setOpen(false);
       setMessage("");
       setPrice("");
-      toast.success("Başvurunuz gönderildi!", {
-        description: `Marka, "${campaignTitle}" kampanyasına başvurunuzu kısa süre içinde inceleyecek.`,
-      });
+      toast.success(
+        application.alreadyExisted ? "Bu kampanyaya zaten başvurmuştunuz" : "Başvurunuz alındı!",
+        { description: "Paketinizi aktifleştirmek için ödeme adımına yönlendiriliyorsunuz." },
+      );
+      // Başvurudan sonra ödeme ekranı. Ekran, aktif paketi olan kullanıcıya
+      // ödeme değil onay gösterir — bu kararı sunucudan okuduğu paket
+      // durumuna göre kendisi verir (bkz. features/payments/payment-checkout).
+      router.push(
+        `/dashboard/creator/odeme?application=${encodeURIComponent(application.id)}` +
+          `&campaign=${encodeURIComponent(campaignTitle)}`,
+      );
     } catch (err) {
       // 402 = aktif paket yok/hak bitti. Kullanıcıyı kuru bir hata mesajıyla
       // bırakmak yerine doğrudan paketlere götüren bir eylem sunulur.
