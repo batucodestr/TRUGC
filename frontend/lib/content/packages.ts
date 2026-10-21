@@ -45,8 +45,14 @@ export interface BrandPackage {
   id: string;
   name: string;
   tagline: string;
+  /** Sunucudaki süre kodu (apps/payments/packages.py: Tier.code). Marka
+   *  paketleri tek süreli olduğu için her zaman "monthly"dir; ödeme bildirimi
+   *  bu kodla gönderilir. */
+  code: "monthly";
   /** TL / ay, KDV dahil. */
   price: number;
+  /** Aylık creator başvuru hakkı; `null` sınırsız demektir. */
+  applications: number | null;
   features: string[];
   highlighted?: boolean;
   /** Kartın üstünde çıkan rozet (yalnızca öne çıkan pakette). */
@@ -97,7 +103,9 @@ export const BRAND_PACKAGES: BrandPackage[] = [
     id: "baslangic-marka",
     name: "Başlangıç Marka",
     tagline: "Küçük ve orta ölçekli markalar için.",
+    code: "monthly",
     price: 499,
+    applications: 50,
     features: [
       "5 aktif kampanya",
       "Aylık 50 creator başvuru hakkı",
@@ -111,7 +119,9 @@ export const BRAND_PACKAGES: BrandPackage[] = [
     id: "profesyonel-marka",
     name: "Profesyonel Marka",
     tagline: "Büyüme odaklı markalar için.",
+    code: "monthly",
     price: 999,
+    applications: 150,
     highlighted: true,
     badge: "En popüler",
     features: [
@@ -127,7 +137,9 @@ export const BRAND_PACKAGES: BrandPackage[] = [
     id: "kurumsal-marka",
     name: "Kurumsal Marka",
     tagline: "Büyük markalar ve ajanslar için.",
+    code: "monthly",
     price: 1999,
+    applications: null,
     features: [
       "Sınırsız kampanya",
       "Sınırsız creator başvuru hakkı",
@@ -139,3 +151,72 @@ export const BRAND_PACKAGES: BrandPackage[] = [
     ],
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Ödeme ekranları için ortak biçim
+// ---------------------------------------------------------------------------
+// Creator paketleri üç süre taşır, marka paketleri tek (aylık) — ödeme ekranı
+// ve "Paketi seç" diyaloğu ikisini de aynı şekilde göstermek zorunda. Bu
+// dönüştürücü, iki listeyi tek bir biçime indirir; böylece marka tarafı için
+// ikinci bir ödeme ekranı yazılmaz ve iki ekran ayrışamaz.
+//
+// `packageCode` ve `code`, sunucudaki katalogla birebir aynıdır
+// (apps/payments/packages.py) — ödeme bildirimi bu ikisiyle gönderilir.
+
+export type PackageAudience = "creator" | "brand";
+
+export interface CheckoutTier {
+  id: string;
+  code: PackageTier["code"];
+  label: string;
+  price: number;
+  /** Süreye bağlı tek satırlık bilgi, ör. "10 iş başvuru hakkı". */
+  note: string;
+}
+
+export interface CheckoutPackage {
+  /** Sunucudaki paket kodu (package_code). */
+  code: string;
+  name: string;
+  tagline: string;
+  tiers: CheckoutTier[];
+  highlighted?: boolean;
+}
+
+function applicationsNote(count: number | null, noun: string): string {
+  return count === null ? `Sınırsız ${noun}` : `${count} ${noun}`;
+}
+
+export function checkoutPackages(audience: PackageAudience): CheckoutPackage[] {
+  if (audience === "brand") {
+    return BRAND_PACKAGES.map((pkg) => ({
+      code: pkg.id,
+      name: pkg.name,
+      tagline: pkg.tagline,
+      highlighted: pkg.highlighted,
+      tiers: [
+        {
+          id: `${pkg.id}-${pkg.code}`,
+          code: pkg.code,
+          label: "Aylık",
+          price: pkg.price,
+          note: applicationsNote(pkg.applications, "creator başvuru hakkı"),
+        },
+      ],
+    }));
+  }
+
+  return CREATOR_PACKAGES.map((pkg) => ({
+    code: pkg.id,
+    name: pkg.name,
+    tagline: pkg.tagline,
+    highlighted: pkg.highlighted,
+    tiers: pkg.tiers.map((tier) => ({
+      id: tier.id,
+      code: tier.code,
+      label: tier.label,
+      price: tier.price,
+      note: applicationsNote(tier.applications, "iş başvuru hakkı"),
+    })),
+  }));
+}

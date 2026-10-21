@@ -18,29 +18,61 @@ class ApplicationSerializer(FreePeriodPricingMixin, serializers.ModelSerializer)
 
     price_fields = ("proposed_rate",)
 
-    creator_name = serializers.CharField(source="creator.display_name", read_only=True)
+    creator_name = serializers.SerializerMethodField()
     campaign_title = serializers.CharField(source="campaign.title", read_only=True)
     brand_id = serializers.IntegerField(source="campaign.brand_id", read_only=True)
+    brand_name = serializers.CharField(source="campaign.brand.company_name", read_only=True)
     campaign_id = serializers.PrimaryKeyRelatedField(
         source="campaign", queryset=Campaign.objects.filter(status=CampaignStatus.PUBLISHED), write_only=True
     )
+    # Okumada kampanyanın kimliği. ``campaign_id`` yazma amaçlı olduğu için
+    # ayrı bir alan gerekir: bu olmadan ne marka ne creator başvurudan
+    # kampanyaya gidebiliyordu.
+    campaign = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    # Konuşma açmak için **kullanıcı** kimlikleri şarttır (POST /messaging/
+    # participant_ids kullanıcı id'si bekler). Bunlar dönmediği sürece marka
+    # başvuran creator'a, creator da markaya mesaj atamıyordu: başvurular
+    # listesindeki mesaj düğmesi boş bir sohbet sayfasına gidiyordu.
+    creator_id = serializers.IntegerField(source="creator.id", read_only=True)
+    creator_user_id = serializers.IntegerField(source="creator.user_id", read_only=True)
+    creator_avatar = serializers.ImageField(source="creator.user.profile.avatar", read_only=True)
+    brand_user_id = serializers.IntegerField(source="campaign.brand.user_id", read_only=True)
 
     class Meta:
         model = Application
         fields = [
             "id",
+            "creator_id",
+            "creator_user_id",
             "creator_name",
+            "creator_avatar",
+            "campaign",
             "campaign_id",
             "campaign_title",
             "brand_id",
+            "brand_name",
+            "brand_user_id",
             "message",
             "proposed_rate",
             "status",
+            "awaiting_payment",
             "created_at",
             "updated_at",
             "reviewed_at",
         ]
-        read_only_fields = ["id", "status", "created_at", "updated_at", "reviewed_at"]
+        read_only_fields = ["id", "status", "awaiting_payment", "created_at", "updated_at", "reviewed_at"]
+
+    def get_creator_name(self, obj):
+        """Görünen ad; boşsa profil adına, o da boşsa e-postaya düşer.
+
+        Önceden doğrudan ``creator.display_name`` dönüyordu: adını henüz
+        girmemiş creator'lar markanın başvuru listesinde boş satır olarak
+        görünüyordu.
+        """
+        creator = obj.creator
+        profile = getattr(creator.user, "profile", None)
+        return creator.display_name or getattr(profile, "full_name", "") or creator.user.email
 
     def validate_campaign_id(self, campaign):
         if not campaign.is_open:

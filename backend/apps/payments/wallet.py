@@ -19,7 +19,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from .models import Membership, Wallet, WalletEntry, WalletEntryKind
-from .packages import resolve
+from .packages import BRAND, CREATOR, resolve
 
 
 class WalletError(Exception):
@@ -71,6 +71,38 @@ def adjust_balance(user, amount: Decimal, *, kind: str, note: str = "", actor=No
     )
 
 
+def _grant_brand_directory_access(user, until) -> None:
+    """Marka paketine, creator dizinine erişimi de dahil eder.
+
+    Dizin erişimi üyelikten ayrı alanlarda tutulur (``Brand.has_paid_access`` /
+    ``paid_access_until``; sanal POS'un erişim paketi de aynı alanları doldurur,
+    bkz. apps/creators/permissions.py::CanViewCreatorDirectory). Paket
+    tanımlanırken bu alanlar güncellenmezse marka parasını ödediği halde
+    creator listesini göremez — markanın satın aldığı şeyin yarısı eksik kalır.
+
+    İki durumda dokunulmaz/kısaltılmaz:
+
+    * Süresiz erişim (``paid_access_until`` boş) — admin tarafından elle açılmış
+      hesapların erişimi bir pakete bağlanıp süreli hale getirilmez.
+    * Hâlihazırda daha uzun bir erişim — ör. ayrıca POS'tan erişim paketi almış
+      marka, paket tanımlandı diye erişimini kaybetmez.
+
+    Paket kaldırıldığında (``clear_membership``) erişim ayrıca geri alınmaz;
+    süresi kendiliğinden dolar. Erişim elle de açılabildiği için burada
+    "paketi yoksa erişimi de yoktur" varsayımı yapılamaz.
+    """
+    brand = getattr(user, "brand", None)
+    if brand is None:
+        return
+    if brand.has_paid_access and brand.paid_access_until is None:
+        return
+    if brand.paid_access_until and until and brand.paid_access_until > until:
+        until = brand.paid_access_until
+    brand.has_paid_access = True
+    brand.paid_access_until = until
+    brand.save(update_fields=["has_paid_access", "paid_access_until", "updated_at"])
+
+
 @transaction.atomic
 def assign_membership(
     user,
@@ -90,6 +122,9 @@ def assign_membership(
 
     Süre her zaman **şu andan** başlar: kalan gün devretmez. Bu bilinçli bir
     sadeleştirmedir; devir kuralı istendiğinde burada tek yerde değişir.
+
+    Marka paketlerinde creator dizinine erişim de bu adımda açılır (bkz.
+    ``_grant_brand_directory_access``).
     """
     resolved = resolve(package_code, tier_code)
     if resolved is None:
@@ -120,6 +155,19 @@ def assign_membership(
     membership.expires_at = now + timedelta(days=tier.days)
     membership.assigned_by = actor if getattr(actor, "is_authenticated", False) else None
     membership.save()
+
+    if package.audience == BRAND:
+        _grant_brand_directory_access(user, membership.expires_at)
+        # membership → wallet import ettiği için yerel import.
+        from .membership import release_awaiting_campaigns
+
+        release_awaiting_campaigns(user)
+    elif package.audience == CREATOR:
+        # membership → wallet import ettiği için yerel import.
+        from .membership import release_awaiting_applications
+
+        release_awaiting_applications(user)
+
     return membership
 
 

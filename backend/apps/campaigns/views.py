@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Count, Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -24,14 +24,26 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
     serializer_class = CampaignSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["status", "platform", "categories"]
+    # "brand": markanın kendi kampanyalarını sunucu tarafında süzebilmesi için.
+    # Panel eskiden /campaigns/ ilk sayfasını çekip istemcide filtreliyordu;
+    # platformdaki kampanya sayısı sayfa boyutunu (20) geçtiğinde markanın
+    # kampanyaları listede hiç görünmüyordu.
+    filterset_fields = ["status", "platform", "categories", "brand"]
     search_fields = ["title", "description"]
     ordering_fields = ["created_at", "deadline", "budget_max"]
     owner_field = "brand.user"
 
     def get_queryset(self):
-        queryset = Campaign.objects.select_related("brand", "brand__user").prefetch_related(
-            "categories", "media_files"
+        queryset = (
+            Campaign.objects.select_related("brand", "brand__user")
+            .prefetch_related("categories", "media_files")
+            # Başvuran sayısı serializer'da gösterilir; annotate edilmezse
+            # her satır için ayrı bir COUNT sorgusu çalışırdı.
+            .annotate(applications_count=Count("applications", filter=Q(applications__awaiting_payment=False)))
+            # Annotate GROUP BY ürettiği için Django, Meta.ordering'i
+            # "sıralanmış" saymaz (QuerySet.ordered -> False) ve sayfalama
+            # tutarsız sonuç uyarısı verir. Sıra burada açıkça tekrarlanır.
+            .order_by("-created_at")
         )
         user = self.request.user
 
@@ -54,19 +66,58 @@ class CampaignViewSet(viewsets.ModelViewSet):
         return [permissions.AllowAny()]
 
     def create(self, request, *args, **kwargs):
-        """Paketin aktif kampanya limiti, doğrulamadan ÖNCE kontrol edilir."""
-        try:
-            membership_rules.check_campaign_slot(request.user)
-        except membership_rules.MembershipRequired as exc:
-            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        """Yayınlanmak istenen ilanda paket kuralı doğrulamadan ÖNCE uygulanır.
+
+        * Paketi hiç olmayan marka engellenmez: ilanı taslak olarak, ödeme
+          bekler halde kaydedilir; marka ödeme ekranına yönlendirilir ve paketi
+          tanımlandığında ilan kendiliğinden yayına girer
+          (bkz. membership.release_awaiting_campaigns). Böylece doldurduğu
+          form boşa gitmez.
+        * Paketi olup aktif kampanya limiti dolan marka 402 alır.
+
+        Taslak kaydetmek paket istemez.
+        """
+        self._hold_for_payment = False
+        if request.data.get("status") == CampaignStatus.PUBLISHED:
+            if membership_rules.campaign_needs_payment(request.user):
+                self._hold_for_payment = True
+            else:
+                try:
+                    membership_rules.check_campaign_slot(request.user)
+                except membership_rules.MembershipRequired as exc:
+                    return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "brand"):
             raise PermissionDenied("Only brands with a company profile can create campaigns.")
+        if getattr(self, "_hold_for_payment", False):
+            serializer.save(status=CampaignStatus.DRAFT, awaiting_payment=True)
+            return
         serializer.save()
 
+    def update(self, request, *args, **kwargs):
+        """Taslağı yayına almak da yeni ilan vermek sayılır: aynı paket kuralı.
+
+        Bu kontrol olmadan marka ilanı taslak kaydedip düzenleme ekranından
+        yayına alarak ödemeyi atlayabilirdi.
+        """
+        instance = self.get_object()
+        publishing = (
+            request.data.get("status") == CampaignStatus.PUBLISHED and instance.status != CampaignStatus.PUBLISHED
+        )
+        if publishing and instance.brand.user_id == request.user.id:
+            try:
+                membership_rules.check_campaign_slot(request.user)
+            except membership_rules.MembershipRequired as exc:
+                return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        return super().update(request, *args, **kwargs)
+
     def perform_update(self, serializer):
+        # Marka ilanı kendisi kapatır veya yayına alırsa artık ödeme sonrası
+        # otomatik yayına girecek bir ilan değildir.
+        if "status" in serializer.validated_data and serializer.instance.awaiting_payment:
+            serializer.validated_data["awaiting_payment"] = False
         campaign = serializer.save()
         if self.request.user.is_staff or self.request.user.role in ("admin", "moderator"):
             log_admin_action(

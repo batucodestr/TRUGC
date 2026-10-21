@@ -32,6 +32,10 @@ export const BRAND_NAV: DashboardNavItem[] = [
   { label: "Kampanyalar", href: "/dashboard/brand/campaigns", icon: Megaphone },
   { label: "Başvurular", href: "/dashboard/brand/applications", icon: FileText },
   { label: "Mesajlar", href: "/dashboard/messages", icon: MessageSquare },
+  // "Ödemeler" kampanya bütçeleri ve harcama geçmişidir; "Üyelik paketi"
+  // ayrı bir üründür ve markanın paketini aktifleştirdiği yerdir. İkisi
+  // tek menü satırında birleştirildiğinde marka paketini bulamıyordu.
+  { label: "Üyelik paketi", href: "/dashboard/brand/odeme", icon: Wallet },
   { label: "Ödemeler", href: "/dashboard/brand/payments", icon: CreditCard },
   { label: "Ayarlar", href: "/dashboard/brand/settings", icon: Settings },
 ];

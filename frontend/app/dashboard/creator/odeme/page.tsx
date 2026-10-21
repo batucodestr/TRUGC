@@ -20,7 +20,7 @@ export const metadata = { title: "Ödeme — TRUGC" };
 export default function CreatorPaymentPage() {
   return (
     <Suspense fallback={<Skeleton className="h-96 w-full rounded-2xl" />}>
-      <PaymentCheckout />
+      <PaymentCheckout audience="creator" />
     </Suspense>
   );
 }

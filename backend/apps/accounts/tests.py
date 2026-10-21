@@ -1,6 +1,7 @@
 from django.contrib.auth.tokens import default_token_generator
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.encoding import force_bytes
@@ -143,6 +144,24 @@ class EmailVerificationTests(APITestCase):
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(ONBOARDING_REQUIRE_EMAIL_VERIFICATION=False, ONBOARDING_REQUIRE_PROFILE_PHOTO=False)
+    def test_signup_is_approved_immediately_when_verification_is_off(self):
+        """Kayıtta onay adımı kapalıyken hesap anında kullanıma hazır açılır."""
+        response = self.client.post(
+            reverse("accounts:register"),
+            {
+                "email": "instant@example.com",
+                "password": "StrongPass123",
+                "password_confirm": "StrongPass123",
+                "role": Role.BRAND,
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(mail.outbox), 0)
+        user = User.objects.get(email="instant@example.com")
+        self.assertTrue(user.email_verified)
+        self.assertTrue(user.onboarding_complete)
 
     def test_confirm_verification_with_valid_token(self):
         uid = urlsafe_base64_encode(force_bytes(self.user.pk))

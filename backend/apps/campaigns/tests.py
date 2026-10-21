@@ -5,6 +5,7 @@ from rest_framework import status
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import Role, User
+from apps.applications.models import Application
 from apps.common.testing import onboard
 
 from .models import Campaign, CampaignStatus
@@ -271,3 +272,76 @@ class FreePeriodDoesNotDestroyExistingBudgetTests(APITestCase):
         )
         self.campaign.refresh_from_db()
         self.assertEqual(self.campaign.budget_max, 500)
+
+# ---------------------------------------------------------------------------
+# Panelin kampanya listesi: gerçek başvuran sayısı ve marka filtresi
+# ---------------------------------------------------------------------------
+# "Başvuranlar" kolonu her kampanyada "—" gösteriyordu (sayı API'den hiç
+# dönmüyordu) ve panel kendi kampanyalarını /campaigns/ ilk sayfasını çekip
+# istemcide süzerek buluyordu — sayfa boyutu aşıldığında markanın kampanyaları
+# listede görünmüyordu.
+class CampaignListingForBrandPanelTests(APITestCase):
+    def setUp(self):
+        self.brand_user = User.objects.create_user(
+            email="listbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        self.other_brand_user = User.objects.create_user(
+            email="listbrand2@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        self.creator_user = User.objects.create_user(
+            email="listcreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.other_brand_user)
+        onboard(self.creator_user)
+
+        def campaign(brand, title, status_value=CampaignStatus.PUBLISHED):
+            return Campaign.objects.create(
+                brand=brand,
+                title=title,
+                description="d",
+                platform="tiktok",
+                budget_min=100,
+                budget_max=500,
+                deadline=timezone.now() + timezone.timedelta(days=30),
+                status=status_value,
+            )
+
+        self.mine_published = campaign(self.brand_user.brand, "Benim yayındaki")
+        self.mine_draft = campaign(self.brand_user.brand, "Benim taslağım", CampaignStatus.DRAFT)
+        self.theirs = campaign(self.other_brand_user.brand, "Başkasının")
+
+        Application.objects.create(creator=self.creator_user.creator, campaign=self.mine_published)
+
+    def _list(self, query=""):
+        self.client.force_authenticate(self.brand_user)
+        response = self.client.get(reverse("campaigns:campaign-list") + query)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return {row["title"]: row for row in response.data["results"]}
+
+    def test_applications_count_is_returned(self):
+        rows = self._list()
+        self.assertEqual(rows["Benim yayındaki"]["applications_count"], 1)
+        self.assertEqual(rows["Benim taslağım"]["applications_count"], 0)
+
+    def test_brand_filter_returns_own_campaigns_including_drafts(self):
+        rows = self._list(f"?brand={self.brand_user.brand.id}")
+        self.assertEqual(set(rows), {"Benim yayındaki", "Benim taslağım"})
+
+    def test_created_campaign_response_also_carries_the_count(self):
+        # Oluşturma yanıtı annotate edilmemiş bir örnek döner; alan orada da
+        # dolu olmalı, yoksa kampanya oluşturduktan sonraki ekran patlar.
+        self.client.force_authenticate(self.brand_user)
+        response = self.client.post(
+            reverse("campaigns:campaign-list"),
+            {
+                "title": "Yeni kampanya",
+                "description": "d",
+                "platform": "tiktok",
+                "budget_min": "100.00",
+                "budget_max": "500.00",
+                "deadline": (timezone.now() + timezone.timedelta(days=30)).isoformat(),
+            },
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["applications_count"], 0)

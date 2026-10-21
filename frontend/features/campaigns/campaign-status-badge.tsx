@@ -10,7 +10,21 @@ const STATUS_CONFIG: Record<CampaignStatus, { label: string; className: string }
   cancelled: { label: "İptal edildi", className: "bg-rose-100 text-rose-700 dark:bg-rose-500/15 dark:text-rose-400" },
 };
 
-export function CampaignStatusBadge({ status, className }: { status: CampaignStatus; className?: string }) {
-  const config = STATUS_CONFIG[status];
+/** Paketsiz markanın ilanı: taslakta bekler, ödeme onaylanınca yayına girer. */
+const AWAITING_PAYMENT = {
+  label: "Ödeme bekliyor",
+  className: "bg-violet-100 text-violet-700 dark:bg-violet-500/15 dark:text-violet-300",
+};
+
+export function CampaignStatusBadge({
+  status,
+  awaitingPayment,
+  className,
+}: {
+  status: CampaignStatus;
+  awaitingPayment?: boolean;
+  className?: string;
+}) {
+  const config = awaitingPayment && status === "draft" ? AWAITING_PAYMENT : STATUS_CONFIG[status];
   return <Badge className={cn("border-none font-medium", config.className, className)}>{config.label}</Badge>;
 }

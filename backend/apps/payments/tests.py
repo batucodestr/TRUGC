@@ -15,7 +15,7 @@ from apps.campaigns.models import Campaign, CampaignStatus
 from apps.common.testing import onboard
 from apps.notifications.models import Notification
 
-from .models import Membership, PosPayment, PosPaymentStatus, TransactionStatus, Wallet
+from .models import Membership, PaymentDeclaration, PosPayment, PosPaymentStatus, TransactionStatus, Wallet
 from .packages import PACKAGES
 
 
@@ -627,11 +627,30 @@ class MembershipEnforcementTests(APITestCase):
 
     # --- Engelleme açıkken ---
     @override_settings(MEMBERSHIP_ENFORCED=True)
-    def test_creator_without_a_package_cannot_apply(self):
+    def test_creator_without_a_package_applies_but_waits_for_payment(self):
+        """Paketsiz başvuru reddedilmez: kaydedilir, markadan gizlenir ve
+        creator ödeme ekranına yönlendirilir."""
         self.client.force_authenticate(self.creator_user)
         response = self._apply()
-        self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
-        self.assertEqual(response.data["code"], "MEMBERSHIP_REQUIRED")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["awaiting_payment"])
+
+        self.client.force_authenticate(self.brand_user)
+        listed = self.client.get(self.apply_url)
+        self.assertEqual(listed.data["count"], 0)
+        self.assertFalse(Notification.objects.filter(user=self.brand_user).exists())
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_package_approval_forwards_the_waiting_application_to_the_brand(self):
+        self.client.force_authenticate(self.creator_user)
+        application_id = self._apply().data["id"]
+
+        self._give_package(self.creator_user, "classic-creator", "3d")
+
+        application = Application.objects.get(pk=application_id)
+        self.assertFalse(application.awaiting_payment)
+        self.assertEqual(Membership.objects.get(user=self.creator_user).applications_used, 1)
+        self.assertTrue(Notification.objects.filter(user=self.brand_user, title="Yeni başvuru aldınız").exists())
 
     @override_settings(MEMBERSHIP_ENFORCED=True)
     def test_creator_with_a_package_can_apply(self):
@@ -647,10 +666,12 @@ class MembershipEnforcementTests(APITestCase):
         self.assertIn("başvuru hakkının tamamını", response.data["message"])
 
     @override_settings(MEMBERSHIP_ENFORCED=True)
-    def test_expired_package_blocks_applications(self):
+    def test_expired_package_sends_the_application_to_payment(self):
         self._give_package(self.creator_user, "classic-creator", "monthly")
         Membership.objects.filter(user=self.creator_user).update(expires_at=timezone.now() - timedelta(hours=1))
-        self.assertEqual(self._apply().status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        response = self._apply()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(response.data["awaiting_payment"])
 
     @override_settings(MEMBERSHIP_ENFORCED=True)
     def test_a_rejected_application_does_not_burn_a_slot(self):
@@ -716,10 +737,96 @@ class MembershipEnforcementTests(APITestCase):
         )
 
     @override_settings(MEMBERSHIP_ENFORCED=True)
-    def test_brand_without_a_package_cannot_publish_a_campaign(self):
+    def test_brand_without_a_package_has_the_campaign_held_for_payment(self):
+        """İlan reddedilmez: taslak olarak ödeme bekler, yayında görünmez."""
         self.client.force_authenticate(self.brand_user)
         response = self._create_campaign()
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["status"], CampaignStatus.DRAFT)
+        self.assertTrue(response.data["awaiting_payment"])
+
+        self.client.force_authenticate(self.creator_user)
+        public = self.client.get(reverse("campaigns:campaign-list"))
+        self.assertNotIn(response.data["id"], [c["id"] for c in public.data["results"]])
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_package_approval_publishes_the_held_campaign(self):
+        self.client.force_authenticate(self.brand_user)
+        campaign_id = self._create_campaign().data["id"]
+
+        self._give_package(self.brand_user, "baslangic-marka", "monthly")
+
+        campaign = Campaign.objects.get(pk=campaign_id)
+        self.assertEqual(campaign.status, CampaignStatus.PUBLISHED)
+        self.assertFalse(campaign.awaiting_payment)
+        self.assertTrue(Notification.objects.filter(user=self.brand_user, title="İlanınız yayında").exists())
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_held_campaigns_beyond_the_quota_stay_as_drafts(self):
+        self.client.force_authenticate(self.brand_user)
+        for _ in range(6):
+            self._create_campaign()
+        # setUp'taki yayındaki kampanya + 4 = Başlangıç paketinin 5 limiti.
+        self._give_package(self.brand_user, "baslangic-marka", "monthly")
+        brand = self.brand_user.brand
+        self.assertEqual(Campaign.objects.filter(brand=brand, status=CampaignStatus.PUBLISHED).count(), 5)
+        self.assertEqual(Campaign.objects.filter(brand=brand, awaiting_payment=True).count(), 2)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_a_cancelled_held_campaign_is_not_published_after_payment(self):
+        self.client.force_authenticate(self.brand_user)
+        campaign_id = self._create_campaign().data["id"]
+        self.client.patch(
+            reverse("campaigns:campaign-detail", args=[campaign_id]), {"status": CampaignStatus.CANCELLED}
+        )
+        self._give_package(self.brand_user, "baslangic-marka", "monthly")
+        self.assertEqual(Campaign.objects.get(pk=campaign_id).status, CampaignStatus.CANCELLED)
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_publishing_a_draft_without_a_package_is_blocked(self):
+        """Taslak kaydedip düzenlemeden yayına almak ödemeyi atlatmamalı."""
+        self.client.force_authenticate(self.brand_user)
+        draft = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Taslak",
+            description="d",
+            platform="tiktok",
+            budget_min=10,
+            budget_max=20,
+            deadline=timezone.now() + timedelta(days=5),
+            status=CampaignStatus.DRAFT,
+        )
+        response = self.client.patch(
+            reverse("campaigns:campaign-detail", args=[draft.id]), {"status": CampaignStatus.PUBLISHED}
+        )
         self.assertEqual(response.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        self.assertEqual(response.data["code"], "MEMBERSHIP_REQUIRED")
+
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_wallet_reports_which_actions_need_payment(self):
+        self.client.force_authenticate(self.creator_user)
+        gates = self.client.get(reverse("payments:my-wallet")).data["gates"]
+        self.assertEqual(
+            gates, {"messaging_locked": True, "application_needs_payment": True, "campaign_needs_payment": False}
+        )
+        self._give_package(self.creator_user, "classic-creator", "weekly")
+        gates = self.client.get(reverse("payments:my-wallet")).data["gates"]
+        self.assertFalse(gates["messaging_locked"])
+        self.assertFalse(gates["application_needs_payment"])
+
+    # --- Mesajlaşma: ödeme sonrası açılır ---
+    @override_settings(MEMBERSHIP_ENFORCED=True)
+    def test_messaging_requires_an_active_package_and_opens_after_payment(self):
+        url = reverse("messaging:conversation-list")
+        self.client.force_authenticate(self.brand_user)
+        blocked = self.client.post(url, {"participant_ids": [self.creator_user.id]}, format="json")
+        self.assertEqual(blocked.status_code, status.HTTP_402_PAYMENT_REQUIRED)
+        self.assertEqual(blocked.data["code"], "MEMBERSHIP_REQUIRED")
+
+        self._give_package(self.brand_user, "baslangic-marka", "monthly")
+        self.client.force_authenticate(self.brand_user)
+        opened = self.client.post(url, {"participant_ids": [self.creator_user.id]}, format="json")
+        self.assertEqual(opened.status_code, status.HTTP_201_CREATED)
 
     @override_settings(MEMBERSHIP_ENFORCED=True)
     def test_brand_is_blocked_once_the_active_campaign_limit_is_reached(self):
@@ -947,3 +1054,161 @@ class PaymentDeclarationTests(APITestCase):
         self.client.force_authenticate(self.admin)
         response = self.client.post(f"/api/v1/payments/declarations/{declaration_id}/onayla/", {})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    # --- Paket kitlesi rolle uyuşmalı ---
+    # Marka bir creator paketini bildirip onaylatsa campaign_quota=0 olan bir
+    # paket alır ve ödediği halde kampanya açamazdı; tersi de doğrudur.
+    def test_brand_can_declare_a_brand_package(self):
+        self.client.force_authenticate(self.brand_user)
+        response = self._declare(package_code="baslangic-marka", tier_code="monthly", application_id=None)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Decimal(response.data["amount"]), Decimal("499.00"))
+
+    def test_brand_cannot_declare_a_creator_package(self):
+        self.client.force_authenticate(self.brand_user)
+        response = self._declare(package_code="premium-creator", tier_code="weekly", application_id=None)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Marka paketlerinden", response.data["message"])
+        self.assertFalse(PaymentDeclaration.objects.exists())
+
+    def test_creator_cannot_declare_a_brand_package(self):
+        self.client.force_authenticate(self.creator_user)
+        response = self._declare(package_code="kurumsal-marka", tier_code="monthly")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Creator paketlerinden", response.data["message"])
+        self.assertFalse(PaymentDeclaration.objects.exists())
+
+    # --- Kullanıcı başına tek bekleyen bildirim ---
+    def test_declaring_again_updates_the_pending_record_instead_of_duplicating(self):
+        self.client.force_authenticate(self.creator_user)
+        first_id = self._declare().data["id"]
+        response = self._declare(package_code="premium-creator", tier_code="weekly")
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["id"], first_id)
+        self.assertEqual(PaymentDeclaration.objects.filter(user=self.creator_user).count(), 1)
+        # Tutar da yeni seçime göre güncellenmeli, yoksa admin eski tutarı onaylardı.
+        self.assertEqual(Decimal(response.data["amount"]), Decimal("699.00"))
+        self.assertEqual(response.data["package_code"], "premium-creator")
+
+    def test_repeating_the_same_declaration_does_not_notify_admins_again(self):
+        self.client.force_authenticate(self.creator_user)
+        self._declare()
+        self._declare()
+        # Seçim değişmedi: ödeme + başvuru bildirimi birer kez gitmiş olmalı.
+        titles = list(Notification.objects.filter(user=self.admin).values_list("title", flat=True))
+        self.assertEqual(titles, ["Yeni kampanya başvurusu", "Ödeme bildirimi geldi"])
+
+    def test_a_second_application_still_reaches_the_admins(self):
+        # Adminlere başvuruyu duyuran tek yer bu akış: bekleyen bir bildirim
+        # varken yapılan ikinci başvuru da bildirilmeli, yoksa sessizce kaybolur.
+        second_campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="İkinci Kampanya",
+            description="d",
+            platform="instagram",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timedelta(days=10),
+            status=CampaignStatus.PUBLISHED,
+        )
+        second_application = Application.objects.create(creator=self.creator_user.creator, campaign=second_campaign)
+
+        self.client.force_authenticate(self.creator_user)
+        self._declare()
+        self._declare(application_id=second_application.id)
+
+        titles = list(
+            Notification.objects.filter(user=self.admin).order_by("created_at", "id").values_list("title", flat=True)
+        )
+        # Paket seçimi değişmediği için ödeme bildirimi tekrarlanmaz; başvuru
+        # bildirimi her yeni başvuru için gider.
+        self.assertEqual(titles, ["Ödeme bildirimi geldi", "Yeni kampanya başvurusu", "Yeni kampanya başvurusu"])
+        self.assertEqual(PaymentDeclaration.objects.filter(user=self.creator_user).count(), 1)
+
+    def test_a_new_declaration_is_opened_once_the_previous_one_is_reviewed(self):
+        self.client.force_authenticate(self.creator_user)
+        first_id = self._declare().data["id"]
+        self.client.force_authenticate(self.admin)
+        self.client.post(reverse("payments:declaration-review", kwargs={"pk": first_id, "decision": "reject"}), {})
+
+        self.client.force_authenticate(self.creator_user)
+        second = self._declare()
+        self.assertEqual(second.status_code, status.HTTP_201_CREATED)
+        self.assertNotEqual(second.data["id"], first_id)
+        self.assertEqual(PaymentDeclaration.objects.filter(user=self.creator_user).count(), 2)
+
+# ---------------------------------------------------------------------------
+# Marka paketi = üyelik + creator dizini erişimi
+# ---------------------------------------------------------------------------
+# Dizin erişimi üyelikten ayrı alanlarda tutulur (Brand.has_paid_access /
+# paid_access_until). Paket tanımlanırken bu alanlar güncellenmezse marka
+# ödemesi onaylandığı halde creator listesini göremez. Ücretsiz dönem bu
+# koşulu tamamen kaldırdığı için testte kapatılır — aksi halde testler hafta
+# sonu koşunca yeşil kalır ama hiçbir şey doğrulamaz.
+@override_settings(BILLING_FREE_PERIOD_ENABLED=False)
+class BrandPackageDirectoryAccessTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="accadmin@example.com", password="StrongPass123", role=Role.ADMIN)
+        self.brand_user = User.objects.create_user(
+            email="accbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        onboard(self.brand_user)
+        self.membership_url = reverse("payments:user-membership", args=[self.brand_user.id])
+
+    def _assign(self, package_code="profesyonel-marka", tier_code="monthly"):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(self.membership_url, {"package_code": package_code, "tier_code": tier_code})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.brand_user.brand.refresh_from_db()
+        return self.brand_user.brand
+
+    def test_assigning_a_brand_package_opens_the_creator_directory(self):
+        self.assertFalse(self.brand_user.brand.has_paid_access)
+        brand = self._assign()
+
+        self.assertTrue(brand.has_paid_access)
+        self.assertTrue(brand.paid_access_active)
+        membership = Membership.objects.get(user=self.brand_user)
+        self.assertEqual(brand.paid_access_until, membership.expires_at)
+
+        # Uçtan uca: dizin artık markaya açık olmalı.
+        self.client.force_authenticate(self.brand_user)
+        self.assertEqual(self.client.get(reverse("creators:creator-list")).status_code, status.HTTP_200_OK)
+
+    def test_the_directory_stays_locked_without_a_package(self):
+        self.client.force_authenticate(self.brand_user)
+        self.assertEqual(self.client.get(reverse("creators:creator-list")).status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_an_existing_longer_access_is_not_shortened(self):
+        until = self.brand_user.brand.grant_paid_access(365)
+        brand = self._assign()
+        self.assertEqual(brand.paid_access_until, until)
+
+    def test_unlimited_access_is_left_untouched(self):
+        # paid_access_until boş = süresiz (elle açılmış hesaplar); bir paket
+        # tanımlamak bu erişimi süreli hale getirmemeli.
+        brand = self.brand_user.brand
+        brand.has_paid_access = True
+        brand.paid_access_until = None
+        brand.save(update_fields=["has_paid_access", "paid_access_until"])
+
+        brand = self._assign()
+        self.assertTrue(brand.has_paid_access)
+        self.assertIsNone(brand.paid_access_until)
+
+    def test_approved_payment_declaration_opens_the_directory_too(self):
+        # Asıl akış: marka ödemeyi bildirir, admin onaylar.
+        self.client.force_authenticate(self.brand_user)
+        declaration_id = self.client.post(
+            reverse("payments:declaration-list"),
+            {"package_code": "baslangic-marka", "tier_code": "monthly", "sender_note": "havale"},
+        ).data["id"]
+
+        self.client.force_authenticate(self.admin)
+        self.client.post(
+            reverse("payments:declaration-review", kwargs={"pk": declaration_id, "decision": "approve"}), {}
+        )
+
+        self.brand_user.brand.refresh_from_db()
+        self.assertTrue(self.brand_user.brand.paid_access_active)

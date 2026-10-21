@@ -27,6 +27,7 @@ import { Reveal } from "@/components/Motion/Reveal";
 import {
   BRAND_PACKAGES,
   CAMPAIGN_COMMISSION_PERCENT,
+  checkoutPackages,
   COMMISSION_EXAMPLE_BUDGET,
   CREATOR_PACKAGES,
 } from "@/lib/content/packages";
@@ -61,6 +62,9 @@ function FeatureList({ features }: { features: string[] }) {
 
 /** Creator üyelik paketleri — her kart 3 Günlük / Haftalık / Aylık satırını taşır. */
 export function CreatorPackages() {
+  // Diyaloğa geçirilecek süreler ödeme ekranıyla aynı dönüştürücüden gelir
+  // (lib/content/packages.ts) — fiyat/süre kodu iki yüzeyde ayrışamaz.
+  const checkout = checkoutPackages("creator");
   return (
     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
       {CREATOR_PACKAGES.map((pkg, i) => {
@@ -110,16 +114,13 @@ export function CreatorPackages() {
               <FeatureList features={pkg.features} />
 
               <PackageCheckoutDialog
+                packageCode={pkg.id}
                 packageName={pkg.name}
-                dashboardHref="/dashboard/creator"
+                audience="creator"
+                dashboardHref="/dashboard/creator/odeme"
                 triggerVariant={pkg.highlighted ? "default" : "outline"}
                 triggerClassName={cn("mt-7 w-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
-                options={pkg.tiers.map((tier) => ({
-                  id: tier.id,
-                  label: tier.label,
-                  price: tier.price,
-                  note: `${tier.applications} iş başvuru hakkı`,
-                }))}
+                options={checkout.find((entry) => entry.code === pkg.id)!.tiers}
               />
             </Card>
           </Reveal>
@@ -131,6 +132,7 @@ export function CreatorPackages() {
 
 /** Marka üyelik paketleri — aylık sabit ücret. */
 export function BrandPackages() {
+  const checkout = checkoutPackages("brand");
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
       {BRAND_PACKAGES.map((pkg, i) => {
@@ -168,11 +170,13 @@ export function BrandPackages() {
               <FeatureList features={pkg.features} />
 
               <PackageCheckoutDialog
+                packageCode={pkg.id}
                 packageName={pkg.name}
-                dashboardHref="/dashboard/brand"
+                audience="brand"
+                dashboardHref="/dashboard/brand/odeme"
                 triggerVariant={pkg.highlighted ? "default" : "outline"}
                 triggerClassName={cn("mt-7 w-full", pkg.highlighted && "bg-gradient-brand hover:opacity-90")}
-                options={[{ id: `${pkg.id}-monthly`, label: "Aylık", price: pkg.price }]}
+                options={checkout.find((entry) => entry.code === pkg.id)!.tiers}
               />
             </Card>
           </Reveal>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Rocket } from "lucide-react";
+import { CreditCard, Rocket } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,10 @@ import type { SocialPlatform } from "@/types";
 import { apiClient } from "@/lib/api";
 import { ENDPOINTS } from "@/lib/endpoints";
 import { createCampaign } from "@/lib/api/campaigns";
-import { getErrorMessage, isMembershipRequired } from "@/lib/error-message";
+import { getErrorMessage } from "@/lib/error-message";
+import { handleMembershipRequired } from "@/lib/membership-gate";
+import { getMyWallet } from "@/lib/api/wallet";
+import { PaymentFlowSteps } from "@/components/shared/payment-flow-steps";
 import { usePricing } from "@/components/Pricing/PricingProvider";
 import { FreePeriodBanner } from "@/components/shared/free-period-banner";
 
@@ -52,6 +55,15 @@ export function CreateCampaignForm() {
   const [deadline, setDeadline] = useState("");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  // Paketi olmayan markanın ilanı ödeme onaylanana kadar taslakta bekler
+  // (bkz. backend CampaignViewSet.create). Bunu formu doldurmadan önce
+  // söylemek için durum sunucudan okunur; okunamazsa uyarı gösterilmez,
+  // akış yine sunucunun yanıtına göre yürür.
+  const [needsPayment, setNeedsPayment] = useState(false);
+
+  useEffect(() => {
+    getMyWallet().then((wallet) => setNeedsPayment(Boolean(wallet?.gates.campaignNeedsPayment)));
+  }, []);
 
   const togglePlatform = (p: SocialPlatform) => {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
@@ -68,7 +80,7 @@ export function CreateCampaignForm() {
     setSubmitting(true);
     try {
       const categoryId = await resolveCategoryId(category);
-      await createCampaign({
+      const created = await createCampaign({
         title,
         description,
         categoryIds: categoryId ? [categoryId] : [],
@@ -78,16 +90,20 @@ export function CreateCampaignForm() {
         deadline: new Date(deadline).toISOString(),
         status: "published",
       });
+      if (created.awaitingPayment) {
+        // İlan kaydedildi ama paket yok: ödeme ekranına geçilir, ödeme
+        // onaylanınca ilan kendiliğinden yayına girer.
+        toast.success("İlanınız kaydedildi", {
+          description: "Yayına almak için ödeme adımına yönlendiriliyorsunuz.",
+        });
+        router.push(`/dashboard/brand/odeme?campaign=${encodeURIComponent(title)}`);
+        return;
+      }
       toast.success("Kampanya oluşturuldu!", { description: `"${title}" artık yayında ve başvuru kabul ediyor.` });
       router.push("/dashboard/brand/campaigns");
     } catch (err) {
-      // 402 = aktif paket yok/hak bitti. Kullanıcıyı kuru bir hata mesajıyla
-      // bırakmak yerine doğrudan paketlere götüren bir eylem sunulur.
-      if (isMembershipRequired(err)) {
-        toast.error("Kampanya hakkınız yok", {
-          description: getErrorMessage(err),
-          action: { label: "Paketleri gör", onClick: () => router.push("/fiyatlandirma") },
-        });
+      // 402 = paket var ama aktif kampanya limiti dolu.
+      if (handleMembershipRequired(err, { role: "brand", title: "Kampanya hakkınız yok", navigate: router.push })) {
         return;
       }
       toast.error("Kampanya oluşturulamadı", { description: getErrorMessage(err) });
@@ -160,6 +176,23 @@ export function CreateCampaignForm() {
 
       <aside className="space-y-6 lg:sticky lg:top-24 lg:h-fit">
         <FreePeriodBanner />
+        {needsPayment && (
+          <Card className="rounded-2xl border-violet-600/30 bg-violet-50/60 p-5 dark:bg-violet-500/10">
+            <div className="flex items-start gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+                <CreditCard className="size-4" />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold">İlan yayını ödeme sonrası</h2>
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                  Formu doldurup gönderin; ilanınız kaydedilir ve ödeme ekranına geçersiniz. Ödemeniz onaylandığı an
+                  ilan yayına girer ve başvuranlarla mesajlaşabilirsiniz.
+                </p>
+              </div>
+            </div>
+            <PaymentFlowSteps audience="brand" current={0} className="mt-4 grid-cols-1 sm:grid-cols-1" />
+          </Card>
+        )}
         <Card className="rounded-2xl border-border/70 p-6">
           <h2 className="text-base font-semibold">{showPrices ? "Bütçe ve kontenjan" : "Kontenjan ve tarih"}</h2>
           <div className="mt-4 space-y-4">
@@ -186,7 +219,8 @@ export function CreateCampaignForm() {
           </div>
           <Separator className="my-5" />
           <Button type="submit" size="lg" disabled={!isValid || submitting} className="w-full gap-2 rounded-full bg-gradient-brand hover:opacity-90">
-            <Rocket className="h-4 w-4" /> {submitting ? "Yayınlanıyor..." : "Kampanyayı yayınla"}
+            <Rocket className="h-4 w-4" />{" "}
+            {submitting ? "Gönderiliyor..." : needsPayment ? "Kaydet ve ödemeye geç" : "Kampanyayı yayınla"}
           </Button>
           <p className="mt-3 text-center text-xs text-muted-foreground">
             {showPrices

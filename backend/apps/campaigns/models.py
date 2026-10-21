@@ -38,6 +38,11 @@ class Campaign(models.Model):
     deadline = models.DateTimeField(help_text="Final deadline for deliverables (end of the campaign timeline).")
 
     status = models.CharField(max_length=20, choices=CampaignStatus.choices, default=CampaignStatus.DRAFT, db_index=True)
+    awaiting_payment = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Paketi olmayan markanın yayınlamak istediği ilan; ödeme onaylanınca otomatik yayına girer.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

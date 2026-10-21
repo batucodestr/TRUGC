@@ -3,8 +3,13 @@ from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
 
+from django.utils import timezone
+
 from apps.accounts.models import Role, User
+from apps.applications.models import Application
+from apps.campaigns.models import Campaign, CampaignStatus
 from apps.common.testing import onboard
+from apps.notifications.models import Notification, NotificationType
 
 from .models import Attachment, Conversation
 
@@ -89,3 +94,66 @@ class MessagingTests(APITestCase):
         url = reverse("messaging:conversation-messages", args=[conversation.pk])
         response = self.client.get(url)
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+# ---------------------------------------------------------------------------
+# Başvurudan mesaja: markanın müşteri şikâyetine konu olan uçtan uca yol
+# ---------------------------------------------------------------------------
+# "Kampanya açtım, başvuru yaptılar, mesaj atamıyorum": markanın elindeki tek
+# veri başvuru satırıydı ve o satır creator'ın kullanıcı kimliğini taşımıyordu.
+# Bu test, başvuru yanıtından alınan kimlikle konuşmanın açılıp mesajın
+# gittiğini ve karşı tarafın bildirim aldığını bir arada doğrular.
+class ApplicationToConversationTests(APITestCase):
+    def setUp(self):
+        self.brand_user = User.objects.create_user(
+            email="convbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        self.creator_user = User.objects.create_user(
+            email="convcreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Mesaj Kampanyası",
+            description="d",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timezone.timedelta(days=30),
+            status=CampaignStatus.PUBLISHED,
+        )
+        Application.objects.create(creator=self.creator_user.creator, campaign=self.campaign, message="hi")
+
+    def test_brand_can_message_an_applicant_using_the_application_payload(self):
+        self.client.force_authenticate(self.brand_user)
+        row = self.client.get(reverse("applications:application-list")).data["results"][0]
+
+        created = self.client.post(
+            reverse("messaging:conversation-list"),
+            {"participant_ids": [row["creator_user_id"]], "campaign": row["campaign"]},
+        )
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        conversation_id = created.data["id"]
+
+        sent = self.client.post(
+            reverse("messaging:conversation-messages", kwargs={"conversation_pk": conversation_id}),
+            {"body": "Merhaba, kampanya hakkında konuşalım."},
+        )
+        self.assertEqual(sent.status_code, status.HTTP_201_CREATED)
+
+        # Creator hem konuşmayı hem bildirimi görmeli.
+        self.client.force_authenticate(self.creator_user)
+        inbox = self.client.get(reverse("messaging:conversation-list"))
+        self.assertEqual(inbox.data["count"], 1)
+        self.assertTrue(
+            Notification.objects.filter(user=self.creator_user, notification_type=NotificationType.MESSAGE).exists()
+        )
+
+    def test_clicking_message_twice_reuses_the_same_conversation(self):
+        # Satırdaki düğmeye tekrar basmak sohbet listesini çoğaltmamalı.
+        self.client.force_authenticate(self.brand_user)
+        payload = {"participant_ids": [self.creator_user.pk], "campaign": self.campaign.pk}
+        first = self.client.post(reverse("messaging:conversation-list"), payload)
+        second = self.client.post(reverse("messaging:conversation-list"), payload)
+        self.assertEqual(first.data["id"], second.data["id"])
+        self.assertEqual(Conversation.objects.count(), 1)

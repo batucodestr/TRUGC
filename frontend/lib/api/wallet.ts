@@ -18,9 +18,24 @@ export interface MyMembership {
   daysRemaining: number;
 }
 
+/**
+ * Sunucunun "bu kullanıcı şu an ödemeden şunu yapabilir mi?" cevabı.
+ *
+ * İstemcide hesaplanamaz: hafta sonu ücretsiz dönemi, MEMBERSHIP_ENFORCED
+ * anahtarı ve yetkili hesap muafiyeti yalnızca backend'de bilinir (bkz.
+ * apps/payments/membership.py). Alan dönmezse hepsi `false` sayılır — arayüz
+ * yine de 402 yanıtlarına tepki verir, uyarı yalnızca önceden gösterilmez.
+ */
+export interface MembershipGates {
+  messagingLocked: boolean;
+  applicationNeedsPayment: boolean;
+  campaignNeedsPayment: boolean;
+}
+
 export interface MyWallet {
   balance: number;
   membership: MyMembership;
+  gates: MembershipGates;
 }
 
 interface ApiResponse {
@@ -35,6 +50,11 @@ interface ApiResponse {
     expires_at: string | null;
     is_active: boolean;
     days_remaining: number;
+  };
+  gates?: {
+    messaging_locked?: boolean;
+    application_needs_payment?: boolean;
+    campaign_needs_payment?: boolean;
   };
 }
 
@@ -57,6 +77,11 @@ export async function getMyWallet(): Promise<MyWallet | null> {
         expiresAt: raw.membership.expires_at,
         isActive: raw.membership.is_active,
         daysRemaining: raw.membership.days_remaining,
+      },
+      gates: {
+        messagingLocked: Boolean(raw.gates?.messaging_locked),
+        applicationNeedsPayment: Boolean(raw.gates?.application_needs_payment),
+        campaignNeedsPayment: Boolean(raw.gates?.campaign_needs_payment),
       },
     };
   } catch {

@@ -43,6 +43,10 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
             body = (content.get("body") or "").strip()
             if not body:
                 return
+            denied = await self._messaging_denied()
+            if denied:
+                await self.send_json({"type": "error", "code": "MEMBERSHIP_REQUIRED", "message": denied})
+                return
             message = await self._create_message(body)
             await self.channel_layer.group_send(self.group_name, {"type": "chat.message", "message": message})
             await self._notify_other_participants(body)
@@ -107,6 +111,17 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         return Conversation.objects.filter(pk=self.conversation_id, participants=user).exists()
 
     @database_sync_to_async
+    def _messaging_denied(self):
+        from apps.payments import membership as membership_rules
+
+        conversation = Conversation.objects.get(pk=self.conversation_id)
+        try:
+            membership_rules.check_messaging(self.user, conversation.participants.exclude(pk=self.user.pk))
+        except membership_rules.MembershipRequired as exc:
+            return str(exc)
+        return None
+
+    @database_sync_to_async
     def _create_message(self, body):
         message = Message.objects.create(conversation_id=self.conversation_id, sender=self.user, body=body)
         full_name = getattr(getattr(self.user, "profile", None), "full_name", "")
@@ -155,11 +170,17 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
 
     @database_sync_to_async
     def _notify_other_participants(self, body):
+        # Mesajların birincil taşıyıcısı WebSocket'tir, bu yüzden bildirim
+        # metni REST yolundakiyle (views.MessageViewSet.perform_create) aynı
+        # olmak zorunda: iki yoldan biri İngilizce kalırsa kullanıcı aynı olay
+        # için iki farklı dilde bildirim görür.
         conversation = Conversation.objects.prefetch_related("participants").get(pk=self.conversation_id)
+        sender_name = getattr(getattr(self.user, "profile", None), "full_name", "") or self.user.email
         for participant in conversation.participants.exclude(pk=self.user.pk):
             notify_user(
                 user=participant,
-                title="New message",
+                title=f"{sender_name} size mesaj gönderdi",
                 body=body[:200],
                 notification_type=NotificationType.MESSAGE,
+                link="/dashboard/messages",
             )

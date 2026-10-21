@@ -48,6 +48,10 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
     media_files = CampaignMediaSerializer(many=True, read_only=True)
     deliverables = CampaignRequirementSerializer(many=True, read_only=True)
     is_open = serializers.BooleanField(read_only=True)
+    # Başvuran sayısı. Panelde "Başvuranlar" kolonu bu alan dönmediği için
+    # her kampanyada "—" gösteriyordu: markanın başvuru aldığını görebildiği
+    # tek yer başvurular sayfasıydı.
+    applications_count = serializers.SerializerMethodField()
 
     class Meta:
         model = Campaign
@@ -68,11 +72,26 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
             "deadline",
             "status",
             "is_open",
+            "awaiting_payment",
+            "applications_count",
             "media_files",
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        # awaiting_payment yalnızca sunucuda değişir: ilan ödeme beklerken
+        # kaydedilir, ödeme onaylanınca yayına alınırken temizlenir.
+        read_only_fields = ["id", "awaiting_payment", "created_at", "updated_at"]
+
+    def get_applications_count(self, obj):
+        """Başvuru sayısı.
+
+        Liste uçlarında queryset bunu annotate eder (bkz. CampaignViewSet.
+        get_queryset) — N+1 sorgu olmaz. Oluşturma/güncelleme yanıtlarında
+        annotate edilmemiş bir örnek döner, o yüzden geri düşüş olarak sayım
+        burada yapılır.
+        """
+        count = getattr(obj, "applications_count", None)
+        return count if count is not None else obj.applications.filter(awaiting_payment=False).count()
 
     def validate(self, attrs):
         if pricing.is_free_period():

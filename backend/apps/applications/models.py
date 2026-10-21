@@ -17,6 +17,11 @@ class Application(models.Model):
     message = models.TextField(help_text="Pitch/message from the creator to the brand.")
     proposed_rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     status = models.CharField(max_length=20, choices=ApplicationStatus.choices, default=ApplicationStatus.PENDING, db_index=True)
+    awaiting_payment = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Creator'ın aktif paketi yokken yapılan başvuru; ödeme onaylanana kadar markaya gösterilmez.",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

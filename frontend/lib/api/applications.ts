@@ -9,12 +9,23 @@ import type { Application, ApplicationStatus } from "@/types";
 
 interface RawApplication {
   id: number;
+  /** Creator profilinin kimliği — /creators/<id> bağlantısı için. */
+  creator_id: number | null;
+  /** Creator'ın KULLANICI kimliği — konuşma açmak için gereken budur. */
+  creator_user_id: number | null;
   creator_name: string;
+  creator_avatar: string | null;
+  /** Kampanya kimliği (okuma). `campaign_id` yazma amaçlıdır, okumada dönmez. */
+  campaign: number | null;
   campaign_title: string;
   brand_id: number;
+  brand_name: string | null;
+  /** Markanın KULLANICI kimliği — creator'ın markaya mesaj atabilmesi için. */
+  brand_user_id: number | null;
   message: string;
   proposed_rate: string | null;
   status: string;
+  awaiting_payment?: boolean;
   created_at: string;
   updated_at: string;
   reviewed_at: string | null;
@@ -34,15 +45,18 @@ function unwrap<T>(data: Paginated<T> | T[]): T[] {
 function normalizeApplication(raw: RawApplication): Application {
   return {
     id: String(raw.id),
-    campaignId: undefined, // not returned by ApplicationSerializer on read (campaign_id is write-only)
+    campaignId: raw.campaign != null ? String(raw.campaign) : undefined,
     campaignTitle: raw.campaign_title,
     campaignCoverUrl: undefined,
-    creatorId: undefined, // not returned by ApplicationSerializer (only creator_name is exposed)
+    creatorId: raw.creator_id != null ? String(raw.creator_id) : undefined,
+    creatorUserId: raw.creator_user_id != null ? String(raw.creator_user_id) : undefined,
     creatorName: raw.creator_name,
-    creatorAvatarUrl: undefined,
+    creatorAvatarUrl: raw.creator_avatar ?? undefined,
     brandId: String(raw.brand_id),
-    brandName: undefined,
+    brandName: raw.brand_name ?? undefined,
+    brandUserId: raw.brand_user_id != null ? String(raw.brand_user_id) : undefined,
     status: raw.status as ApplicationStatus,
+    awaitingPayment: raw.awaiting_payment ?? false,
     proposedPrice: raw.proposed_rate != null ? Number(raw.proposed_rate) : undefined,
     message: raw.message,
     appliedAt: raw.created_at,

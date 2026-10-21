@@ -64,7 +64,7 @@ export default async function ManageCampaignsPage() {
                       </Link>
                     </TableCell>
                     <TableCell>
-                      <CampaignStatusBadge status={campaign.status} />
+                      <CampaignStatusBadge status={campaign.status} awaitingPayment={campaign.awaitingPayment} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}

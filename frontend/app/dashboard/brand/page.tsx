@@ -12,11 +12,13 @@ import { CampaignStatusBadge } from "@/features/campaigns/campaign-status-badge"
 import { listMyCampaigns } from "@/lib/api/campaigns";
 import { listApplications } from "@/lib/api/applications";
 import { getBrandDashboard } from "@/lib/api/analytics";
+import { getMyBrandName } from "@/lib/api/me";
 import { listTransactions, bucketTransactionsByMonth } from "@/lib/api/finance";
 import { formatBudgetRange, formatCurrency, formatRelativeTime } from "@/lib/format";
 
 export default async function BrandDashboardPage() {
-  const [campaigns, allApplications, dashboard, transactions] = await Promise.all([
+  const [brandName, campaigns, allApplications, dashboard, transactions] = await Promise.all([
+    getMyBrandName(),
     listMyCampaigns(),
     listApplications(),
     getBrandDashboard(),
@@ -29,7 +31,7 @@ export default async function BrandDashboardPage() {
     <div className="space-y-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tekrar hoş geldiniz, Lumo Skincare</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Tekrar hoş geldiniz, {brandName}</h1>
           <p className="text-muted-foreground">Kampanyalarınızda neler oluyor, işte özet.</p>
         </div>
         <Button className="gap-2 rounded-full bg-gradient-brand hover:opacity-90" asChild>
@@ -112,7 +114,7 @@ export default async function BrandDashboardPage() {
                   {formatBudgetRange(campaign.budgetMin, campaign.budgetMax)}
                 </p>
               </div>
-              <CampaignStatusBadge status={campaign.status} />
+              <CampaignStatusBadge status={campaign.status} awaitingPayment={campaign.awaitingPayment} />
             </div>
           ))}
         </CardContent>

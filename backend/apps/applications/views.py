@@ -7,12 +7,27 @@ from rest_framework.response import Response
 
 from apps.accounts.exceptions import error_response
 from apps.accounts.permissions import IsBrand, IsCreator, IsOnboarded
+from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 from apps.payments import membership as membership_rules
 
 from .models import Application, ApplicationStatus
 from .permissions import IsApplicationParty
+from .services import notify_brand_of_application
 from .serializers import ApplicationSerializer, ApplicationStatusUpdateSerializer
+
+
+#: Başvuru durumu değiştiğinde creator'a gidecek bildirim metinleri. Kullanıcıya
+#: görünen her metin Türkçedir (bkz. apps/notifications); burada eskiden
+#: "Application accepted" gibi İngilizce f-string'ler üretiliyordu.
+STATUS_NOTIFICATION_TITLE_TR = {
+    ApplicationStatus.ACCEPTED: "Başvurunuz kabul edildi",
+    ApplicationStatus.REJECTED: "Başvurunuz reddedildi",
+}
+STATUS_NOTIFICATION_BODY_TR = {
+    ApplicationStatus.ACCEPTED: '"{campaign}" kampanyasına başvurunuz kabul edildi. Marka sizinle mesajlardan iletişime geçebilir.',
+    ApplicationStatus.REJECTED: '"{campaign}" kampanyasına başvurunuz bu kez olumsuz sonuçlandı.',
+}
 
 
 class ApplicationViewSet(viewsets.ModelViewSet):
@@ -29,10 +44,13 @@ class ApplicationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        queryset = Application.objects.select_related("creator", "creator__user", "campaign", "campaign__brand")
+        queryset = Application.objects.select_related(
+            "creator", "creator__user", "creator__user__profile", "campaign", "campaign__brand"
+        )
         if user.is_staff or user.role in ("admin", "moderator"):
             return queryset
-        return queryset.filter(Q(creator__user=user) | Q(campaign__brand__user=user))
+        # Ödeme bekleyen başvuru yalnızca creator'ın kendisine görünür.
+        return queryset.filter(Q(creator__user=user) | Q(campaign__brand__user=user, awaiting_payment=False))
 
     def get_permissions(self):
         # "İş alma" (creator başvurusu) ve "iş verme" (markanın kabul/red
@@ -101,15 +119,16 @@ class ApplicationViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         if not hasattr(self.request.user, "creator"):
             raise PermissionDenied("Only creators with a profile can apply to campaigns.")
-        application = serializer.save()
+        if membership_rules.application_needs_payment(self.request.user):
+            # Paketi yok: başvuru kaydedilir ama ödeme onaylanana kadar markaya
+            # iletilmez; hak da paket tanımlandığında harcanır.
+            serializer.save(awaiting_payment=True)
+            return
+        serializer.save()
         # Hak, başvuru gerçekten oluştuktan SONRA harcanır: doğrulamaya takılan
         # bir istek kullanıcının hakkını yemez.
         membership_rules.consume_application(self.request.user)
-        notify_user(
-            user=application.campaign.brand.user,
-            title="New application received",
-            body=f"{application.creator.display_name or application.creator.user.email} applied to '{application.campaign.title}'.",
-        )
+        notify_brand_of_application(serializer.instance)
 
     def perform_destroy(self, instance):
         if instance.creator.user_id != self.request.user.id:
@@ -126,8 +145,10 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         serializer.save()
         notify_user(
             user=application.creator.user,
-            title=f"Application {new_status}",
-            body=f"Your application to '{application.campaign.title}' was {new_status}.",
+            title=STATUS_NOTIFICATION_TITLE_TR[new_status],
+            body=STATUS_NOTIFICATION_BODY_TR[new_status].format(campaign=application.campaign.title),
+            notification_type=NotificationType.APPLICATION,
+            link="/dashboard/creator/applications",
         )
         return Response(ApplicationSerializer(application).data)
 

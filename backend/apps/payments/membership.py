@@ -1,10 +1,14 @@
 """Üyelik paketi kurallarının uygulanması.
 
-İki kural vardır:
+Üç kural vardır:
 
 * **Creator** bir kampanyaya başvurduğunda paketinin başvuru hakkından bir adet
-  harcanır; hak bittiğinde yeni başvuru yapılamaz.
+  harcanır; hak bittiğinde yeni başvuru yapılamaz. Paketi yoksa başvuru
+  kaydedilir ama ödeme yapılana kadar markaya iletilmez.
+* **Mesajlaşma** gönderen tarafta aktif paket ister.
 * **Marka** yeni kampanya yayınlarken paketinin aktif kampanya limiti aşılamaz.
+  Paketi yoksa ilanı taslak olarak kaydedilir ve ödeme onaylanınca yayına
+  girer.
 
 Bu modül kuralların **tek** uygulanma noktasıdır; view'lar sayaçlara doğrudan
 dokunmaz.
@@ -71,21 +75,30 @@ def active_membership(user) -> Membership | None:
 # ---------------------------------------------------------------------------
 # Creator: kampanya başvurusu
 # ---------------------------------------------------------------------------
-def check_application_slot(user) -> None:
-    """Başvuru hakkı yoksa ``MembershipRequired`` yükseltir.
+def application_needs_payment(user) -> bool:
+    """Yeni başvuru, creator ödeme yapana kadar markadan gizli mi tutulacak?
 
-    Engelleme kapalıyken hiçbir şey yapmaz; çağrı noktaları yine de bu
-    fonksiyonu çağırır, böylece anahtar açıldığında kod değişmez.
+    Paketi olmayan creator'ın başvurusu reddedilmez: kaydedilir, creator ödeme
+    ekranına gönderilir ve paketi tanımlandığında başvuru markaya iletilir
+    (bkz. ``release_awaiting_applications``).
+    """
+    if not enforcement_enabled() or is_exempt(user):
+        return False
+    return active_membership(user) is None
+
+
+def check_application_slot(user) -> None:
+    """Aktif paketin başvuru hakkı bittiyse ``MembershipRequired`` yükseltir.
+
+    Paketi hiç olmayan creator burada engellenmez — başvurusu ödeme bekler
+    (bkz. ``application_needs_payment``).
     """
     if not enforcement_enabled() or is_exempt(user):
         return
 
     membership = _membership(user)
     if not membership.is_active:
-        raise MembershipRequired(
-            "Kampanyalara başvurmak için aktif bir creator üyelik paketiniz olmalı. "
-            "Paketleri fiyatlandırma sayfasından inceleyebilirsiniz."
-        )
+        return
     if not membership.has_application_slot:
         raise MembershipRequired(
             f"{membership.package_name} · {membership.tier_label} paketinizdeki "
@@ -112,9 +125,139 @@ def consume_application(user) -> None:
     Membership.objects.filter(pk=membership.pk).update(applications_used=F("applications_used") + 1)
 
 
+def release_awaiting_applications(user) -> list:
+    """Paketi yeni tanımlanan creator'ın ödeme bekleyen başvurularını markalara iletir.
+
+    En eskiden başlayarak kalan hak kadarı serbest bırakılır ve her biri bir
+    hak harcar; hakkı aşan başvurular beklemede kalır.
+    """
+    from apps.applications.models import Application, ApplicationStatus
+    from apps.applications.services import notify_brand_of_application
+
+    membership = active_membership(user)
+    if membership is None:
+        return []
+
+    awaiting = list(
+        Application.objects.filter(creator__user=user, awaiting_payment=True, status=ApplicationStatus.PENDING)
+        .select_related("campaign__brand__user", "creator__user")
+        .order_by("created_at")
+    )
+    remaining = membership.remaining_applications
+    if remaining is not None:
+        awaiting = awaiting[:remaining]
+    if not awaiting:
+        return []
+
+    Application.objects.filter(pk__in=[a.pk for a in awaiting]).update(awaiting_payment=False)
+    if membership.application_quota is not None:
+        Membership.objects.filter(pk=membership.pk).update(applications_used=F("applications_used") + len(awaiting))
+    for application in awaiting:
+        application.awaiting_payment = False
+        notify_brand_of_application(application)
+    return awaiting
+
+
+# ---------------------------------------------------------------------------
+# Mesajlaşma
+# ---------------------------------------------------------------------------
+def check_messaging(user, others=()) -> None:
+    """Mesaj göndermek için aktif paket şartı.
+
+    Destek ekibiyle (staff/admin/moderatör) yazışma paket arkasına alınmaz.
+    """
+    if not enforcement_enabled() or is_exempt(user):
+        return
+    if any(pricing.is_privileged(other) for other in others):
+        return
+    if active_membership(user) is None:
+        raise MembershipRequired(
+            "Mesaj gönderebilmek için aktif bir üyelik paketiniz olmalı. "
+            "Ödemeniz onaylandığında mesajlaşma hemen açılır."
+        )
+
+
+# ---------------------------------------------------------------------------
+# Arayüz için özet
+# ---------------------------------------------------------------------------
+def gates_for(user) -> dict:
+    """Hangi işlemin ödeme isteyeceğinin özeti (GET /payments/me/wallet/).
+
+    Arayüz bunu kullanıcı 402'ye çarpmadan önce uyarı göstermek için okur;
+    hafta sonu muafiyeti ve ``MEMBERSHIP_ENFORCED`` istemcide
+    hesaplanamadığından karar burada verilir. Engelin kendisi yine her uçta
+    ayrıca uygulanır.
+    """
+    role = getattr(user, "role", "")
+    try:
+        check_messaging(user)
+        messaging_locked = False
+    except MembershipRequired:
+        messaging_locked = True
+    return {
+        "messaging_locked": messaging_locked,
+        "application_needs_payment": role == "creator" and application_needs_payment(user),
+        "campaign_needs_payment": role == "brand" and campaign_needs_payment(user),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Marka: aktif kampanya limiti
 # ---------------------------------------------------------------------------
+def campaign_needs_payment(user) -> bool:
+    """Yayınlanmak istenen ilan, marka ödeme yapana kadar taslakta mı bekleyecek?
+
+    Creator başvurusundaki ``application_needs_payment``'ın marka karşılığı:
+    paketi olmayan markanın ilanı reddedilmez, ödeme bekler halde kaydedilir
+    (bkz. ``release_awaiting_campaigns``).
+    """
+    if not enforcement_enabled() or is_exempt(user):
+        return False
+    return active_membership(user) is None
+
+
+def release_awaiting_campaigns(user) -> list:
+    """Paketi yeni tanımlanan markanın ödeme bekleyen ilanlarını yayına alır.
+
+    En eskiden başlayarak paketin aktif kampanya limiti kadarı yayınlanır;
+    limiti aşanlar taslak olarak kalır, marka onları istediği zaman elle
+    yayına alabilir.
+    """
+    from apps.campaigns.models import Campaign, CampaignStatus
+    from apps.notifications.models import NotificationType
+    from apps.notifications.services import notify_user
+
+    membership = active_membership(user)
+    brand = getattr(user, "brand", None)
+    if membership is None or brand is None:
+        return []
+
+    awaiting = list(
+        Campaign.objects.filter(brand=brand, awaiting_payment=True, status=CampaignStatus.DRAFT).order_by("created_at")
+    )
+    quota = membership.campaign_quota
+    if quota is not None:
+        published = Campaign.objects.filter(brand=brand, status=CampaignStatus.PUBLISHED).count()
+        awaiting = awaiting[: max(quota - published, 0)]
+    if not awaiting:
+        return []
+
+    Campaign.objects.filter(pk__in=[c.pk for c in awaiting]).update(
+        status=CampaignStatus.PUBLISHED, awaiting_payment=False
+    )
+    for campaign in awaiting:
+        campaign.status = CampaignStatus.PUBLISHED
+        campaign.awaiting_payment = False
+        notify_user(
+            user=user,
+            title="İlanınız yayında",
+            body=f'Ödemeniz onaylandı, "{campaign.title}" kampanyanız yayına alındı ve başvuru kabul ediyor.',
+            notification_type=NotificationType.CAMPAIGN,
+            link="/dashboard/brand/campaigns",
+        )
+    return awaiting
+
+
 def check_campaign_slot(user) -> None:
     """Markanın aktif kampanya limiti doluysa ``MembershipRequired`` yükseltir."""
     if not enforcement_enabled() or is_exempt(user):

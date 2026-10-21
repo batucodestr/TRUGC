@@ -25,6 +25,7 @@ from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
 from . import declarations
+from . import membership as membership_rules
 from . import packages
 from . import wallet as wallet_service
 from .models import (
@@ -540,6 +541,7 @@ class MyWalletView(APIView):
             {
                 "wallet": WalletSerializer(wallet_service.get_wallet(request.user)).data,
                 "membership": MembershipSerializer(wallet_service.get_membership(request.user)).data,
+                "gates": membership_rules.gates_for(request.user),
             }
         )
 

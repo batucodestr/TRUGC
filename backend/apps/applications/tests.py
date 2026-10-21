@@ -7,6 +7,7 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import Role, User
 from apps.campaigns.models import Campaign, CampaignStatus
 from apps.common.testing import onboard
+from apps.notifications.models import Notification, NotificationType
 
 from .models import Application, ApplicationStatus
 
@@ -234,3 +235,82 @@ class FreePeriodDoesNotDestroyExistingRateTests(APITestCase):
         self.application.refresh_from_db()
         self.assertEqual(self.application.message, "güncellendi")
         self.assertEqual(str(self.application.proposed_rate), "1200.00")
+
+# ---------------------------------------------------------------------------
+# Başvuru yanıtı, panelin mesajlaşma ve bağlantı için ihtiyaç duyduğu
+# kimlikleri taşımak zorunda
+# ---------------------------------------------------------------------------
+# Yanıt yalnızca creator_name içerdiği sürece marka, kampanyasına başvuran
+# kişiyle konuşma açamıyordu (POST /messaging/ katılımcı olarak KULLANICI
+# kimliği bekler) ve profiline de gidemiyordu. Bu sınıf o alanların
+# dönmeye devam ettiğini sabitler.
+class ApplicationPayloadTests(APITestCase):
+    def setUp(self):
+        self.brand_user = User.objects.create_user(
+            email="payloadbrand@example.com", password="StrongPass123", role=Role.BRAND
+        )
+        self.creator_user = User.objects.create_user(
+            email="payloadcreator@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(self.brand_user)
+        onboard(self.creator_user)
+        self.brand_user.brand.company_name = "Payload Marka"
+        self.brand_user.brand.save(update_fields=["company_name"])
+        self.campaign = Campaign.objects.create(
+            brand=self.brand_user.brand,
+            title="Payload Kampanyası",
+            description="desc",
+            platform="tiktok",
+            budget_min=100,
+            budget_max=500,
+            deadline=timezone.now() + timezone.timedelta(days=30),
+            status=CampaignStatus.PUBLISHED,
+        )
+        self.application = Application.objects.create(
+            creator=self.creator_user.creator, campaign=self.campaign, message="hi"
+        )
+
+    def _row(self, user):
+        self.client.force_authenticate(user)
+        response = self.client.get(reverse("applications:application-list"))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        return response.data["results"][0]
+
+    def test_brand_sees_the_ids_needed_to_message_and_open_the_creator(self):
+        row = self._row(self.brand_user)
+        self.assertEqual(row["creator_user_id"], self.creator_user.id)
+        self.assertEqual(row["creator_id"], self.creator_user.creator.id)
+        self.assertEqual(row["campaign"], self.campaign.id)
+
+    def test_creator_sees_the_ids_needed_to_message_the_brand(self):
+        row = self._row(self.creator_user)
+        self.assertEqual(row["brand_user_id"], self.brand_user.id)
+        self.assertEqual(row["brand_name"], "Payload Marka")
+        self.assertEqual(row["campaign"], self.campaign.id)
+
+    def test_creator_name_falls_back_when_the_display_name_is_empty(self):
+        creator = self.creator_user.creator
+        creator.display_name = ""
+        creator.save(update_fields=["display_name"])
+        # Profil adı da yoksa e-postaya düşer; satır hiçbir durumda isimsiz kalmaz.
+        self.assertEqual(self._row(self.brand_user)["creator_name"], self.creator_user.email)
+
+    def test_brand_is_notified_in_turkish_when_an_application_arrives(self):
+        other_creator = User.objects.create_user(
+            email="payloadcreator2@example.com", password="StrongPass123", role=Role.CREATOR
+        )
+        onboard(other_creator)
+        self.client.force_authenticate(other_creator)
+        self.client.post(
+            reverse("applications:application-list"), {"campaign_id": self.campaign.pk, "message": "ben de"}
+        )
+        notification = Notification.objects.filter(user=self.brand_user).latest("id")
+        self.assertEqual(notification.title, "Yeni başvuru aldınız")
+        self.assertEqual(notification.notification_type, NotificationType.APPLICATION)
+
+    def test_creator_is_notified_in_turkish_when_the_decision_is_made(self):
+        self.client.force_authenticate(self.brand_user)
+        self.client.post(reverse("applications:application-accept", args=[self.application.pk]))
+        notification = Notification.objects.filter(user=self.creator_user).latest("id")
+        self.assertEqual(notification.title, "Başvurunuz kabul edildi")
+        self.assertIn("Payload Kampanyası", notification.body)

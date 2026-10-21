@@ -32,8 +32,11 @@ export function LockedCreatorsTeaser({ reason }: { reason: "login" | "payment" }
             <p className="text-sm text-muted-foreground">
               Markanızın creator dizinini görüntüleyebilmesi için ödemenizin ekibimiz tarafından onaylanmış olması gerekir.
             </p>
+            {/* Bu durumda kullanıcı zaten marka olarak giriş yapmıştır
+                (giriş yapmamış hâli reason="login"), bu yüzden herkese açık
+                fiyat sayfası yerine kendi ödeme ekranına götürülür. */}
             <Button className="rounded-full bg-gradient-brand hover:opacity-90" asChild>
-              <Link href="/fiyatlandirma">Planları incele</Link>
+              <Link href="/dashboard/brand/odeme">Paket al</Link>
             </Button>
           </>
         )}

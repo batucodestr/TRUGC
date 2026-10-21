@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
-import { FileText } from "lucide-react";
+import { CreditCard, FileText } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/shared/empty-state";
+import { StartConversationDialog } from "@/components/shared/start-conversation-dialog";
 import { listMyApplications } from "@/lib/api/applications";
 import { formatCurrency, formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -77,11 +79,37 @@ export default async function CreatorApplicationsPage() {
                   );
                   return (
                     <Card key={app.id} className="flex flex-col gap-3 rounded-2xl border-border/70 p-4 sm:flex-row sm:items-center sm:justify-between">
-                      {/* No numeric campaign id comes back on Application reads (write-only field), so this can't deep-link to the campaign. */}
                       {app.campaignId ? <Link href={`/campaigns/${app.campaignId}`}>{content}</Link> : content}
                       <div className="flex shrink-0 items-center gap-3">
                         {app.proposedPrice != null && <span className="text-sm font-medium">{formatCurrency(app.proposedPrice)}</span>}
-                        <Badge className={cn("border-none font-medium", STATUS_STYLE[app.status])}>{STATUS_LABEL_TR[app.status]}</Badge>
+                        {app.awaitingPayment ? (
+                          // Ödeme yapılana kadar başvuru markaya iletilmez ve
+                          // mesajlaşma kapalıdır; tek anlamlı eylem ödemedir.
+                          <>
+                            <Badge className="border-none bg-violet-100 font-medium text-violet-700 dark:bg-violet-500/15 dark:text-violet-300">
+                              Ödeme bekliyor
+                            </Badge>
+                            <Button size="sm" className="gap-1.5 rounded-full bg-gradient-brand hover:opacity-90" asChild>
+                              <Link
+                                href={`/dashboard/creator/odeme?application=${encodeURIComponent(app.id)}&campaign=${encodeURIComponent(app.campaignTitle)}`}
+                              >
+                                <CreditCard className="size-3.5" /> Ödemeye geç
+                              </Link>
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Badge className={cn("border-none font-medium", STATUS_STYLE[app.status])}>{STATUS_LABEL_TR[app.status]}</Badge>
+                            {/* Creator da markaya panelden ulaşabilmeli: başvuru
+                                yaptıktan sonra soru sormanın başka yolu yoktu. */}
+                            <StartConversationDialog
+                              recipientUserId={app.brandUserId}
+                              recipientName={app.brandName || "Marka"}
+                              campaignId={app.campaignId}
+                              defaultMessage={`Merhaba, "${app.campaignTitle}" kampanyası hakkında...`}
+                            />
+                          </>
+                        )}
                       </div>
                     </Card>
                   );

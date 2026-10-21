@@ -13,6 +13,13 @@ import { Card } from "@/components/ui/card";
 import { getMyWallet } from "@/lib/api/wallet";
 import { formatTryPrice } from "@/lib/format";
 
+/** Rolün kendi ödeme ekranı: paketler ve fiyatlar panelden ayrışmasın diye
+ *  kullanıcı herkese açık fiyat sayfasına değil buraya götürülür. */
+const CHECKOUT_HREF: Record<"creator" | "brand", string> = {
+  creator: "/dashboard/creator/odeme",
+  brand: "/dashboard/brand/odeme",
+};
+
 export async function MembershipStatusCard({ audience }: { audience: "creator" | "brand" }) {
   const data = await getMyWallet();
   if (!data) return null;
@@ -70,8 +77,8 @@ export async function MembershipStatusCard({ audience }: { audience: "creator" |
       </div>
 
       <Button variant={membership.isActive ? "outline" : "default"} className="shrink-0 rounded-full" asChild>
-        <Link href="/fiyatlandirma">
-          {membership.isActive ? "Paketleri gör" : "Paket seç"} <ArrowRight className="size-4" />
+        <Link href={CHECKOUT_HREF[audience]}>
+          {membership.isActive ? "Paketimi yönet" : "Paket seç"} <ArrowRight className="size-4" />
         </Link>
       </Button>
     </Card>

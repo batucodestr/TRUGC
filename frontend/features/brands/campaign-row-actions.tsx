@@ -72,7 +72,14 @@ export function CampaignRowActions({ campaignId, slug, status }: { campaignId: s
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Kampanyayı sil</DialogTitle>
-            <DialogDescription>Bu işlem geri alınamaz. Kampanya kalıcı olarak silinecek.</DialogDescription>
+            {/* Silme, kampanyaya gelen başvuruları da birlikte siler
+                (Application.campaign -> on_delete=CASCADE). Bu uyarı olmadan
+                markalar "kampanyayı kaldırayım" diye başvuru geçmişini
+                farkında olmadan yok ediyordu. */}
+            <DialogDescription>
+              Bu işlem geri alınamaz. Kampanya ve <strong>bu kampanyaya gelen tüm başvurular</strong> kalıcı olarak
+              silinecek. Kampanyayı yayından almak için &ldquo;Kampanyayı kapat&rdquo;ı kullanın.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" disabled={pending} onClick={() => setConfirmDelete(false)}>

@@ -13,7 +13,10 @@ export type ConversationSocketEvent =
   | { type: "read"; user_id: number }
   | { type: "presence"; user_id: number; status: "online" | "offline" }
   | { type: "edit"; message: Record<string, unknown> }
-  | { type: "delete"; message_id: number };
+  | { type: "delete"; message_id: number }
+  // Sunucu mesajı kaydetmeyi reddetti (ör. MEMBERSHIP_REQUIRED: gönderenin
+  // aktif paketi yok — bkz. backend/apps/messaging/consumers.py).
+  | { type: "error"; code: string; message: string };
 
 const MAX_RECONNECT_DELAY_MS = 10_000;
 const BASE_RECONNECT_DELAY_MS = 1_000;

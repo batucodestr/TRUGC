@@ -319,6 +319,18 @@ class PaymentDeclaration(models.Model):
         db_table = "payments_payment_declaration"
         ordering = ["-created_at", "-id"]
         indexes = [models.Index(fields=["status", "created_at"])]
+        constraints = [
+            # Kullanıcı başına aynı anda tek bekleyen bildirim. İki bekleyen
+            # satır adminin ikisini de onaylamasına ve tek havale karşılığında
+            # bakiyenin iki kez yüklenmesine yol açardı. Servis katmanı mevcut
+            # satırı günceller (bkz. declarations.create_declaration); bu kısıt
+            # eşzamanlı istekler için son durak.
+            models.UniqueConstraint(
+                fields=["user"],
+                condition=models.Q(status=PaymentDeclarationStatus.PENDING),
+                name="uniq_pending_payment_declaration_per_user",
+            )
+        ]
 
     def __str__(self):
         return f"PaymentDeclaration<{self.user_id}:{self.amount}:{self.status}>"

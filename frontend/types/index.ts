@@ -203,6 +203,9 @@ export interface Campaign {
   createdAt: string;
   /** Not modeled on the backend. */
   location?: string;
+  /** Paketi olmayan markanın yayınlamak istediği ilan: taslak olarak bekler,
+   *  ödeme onaylanınca backend kendiliğinden yayına alır. */
+  awaitingPayment?: boolean;
 }
 
 // Backend ApplicationStatus seçenekleri (apps/applications/models.py ApplicationStatus).
@@ -210,20 +213,24 @@ export type ApplicationStatus = "pending" | "accepted" | "rejected" | "withdrawn
 
 export interface Application {
   id: string;
-  /** ApplicationSerializer only exposes `campaign_id` write-only; no numeric campaign id comes back on read. */
   campaignId?: string;
   campaignTitle: string;
   /** Not returned by the API — no denormalized campaign cover on Application. */
   campaignCoverUrl?: string;
-  /** Not returned by the API — only `creator_name` is exposed, no numeric creator id. */
+  /** Creator profilinin kimliği (/creators/<id>). */
   creatorId?: string;
+  /** Creator'ın kullanıcı kimliği — konuşma açmak için bu gerekir. */
+  creatorUserId?: string;
   creatorName: string;
-  /** Not returned by the API. */
   creatorAvatarUrl?: string;
   brandId: string;
-  /** Not returned by the API — only `brand_id` is exposed. */
   brandName?: string;
+  /** Markanın kullanıcı kimliği — creator'ın markaya mesaj atabilmesi için. */
+  brandUserId?: string;
   status: ApplicationStatus;
+  /** Creator'ın paketi yokken yapılan başvuru; ödeme onaylanana kadar markaya
+   *  iletilmez (yalnızca creator'ın kendisi görür). */
+  awaitingPayment?: boolean;
   proposedPrice?: number;
   message: string;
   appliedAt: string;

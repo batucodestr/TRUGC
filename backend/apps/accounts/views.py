@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.models import Group, Permission
 from django.shortcuts import get_object_or_404
@@ -52,7 +53,14 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        send_verification_email(user)
+        if settings.ONBOARDING_REQUIRE_EMAIL_VERIFICATION:
+            send_verification_email(user)
+        else:
+            # Kayıtta onay adımı yok: hesap doğrudan onaylı açılır, admin
+            # listesinde de "Beklemede" görünmez.
+            user.email_verified = True
+            user.email_verified_at = timezone.now()
+            user.save(update_fields=["email_verified", "email_verified_at"])
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
 
 

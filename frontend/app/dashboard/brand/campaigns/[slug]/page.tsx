@@ -24,7 +24,7 @@ export default async function BrandCampaignDetailPage({ params }: { params: Prom
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
           <div className="absolute bottom-4 left-5 right-5 flex items-end justify-between">
             <div>
-              <CampaignStatusBadge status={campaign.status} className="mb-2" />
+              <CampaignStatusBadge status={campaign.status} awaitingPayment={campaign.awaitingPayment} className="mb-2" />
               <h1 className="text-xl font-semibold text-white">{campaign.title}</h1>
             </div>
             <span className="rounded-full bg-white/90 px-3 py-1.5 text-sm font-semibold">

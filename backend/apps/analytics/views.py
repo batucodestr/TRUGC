@@ -28,7 +28,7 @@ class BrandDashboardView(APIView):
     def get(self, request):
         brand = request.user.brand
         campaigns = brand.campaigns.all()
-        applications = Application.objects.filter(campaign__brand=brand)
+        applications = Application.objects.filter(campaign__brand=brand, awaiting_payment=False)
         avg_rating = Review.objects.filter(reviewee=request.user).aggregate(avg=Avg("rating"))["avg"] or 0
         total_budget = campaigns.filter(status__in=[CampaignStatus.PUBLISHED, CampaignStatus.IN_PROGRESS]).aggregate(
             total=Sum("budget_max")

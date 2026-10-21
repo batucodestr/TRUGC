@@ -7,8 +7,10 @@ from rest_framework.generics import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.accounts.models import log_admin_action
+from apps.accounts.exceptions import error_response
+from apps.accounts.models import User, log_admin_action
 from apps.accounts.permissions import IsAdminRole, IsModerator, IsOnboarded
+from apps.payments import membership as membership_rules
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
@@ -33,6 +35,18 @@ class ConversationViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsOnboarded()]
         return super().get_permissions()
 
+    def create(self, request, *args, **kwargs):
+        raw_ids = request.data.get("participant_ids") or []
+        if not isinstance(raw_ids, list):
+            raw_ids = [raw_ids]
+        ids = [int(i) for i in raw_ids if str(i).isdigit()]
+        others = User.objects.filter(pk__in=ids).exclude(pk=request.user.pk)
+        try:
+            membership_rules.check_messaging(request.user, others)
+        except membership_rules.MembershipRequired as exc:
+            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        return super().create(request, *args, **kwargs)
+
 
 class MessageViewSet(viewsets.ModelViewSet):
     serializer_class = MessageSerializer
@@ -54,15 +68,27 @@ class MessageViewSet(viewsets.ModelViewSet):
         context["conversation"] = self.get_conversation()
         return context
 
+    def create(self, request, *args, **kwargs):
+        conversation = self.get_conversation()
+        try:
+            membership_rules.check_messaging(request.user, conversation.participants.exclude(pk=request.user.pk))
+        except membership_rules.MembershipRequired as exc:
+            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         conversation = self.get_conversation()
         message = serializer.save()
+        sender_name = (
+            getattr(getattr(self.request.user, "profile", None), "full_name", "") or self.request.user.email
+        )
         for participant in conversation.participants.exclude(pk=self.request.user.pk):
             notify_user(
                 user=participant,
-                title="New message",
+                title=f"{sender_name} size mesaj gönderdi",
                 body=message.body[:200],
                 notification_type=NotificationType.MESSAGE,
+                link="/dashboard/messages",
             )
 
     def _check_is_sender(self, message):

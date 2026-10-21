@@ -45,6 +45,8 @@ interface RawCampaign {
   deadline: string;
   status: string;
   is_open: boolean;
+  applications_count: number | null;
+  awaiting_payment?: boolean;
   media_files: RawCampaignMedia[];
   created_at: string;
   updated_at: string;
@@ -97,13 +99,14 @@ function normalizeCampaign(raw: RawCampaign): Campaign {
     requirements: raw.requirements ?? "",
     deliverables,
     media,
-    applicantsCount: undefined,
+    applicantsCount: raw.applications_count ?? undefined,
     spotsAvailable: undefined,
     startDate: raw.start_date ?? undefined,
     endDate: raw.deadline,
     applicationDeadline: raw.deadline,
     createdAt: raw.created_at,
     location: undefined,
+    awaitingPayment: raw.awaiting_payment ?? false,
   };
 }
 
@@ -152,11 +155,19 @@ export async function listActiveCampaigns(count?: number): Promise<Campaign[]> {
   return count ? results.slice(0, count) : results;
 }
 
-/** Campaigns owned by the currently authenticated brand (any status), for the brand dashboard. */
+/**
+ * Campaigns owned by the currently authenticated brand (any status), for the
+ * brand dashboard.
+ *
+ * Sunucu tarafında `?brand=<id>` ile süzülür. Eskiden /campaigns/ ilk sayfası
+ * çekilip istemcide filtreleniyordu: platformdaki kampanya sayısı sayfa
+ * boyutunu (20) geçtiğinde markanın kendi kampanyaları listeden düşüyor,
+ * panel "henüz kampanya yok" diyordu.
+ */
 export async function listMyCampaigns(): Promise<Campaign[]> {
   const me = await apiClient.get<{ id: number }>(ENDPOINTS.myBrand);
-  const all = await listCampaigns({});
-  return all.filter((c) => c.brandId === String(me.id));
+  const data = await apiClient.get<Paginated<RawCampaign>>(`${ENDPOINTS.campaigns}?brand=${me.id}`);
+  return unwrap(data).map(normalizeCampaign);
 }
 
 // ---------------------------------------------------------------------------

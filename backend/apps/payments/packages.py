@@ -97,9 +97,27 @@ PACKAGES: tuple[Package, ...] = (
 
 PACKAGES_BY_CODE = {package.code: package for package in PACKAGES}
 
+#: Kullanıcı rolü → o rolün satın alabileceği paket kitlesi. Admin/moderatör
+#: hiçbir kitleye ait değildir: kendilerine paket satın almazlar, panelden
+#: başkasına atarlar.
+AUDIENCE_BY_ROLE = {"creator": CREATOR, "brand": BRAND}
+
 
 def get_package(code: str) -> Package | None:
     return PACKAGES_BY_CODE.get(code)
+
+
+def audience_for_user(user) -> str | None:
+    """Kullanıcının kendisi için satın alabileceği paket kitlesi.
+
+    Kitlesi olmayan hesaplar (admin, moderatör) için ``None`` döner — bu
+    "kısıtlama yok" demektir, "hiçbir paket olmaz" demek değildir.
+    """
+    return AUDIENCE_BY_ROLE.get(getattr(user, "role", "") or "")
+
+
+def packages_for_audience(audience: str) -> tuple[Package, ...]:
+    return tuple(package for package in PACKAGES if package.audience == audience)
 
 
 def resolve(package_code: str, tier_code: str) -> tuple[Package, Tier] | None:

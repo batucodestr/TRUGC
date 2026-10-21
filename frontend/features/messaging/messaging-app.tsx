@@ -1,7 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
+import { ArrowLeft, Lock, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useAuth } from "@/components/Auth/AuthProvider";
 import {
@@ -15,6 +18,9 @@ import {
   type ApiMessage,
 } from "@/lib/api/messages";
 import { ConversationSocket, type ConversationSocketEvent } from "@/lib/ws/conversation-socket";
+import { getMyWallet } from "@/lib/api/wallet";
+import { getErrorMessage, isMembershipRequired } from "@/lib/error-message";
+import { MESSAGING_LOCKED_TEXT, paymentPathForRole } from "@/lib/membership-gate";
 import { ConversationList } from "./conversation-list";
 import { ChatWindow } from "./chat-window";
 import type { ChatMessage, Conversation } from "@/types";
@@ -42,6 +48,11 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
   const [socketOpen, setSocketOpen] = useState(false);
+  // Mesajlaşma ödeme sonrası açılır. Bilgi bandı içindir; kilidin kendisini
+  // sunucu uygular (destek ekibiyle yazışma serbesttir, bu yüzden mesaj kutusu
+  // devre dışı bırakılmaz).
+  const [messagingLocked, setMessagingLocked] = useState(false);
+  const paymentHref = paymentPathForRole(session?.user.role);
 
   const socketRef = useRef<ConversationSocket | null>(null);
 
@@ -53,6 +64,21 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
 
   const activeConversation = conversations.find((c) => c.id === activeId) ?? null;
   const activeMessages = activeId ? (messagesByConvo[activeId] ?? []) : [];
+
+  useEffect(() => {
+    getMyWallet().then((wallet) => setMessagingLocked(Boolean(wallet?.gates.messagingLocked)));
+  }, []);
+
+  const showLockedToast = useCallback(
+    (description: string) => {
+      setMessagingLocked(true);
+      toast.error("Mesajınız gönderilmedi", {
+        description,
+        action: { label: "Ödemeye geç", onClick: () => window.location.assign(paymentHref) },
+      });
+    },
+    [paymentHref],
+  );
 
   // Yeni/güncellenen konuşmalar için konuşma listesini polle (aşağıdaki
   // WebSocket'in hangi tek konuşmaya abone olduğundan etkilenmez).
@@ -110,6 +136,9 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
             ...prev,
             [id]: (prev[id] ?? []).map((m) => (m.id === editedId ? { ...m, text: body, isEdited: true } : m)),
           }));
+        } else if (event.type === "error") {
+          if (event.code === "MEMBERSHIP_REQUIRED") showLockedToast(event.message || MESSAGING_LOCKED_TEXT);
+          else toast.error("Mesaj gönderilemedi", { description: event.message });
         } else if (event.type === "delete") {
           const deletedId = String(event.message_id);
           setMessagesByConvo((prev) => ({
@@ -127,7 +156,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
       socket.close();
       socketRef.current = null;
     };
-  }, [activeId, currentUserEmail]);
+  }, [activeId, currentUserEmail, showLockedToast]);
 
   // Yedek polling — yalnızca socket açık değilken anlamlı bir şey yapar.
   useEffect(() => {
@@ -165,7 +194,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
           id: `${activeId}-msg-${Date.now()}`,
           conversationId: activeId,
           senderId: currentUserEmail ?? "me",
-          senderName: "You",
+          senderName: "Sen",
           text,
           createdAt: new Date().toISOString(),
           isOwn: true,
@@ -181,7 +210,15 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
               [activeId]: (prev[activeId] ?? []).map((m) => (m.id === optimistic.id ? saved : m)),
             }));
           })
-          .catch(() => {});
+          .catch((err) => {
+            // Gönderilemeyen eki ekranda gönderilmiş gibi bırakma.
+            setMessagesByConvo((prev) => ({
+              ...prev,
+              [activeId]: (prev[activeId] ?? []).filter((m) => m.id !== optimistic.id),
+            }));
+            if (isMembershipRequired(err)) showLockedToast(getErrorMessage(err));
+            else toast.error("Mesaj gönderilemedi", { description: getErrorMessage(err) });
+          });
         return;
       }
 
@@ -200,9 +237,12 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
         .then((saved) => {
           setMessagesByConvo((prev) => ({ ...prev, [activeId]: [...(prev[activeId] ?? []), saved] }));
         })
-        .catch(() => {});
+        .catch((err) => {
+          if (isMembershipRequired(err)) showLockedToast(getErrorMessage(err));
+          else toast.error("Mesaj gönderilemedi", { description: getErrorMessage(err) });
+        });
     },
-    [activeId, currentUserEmail, socketOpen],
+    [activeId, currentUserEmail, socketOpen, showLockedToast],
   );
 
   function handleReact(messageId: string, emoji: string) {
@@ -300,6 +340,20 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Sohbetlere dön
             </button>
+            {messagingLocked && (
+              <div
+                role="status"
+                className="flex flex-col gap-3 border-b border-violet-600/20 bg-violet-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:bg-violet-500/10"
+              >
+                <span className="flex items-start gap-2.5">
+                  <Lock className="mt-0.5 size-4 shrink-0 text-violet-600" />
+                  <span>{MESSAGING_LOCKED_TEXT}</span>
+                </span>
+                <Button size="sm" className="shrink-0 rounded-full bg-gradient-brand hover:opacity-90" asChild>
+                  <Link href={paymentHref}>Ödemeye geç</Link>
+                </Button>
+              </div>
+            )}
             <div className="min-h-0 flex-1">
               <ChatWindow
                 conversation={activeConversation}

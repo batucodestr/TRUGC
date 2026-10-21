@@ -1,20 +1,30 @@
 "use client";
 
-// Başvuru sonrası ödeme ekranı.
+// Panel içi ödeme ekranı — creator ve marka tarafı aynı bileşeni kullanır.
 //
-// Akış: creator kampanyaya başvurur → buraya gelir → paketini ve süresini
-// seçip havale/EFT bilgilerini görür → ödeyip "Ödemeyi yaptım" der. O an bir
-// ödeme bildirimi açılır ve adminlere sırasıyla "ödeme bildirimi geldi" ve
-// "yeni kampanya başvurusu" bildirimi gider (bkz. apps/payments/declarations.py).
+// Akış: kullanıcı paketini ve süresini seçer, havale/EFT bilgilerini görür,
+// ödeyip "Ödemeyi yaptım" der. O an bir ödeme bildirimi açılır ve adminlere
+// bildirim gider; admin dekontu görüp onayladığında bakiye yüklenir ve paket
+// tanımlanır (bkz. apps/payments/declarations.py).
 //
-// Aktif paketi olan kullanıcıya ödeme istenmez: başvurusunun alındığı
-// söylenir, çünkü başvuru hakkı zaten paketinden düşmüştür.
+// Hangi paketlerin listelendiği `audience`'a bağlıdır: marka panelinde
+// yalnızca marka paketleri, creator panelinde yalnızca creator paketleri
+// görünür. Sunucu da aynı kuralı uygular — kitlesi uymayan bir bildirim
+// 400 ile reddedilir, bu yüzden iki taraf ayrışamaz.
+//
+// Creator buraya kampanyaya başvurduktan sonra yönlendirilir ve başvuru
+// kimliği sorgu dizisinden okunur. Marka ise paketsiz ilan verdiğinde gelir
+// (`?campaign=<başlık>`); ilan ödeme onaylanınca kendiliğinden yayına girer.
+//
+// Bekleyen bir bildirim varsa en üstte gösterilir: ödeme yapan kullanıcı
+// "para gitti mi, görüldü mü?" sorusunun cevabını destek hattını aramadan
+// görebilmelidir.
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowRight, Banknote, Check, CheckCircle2, Info, Loader2, Timer } from "lucide-react";
+import { ArrowRight, Banknote, Check, CheckCircle2, Clock, Info, Loader2, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -22,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyField } from "@/components/shared/copy-field";
 import { PaymentMethods } from "@/components/shared/payment-methods";
+import { PaymentFlowSteps } from "@/components/shared/payment-flow-steps";
 import {
   BANK_ACCOUNT,
   COMPANY,
@@ -29,31 +40,78 @@ import {
   PAYMENT_APPROVAL_MINUTES,
   PAYMENT_APPROVAL_NOTICE,
 } from "@/lib/company";
-import { CREATOR_PACKAGES } from "@/lib/content/packages";
-import { declarePayment } from "@/lib/api/declarations";
+import { checkoutPackages, type PackageAudience } from "@/lib/content/packages";
+import { declarePayment, listDeclarations, type PaymentDeclaration } from "@/lib/api/declarations";
 import { getMyWallet, type MyWallet } from "@/lib/api/wallet";
 import { getErrorMessage } from "@/lib/error-message";
 import { formatTryPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-type Step = "choose" | "pay" | "done";
+type Step = "choose" | "done";
 
-export function PaymentCheckout() {
+/** İki tarafın ekranda farklılaşan tek şeyi: metinler ve dönüş bağlantıları. */
+const COPY: Record<
+  PackageAudience,
+  {
+    intro: string;
+    quotaLabel: string;
+    activeTitle: string;
+    activeBody: string;
+    primary: { href: string; label: string };
+    secondary: { href: string; label: string };
+  }
+> = {
+  creator: {
+    intro: "Kampanyalara başvurabilmek için paketinizi aktifleştirin.",
+    quotaLabel: "Kalan başvuru hakkı",
+    activeTitle: "Paketiniz aktif",
+    activeBody: "Kampanyalara başvurmak için ek bir ödeme gerekmiyor.",
+    primary: { href: "/dashboard/creator/applications", label: "Başvurularım" },
+    secondary: { href: "/campaigns", label: "Kampanyalara dön" },
+  },
+  brand: {
+    intro: "Kampanya yayınlayabilmek ve creator'lara ulaşabilmek için paketinizi aktifleştirin.",
+    quotaLabel: "Kalan creator başvuru hakkı",
+    activeTitle: "Paketiniz aktif",
+    activeBody: "Kampanya yayınlamak için ek bir ödeme gerekmiyor.",
+    primary: { href: "/dashboard/brand/campaigns/new", label: "Kampanya oluştur" },
+    secondary: { href: "/dashboard/brand", label: "Panele dön" },
+  },
+};
+
+export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   const router = useRouter();
   const params = useSearchParams();
-  const applicationId = params.get("application");
+  // Başvuru bağlamı yalnızca creator akışında vardır (bkz.
+  // features/campaigns/apply-campaign-dialog.tsx); kampanya adı iki tarafta da
+  // gelebilir (marka: features/brands/create-campaign-form.tsx).
+  const applicationId = audience === "creator" ? params.get("application") : null;
   const campaignTitle = params.get("campaign") ?? "";
 
+  const packages = checkoutPackages(audience);
+  const copy = COPY[audience];
+
   const [wallet, setWallet] = useState<MyWallet | null>(null);
+  const [pending, setPending] = useState<PaymentDeclaration | null>(null);
   const [loading, setLoading] = useState(true);
-  const [packageId, setPackageId] = useState(CREATOR_PACKAGES[0]!.id);
-  const [tierId, setTierId] = useState(CREATOR_PACKAGES[0]!.tiers[CREATOR_PACKAGES[0]!.tiers.length - 1]!.id);
+  const [packageCode, setPackageCode] = useState(packages[0]!.code);
+  const [tierId, setTierId] = useState(packages[0]!.tiers[packages[0]!.tiers.length - 1]!.id);
   const [senderNote, setSenderNote] = useState("");
   const [step, setStep] = useState<Step>("choose");
   const [sending, setSending] = useState(false);
+  // Aktif paketi olan kullanıcı normalde ödeme formunu görmez; paketini
+  // yenilemek veya yükseltmek isterse bu bayrakla formu açar.
+  const [renewing, setRenewing] = useState(false);
 
   const load = useCallback(async () => {
-    setWallet(await getMyWallet());
+    const [walletData, declarations] = await Promise.all([
+      getMyWallet(),
+      // Yalnızca kullanıcının kendi bildirimlerini döner (bkz.
+      // PaymentDeclarationListCreateView.get_queryset).
+      listDeclarations("pending").catch(() => []),
+    ]);
+    setWallet(walletData);
+    setPending(declarations[0] ?? null);
     setLoading(false);
   }, []);
 
@@ -61,20 +119,21 @@ export function PaymentCheckout() {
     void load();
   }, [load]);
 
-  const selectedPackage = CREATOR_PACKAGES.find((p) => p.id === packageId)!;
+  const selectedPackage = packages.find((p) => p.code === packageCode)!;
   const selectedTier = selectedPackage.tiers.find((t) => t.id === tierId) ?? selectedPackage.tiers[0]!;
 
   async function declare() {
     setSending(true);
     try {
-      // Paket kimliği ve süre kodu sunucudaki katalogla birebir aynıdır
+      // Paket ve süre kodu sunucudaki katalogla birebir aynıdır
       // (bkz. apps/payments/packages.py); tutar gönderilmez, sunucu türetir.
-      await declarePayment({
-        packageCode: selectedPackage.id,
+      const declaration = await declarePayment({
+        packageCode: selectedPackage.code,
         tierCode: selectedTier.code,
         applicationId,
         senderNote,
       });
+      setPending(declaration);
       setStep("done");
       toast.success("Ödeme bildiriminiz alındı", { description: PAYMENT_APPROVAL_NOTICE });
     } catch (err) {
@@ -94,43 +153,6 @@ export function PaymentCheckout() {
 
   const hasActivePackage = wallet?.membership.isActive ?? false;
 
-  // --- Aktif paketi olan kullanıcı: ödeme yok, onay var ---
-  if (hasActivePackage && step !== "done") {
-    return (
-      <div className="mx-auto max-w-2xl space-y-6">
-        <Card className="rounded-2xl border-emerald-500/30 bg-emerald-50/60 p-7 text-center shadow-sm dark:bg-emerald-500/10">
-          <CheckCircle2 className="mx-auto size-10 text-emerald-600" />
-          <h1 className="mt-4 text-2xl font-semibold tracking-tight">Başvurunuz alındı</h1>
-          <p className="mx-auto mt-2 max-w-md text-muted-foreground">
-            {campaignTitle ? `"${campaignTitle}" kampanyasına başvurunuz iletildi.` : "Başvurunuz iletildi."} Aktif
-            paketiniz olduğu için ek bir ödeme gerekmiyor.
-          </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
-            <Badge className="rounded-full border-none bg-emerald-100 font-normal text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
-              {wallet!.membership.packageName} · {wallet!.membership.tierLabel}
-            </Badge>
-            <span className="text-muted-foreground">
-              Kalan başvuru hakkı:{" "}
-              <span className="font-medium text-foreground">
-                {wallet!.membership.remainingApplications === null
-                  ? "Sınırsız"
-                  : wallet!.membership.remainingApplications}
-              </span>
-            </span>
-          </div>
-          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button className="rounded-full bg-gradient-brand hover:opacity-90" asChild>
-              <Link href="/dashboard/creator/applications">Başvurularım</Link>
-            </Button>
-            <Button variant="outline" className="rounded-full" asChild>
-              <Link href="/campaigns">Kampanyalara dön</Link>
-            </Button>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
   // --- Bildirim gönderildi ---
   if (step === "done") {
     return (
@@ -139,6 +161,19 @@ export function PaymentCheckout() {
           <CheckCircle2 className="mx-auto size-10 text-emerald-600" />
           <h1 className="mt-4 text-2xl font-semibold tracking-tight">Ödeme bildiriminiz alındı</h1>
           <p className="mx-auto mt-2 max-w-md text-muted-foreground">{PAYMENT_APPROVAL_NOTICE}</p>
+          <p className="mx-auto mt-2 max-w-md text-sm font-medium">
+            {audience === "brand"
+              ? "Onaylandığında ilanınız yayına girer ve başvuranlarla mesajlaşabilirsiniz."
+              : "Onaylandığında başvurunuz markaya iletilir ve mesajlaşma açılır."}
+          </p>
+          {pending && (
+            <p className="mx-auto mt-3 max-w-md text-sm">
+              <span className="font-medium">
+                {pending.packageName} · {pending.tierLabel}
+              </span>{" "}
+              <span className="text-muted-foreground">· {formatTryPrice(pending.amount)}</span>
+            </p>
+          )}
           <p className="mx-auto mt-2 max-w-md text-sm text-muted-foreground">
             Onaylandığında bildirim göndereceğiz. Sorunuz olursa çağrı destek hattımız:{" "}
             <a href={`tel:${COMPANY.phoneHref}`} className="font-medium text-foreground underline underline-offset-4">
@@ -146,11 +181,14 @@ export function PaymentCheckout() {
             </a>
           </p>
           <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-            <Button className="rounded-full bg-gradient-brand hover:opacity-90" onClick={() => router.push("/dashboard/creator")}>
+            <Button
+              className="rounded-full bg-gradient-brand hover:opacity-90"
+              onClick={() => router.push(copy.secondary.href)}
+            >
               Panele dön
             </Button>
             <Button variant="outline" className="rounded-full" asChild>
-              <Link href="/dashboard/creator/applications">Başvurularım</Link>
+              <Link href={copy.primary.href}>{copy.primary.label}</Link>
             </Button>
           </div>
         </Card>
@@ -158,42 +196,118 @@ export function PaymentCheckout() {
     );
   }
 
+  // --- Aktif paketi olan kullanıcı: ödeme istenmez ---
+  if (hasActivePackage && !renewing) {
+    const applied = Boolean(applicationId);
+    const brandPosted = audience === "brand" && Boolean(campaignTitle);
+    return (
+      <div className="mx-auto max-w-2xl space-y-6">
+        <Card className="rounded-2xl border-emerald-500/30 bg-emerald-50/60 p-7 text-center shadow-sm dark:bg-emerald-500/10">
+          <CheckCircle2 className="mx-auto size-10 text-emerald-600" />
+          <h1 className="mt-4 text-2xl font-semibold tracking-tight">
+            {applied ? "Başvurunuz alındı" : brandPosted ? "İlanınız yayında" : copy.activeTitle}
+          </h1>
+          <p className="mx-auto mt-2 max-w-md text-muted-foreground">
+            {applied
+              ? `${campaignTitle ? `"${campaignTitle}" kampanyasına başvurunuz iletildi.` : "Başvurunuz iletildi."} Aktif paketiniz olduğu için ek bir ödeme gerekmiyor.`
+              : brandPosted
+                ? `"${campaignTitle}" kampanyanız yayına alındı. Aktif paketiniz olduğu için ek bir ödeme gerekmiyor.`
+                : copy.activeBody}
+          </p>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 text-sm">
+            <Badge className="rounded-full border-none bg-emerald-100 font-normal text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">
+              {wallet!.membership.packageName} · {wallet!.membership.tierLabel}
+            </Badge>
+            <span className="text-muted-foreground">
+              {copy.quotaLabel}:{" "}
+              <span className="font-medium text-foreground">
+                {wallet!.membership.remainingApplications === null
+                  ? "Sınırsız"
+                  : wallet!.membership.remainingApplications}
+              </span>
+            </span>
+            <span className="text-muted-foreground">
+              Kalan süre: <span className="font-medium text-foreground">{wallet!.membership.daysRemaining} gün</span>
+            </span>
+          </div>
+          <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+            <Button className="rounded-full bg-gradient-brand hover:opacity-90" asChild>
+              <Link href={copy.primary.href}>{copy.primary.label}</Link>
+            </Button>
+            <Button variant="outline" className="rounded-full" asChild>
+              <Link href={copy.secondary.href}>{copy.secondary.label}</Link>
+            </Button>
+          </div>
+          <Button
+            variant="ghost"
+            className="mt-3 rounded-full text-sm text-muted-foreground"
+            onClick={() => setRenewing(true)}
+          >
+            Paketimi yenile veya yükselt
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
   // --- Paket seçimi + ödeme bilgileri ---
+  const hasTierChoice = selectedPackage.tiers.length > 1;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Ödeme</h1>
         <p className="mt-1 text-muted-foreground">
-          {campaignTitle
-            ? `"${campaignTitle}" kampanyasına başvurunuz alındı. Başvurunuzun markaya iletilmesi için paketinizi aktifleştirin.`
-            : "Kampanyalara başvurabilmek için paketinizi aktifleştirin."}
+          {!campaignTitle
+            ? copy.intro
+            : audience === "brand"
+              ? `"${campaignTitle}" ilanınız kaydedildi. Ödemeniz onaylandığı an yayına girer.`
+              : `"${campaignTitle}" kampanyasına başvurunuz alındı. Başvurunuzun markaya iletilmesi için paketinizi aktifleştirin.`}
         </p>
       </div>
 
-      <div
-        className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
-        role="status"
-      >
-        <Timer className="size-4 shrink-0" />
-        Ödemeniz {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır
-      </div>
+      <PaymentFlowSteps audience={audience} current={1} />
+
+      {/* Bekleyen bildirim: ödeme yapan kullanıcı durumu burada görür. */}
+      {pending ? (
+        <div
+          className="flex items-start gap-2.5 rounded-2xl border border-amber-500/30 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-500/10 dark:text-amber-200"
+          role="status"
+        >
+          <Clock className="mt-0.5 size-4 shrink-0" />
+          <span>
+            <span className="font-medium">
+              {pending.packageName} · {pending.tierLabel}
+            </span>{" "}
+            için {formatTryPrice(pending.amount)} tutarlı ödeme bildiriminiz onay bekliyor. {PAYMENT_APPROVAL_NOTICE}
+          </span>
+        </div>
+      ) : (
+        <div
+          className="flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"
+          role="status"
+        >
+          <Timer className="size-4 shrink-0" />
+          Ödemeniz {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır
+        </div>
+      )}
 
       {/* 1. Paket */}
       <Card className="rounded-2xl border-border/70 p-6 shadow-sm">
         <h2 className="text-sm font-semibold">1. Paketinizi seçin</h2>
         <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {CREATOR_PACKAGES.map((pkg) => (
+          {packages.map((pkg) => (
             <button
-              key={pkg.id}
+              key={pkg.code}
               type="button"
               onClick={() => {
-                setPackageId(pkg.id);
+                setPackageCode(pkg.code);
                 setTierId(pkg.tiers[pkg.tiers.length - 1]!.id);
               }}
-              aria-pressed={pkg.id === packageId}
+              aria-pressed={pkg.code === packageCode}
               className={cn(
                 "rounded-2xl border px-4 py-3 text-left transition-colors",
-                pkg.id === packageId
+                pkg.code === packageCode
                   ? "border-violet-600 bg-violet-50 dark:bg-violet-500/15"
                   : "border-border/60 bg-muted/40 hover:border-violet-600/40",
               )}
@@ -204,29 +318,35 @@ export function PaymentCheckout() {
           ))}
         </div>
 
-        <h3 className="mt-6 text-sm font-semibold">2. Süre</h3>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {selectedPackage.tiers.map((tier) => (
-            <button
-              key={tier.id}
-              type="button"
-              onClick={() => setTierId(tier.id)}
-              aria-pressed={tier.id === selectedTier.id}
-              className={cn(
-                "flex flex-col items-start gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors",
-                tier.id === selectedTier.id
-                  ? "border-violet-600 bg-violet-50 dark:bg-violet-500/15"
-                  : "border-border/60 bg-muted/40 hover:border-violet-600/40",
-              )}
-            >
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {tier.label}
-              </span>
-              <span className="text-sm font-semibold">{formatTryPrice(tier.price)}</span>
-              <span className="text-[11px] text-muted-foreground">{tier.applications} başvuru</span>
-            </button>
-          ))}
-        </div>
+        {/* Marka paketleri tek süreli (aylık); seçecek bir şey yoksa adım hiç
+            gösterilmez — tek seçenekli bir seçici kullanıcıyı yanıltır. */}
+        {hasTierChoice && (
+          <>
+            <h3 className="mt-6 text-sm font-semibold">2. Süre</h3>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {selectedPackage.tiers.map((tier) => (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => setTierId(tier.id)}
+                  aria-pressed={tier.id === selectedTier.id}
+                  className={cn(
+                    "flex flex-col items-start gap-0.5 rounded-2xl border px-3 py-2.5 text-left transition-colors",
+                    tier.id === selectedTier.id
+                      ? "border-violet-600 bg-violet-50 dark:bg-violet-500/15"
+                      : "border-border/60 bg-muted/40 hover:border-violet-600/40",
+                  )}
+                >
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                    {tier.label}
+                  </span>
+                  <span className="text-sm font-semibold">{formatTryPrice(tier.price)}</span>
+                  <span className="text-[11px] text-muted-foreground">{tier.note}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
       </Card>
 
       {/* 2. Ödeme */}
@@ -236,7 +356,7 @@ export function PaymentCheckout() {
             <Banknote className="size-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold">3. Havale / EFT ile ödeyin</h2>
+            <h2 className="text-sm font-semibold">{hasTierChoice ? "3." : "2."} Havale / EFT ile ödeyin</h2>
             <p className="text-xs text-muted-foreground">Ödemeniz {PAYMENT_APPROVAL_BADGE}.</p>
           </div>
         </div>
@@ -246,9 +366,7 @@ export function PaymentCheckout() {
             <p className="text-sm font-medium">
               {selectedPackage.name} · {selectedTier.label}
             </p>
-            <p className="text-xs text-muted-foreground">
-              {selectedTier.applications} iş başvuru hakkı · KDV dahil
-            </p>
+            <p className="text-xs text-muted-foreground">{selectedTier.note} · KDV dahil</p>
           </div>
           <p className="text-2xl font-semibold tracking-tight">{formatTryPrice(selectedTier.price)}</p>
         </div>
@@ -298,7 +416,7 @@ export function PaymentCheckout() {
           disabled={sending}
         >
           {sending ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          Ödemeyi yaptım
+          {pending ? "Bildirimimi güncelle" : "Ödemeyi yaptım"}
         </Button>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-border/60 pt-4">

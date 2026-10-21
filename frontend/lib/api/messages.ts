@@ -79,7 +79,9 @@ export function normalizeMessage(msg: ApiMessage, currentUserEmail?: string): Ch
     id: String(msg.id),
     conversationId: String(msg.conversation),
     senderId: msg.sender_email,
-    senderName: isOwn ? "You" : msg.sender_name || msg.sender_email,
+    // Arayüz Türkçe; bu ad sohbet balonunun avatar baş harflerinde de
+    // kullanılıyor, "You" kalınca kendi mesajlarında "Yo" görünüyordu.
+    senderName: isOwn ? "Sen" : msg.sender_name || msg.sender_email,
     text: msg.body,
     createdAt: msg.created_at,
     attachments: msg.attachments?.length ? msg.attachments.map(normalizeAttachment) : undefined,
@@ -170,10 +172,16 @@ export async function deleteConversation(conversationId: string): Promise<void> 
   await apiClient.delete(conversationDetail(conversationId));
 }
 
-export async function createConversation(participantIds: number[], campaignId?: number): Promise<Conversation> {
+export async function createConversation(
+  participantIds: number[],
+  campaignId?: number,
+  currentUserEmail?: string,
+): Promise<Conversation> {
   const created = await apiClient.post<ApiConversation>(ENDPOINTS.conversations, {
     participant_ids: participantIds,
     campaign: campaignId ?? null,
   });
-  return normalizeConversation(created);
+  // E-posta olmadan normalize edilen bir konuşmada "karşı taraf" katılımcı
+  // kümesinin ilk elemanı sayılır ve bu çoğu zaman çağıranın kendisi olur.
+  return normalizeConversation(created, currentUserEmail);
 }

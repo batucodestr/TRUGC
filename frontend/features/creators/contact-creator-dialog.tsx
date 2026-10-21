@@ -22,6 +22,7 @@ import { formatCurrency } from "@/lib/format";
 import { useAuth } from "@/components/Auth/AuthProvider";
 import { createConversation, sendMessage } from "@/lib/api/messages";
 import { getErrorMessage } from "@/lib/error-message";
+import { handleMembershipRequired } from "@/lib/membership-gate";
 
 interface ContactCreatorDialogProps {
   creatorName: string;
@@ -54,7 +55,7 @@ export function ContactCreatorDialog({ creatorName, creatorUserId, packages, tri
     try {
       const pkg = packages.find((p) => p.id === selectedPackage);
       const body = pkg ? `[${pkg.title}] ${message}` : message;
-      const conversation = await createConversation([Number(creatorUserId)]);
+      const conversation = await createConversation([Number(creatorUserId)], undefined, session.user.email);
       await sendMessage(conversation.id, body, session.user.email);
       setOpen(false);
       setMessage("");
@@ -63,6 +64,16 @@ export function ContactCreatorDialog({ creatorName, creatorUserId, packages, tri
       });
       router.push("/dashboard/messages");
     } catch (err) {
+      if (
+        handleMembershipRequired(err, {
+          role: session?.user.role,
+          title: "Mesajlaşma ödeme sonrası açılır",
+          navigate: router.push,
+        })
+      ) {
+        setOpen(false);
+        return;
+      }
       toast.error("Mesaj gönderilemedi", { description: getErrorMessage(err) });
     } finally {
       setSending(false);
