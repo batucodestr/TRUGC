@@ -319,7 +319,22 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
   }, []);
 
   return (
-    <div className="grid h-full grid-cols-1 md:grid-cols-[340px_1fr]">
+    <div className="flex h-full flex-col">
+      {messagingLocked && (
+        <div
+          role="status"
+          className="flex flex-col gap-3 border-b border-violet-600/20 bg-violet-50/70 md:rounded-t-[inherit] px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:bg-violet-500/10"
+        >
+          <span className="flex items-start gap-2.5">
+            <Lock className="mt-0.5 size-4 shrink-0 text-violet-600" />
+            <span>{MESSAGING_LOCKED_TEXT}</span>
+          </span>
+          <Button size="sm" className="shrink-0 rounded-full bg-gradient-brand hover:opacity-90" asChild>
+            <Link href={paymentHref}>Ödemeye geç</Link>
+          </Button>
+        </div>
+      )}
+    <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-[340px_1fr]">
       <div className={`border-border/60 md:border-r ${mobileShowChat ? "hidden md:block" : "block"}`}>
         <ConversationList
           conversations={filteredConversations}
@@ -340,20 +355,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
             >
               <ArrowLeft className="h-3.5 w-3.5" /> Sohbetlere dön
             </button>
-            {messagingLocked && (
-              <div
-                role="status"
-                className="flex flex-col gap-3 border-b border-violet-600/20 bg-violet-50/70 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between dark:bg-violet-500/10"
-              >
-                <span className="flex items-start gap-2.5">
-                  <Lock className="mt-0.5 size-4 shrink-0 text-violet-600" />
-                  <span>{MESSAGING_LOCKED_TEXT}</span>
-                </span>
-                <Button size="sm" className="shrink-0 rounded-full bg-gradient-brand hover:opacity-90" asChild>
-                  <Link href={paymentHref}>Ödemeye geç</Link>
-                </Button>
-              </div>
-            )}
+
             <div className="min-h-0 flex-1">
               <ChatWindow
                 conversation={activeConversation}
@@ -374,6 +376,7 @@ export function MessagingApp({ initialConversations, initialMessages }: Messagin
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 }

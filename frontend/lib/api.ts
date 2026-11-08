@@ -113,8 +113,17 @@ interface RequestOptions {
 
 let refreshPromise: Promise<boolean> | null = null;
 
-/** Calls the Next.js route handler that exchanges the httpOnly refresh cookie for a new access token. */
-async function refreshAccessToken(): Promise<boolean> {
+/**
+ * Calls the Next.js route handler that exchanges the httpOnly refresh cookie for a new access token.
+ *
+ * Sayfadaki HER yenileme bu tek fonksiyondan geçmek zorundadır (oturum geri
+ * yükleme dahil — bkz. lib/auth.ts::restoreSession). Refresh token'lar
+ * döndürülüp kara listeye alındığı için aynı cookie ile iki eşzamanlı istek
+ * giderse ikincisi 401 alır ve kullanıcı oturumdan atılır: sayfa doğrudan
+ * açıldığında bileşenlerin ilk API çağrısı ile oturum geri yükleme tam olarak
+ * bu yarışa giriyordu.
+ */
+export async function refreshAccessToken(): Promise<boolean> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {

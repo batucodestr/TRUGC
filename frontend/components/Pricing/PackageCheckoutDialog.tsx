@@ -292,8 +292,7 @@ export function PackageCheckoutDialog({
             <div className="flex flex-col gap-3 border-t border-border/60 pt-4">
               <PaymentMethods showNote={false} />
               <p className="text-xs leading-relaxed text-muted-foreground">
-                Kredi/banka kartıyla ödeme altyapımız kurulum aşamasındadır; tamamlandığında ödemeler iyzico 3D Secure
-                ile bu ekrandan alınacaktır.{" "}
+                Kredi/banka kartı ödemeleri PayTR güvenli ödeme altyapısı üzerinden 3D Secure ile alınır.{" "}
                 <Link href="/mesafeli-satis-sozlesmesi" className="underline underline-offset-4 hover:text-foreground">
                   Mesafeli satış sözleşmesi
                 </Link>{" "}

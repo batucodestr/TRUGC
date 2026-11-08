@@ -103,7 +103,7 @@ export function ApplyCampaignDialog({ campaignId, campaignTitle }: { campaignId:
         <div className="space-y-4">
           {needsPayment && (
             <div className="space-y-2 rounded-2xl border border-violet-600/20 bg-violet-50/50 p-3 dark:bg-violet-500/10">
-              <PaymentFlowSteps audience="creator" current={0} />
+              <PaymentFlowSteps audience="creator" current={0} compact />
               <p className="px-1 text-xs leading-relaxed text-muted-foreground">
                 Başvurunuz kaydedilir, ardından ödeme ekranına geçersiniz. Ödeme onaylanınca başvurunuz markaya
                 iletilir ve mesajlaşma açılır.

@@ -142,7 +142,7 @@ export default function TeslimatVeIadePage() {
           <p className="mt-3 text-muted-foreground leading-relaxed">
             Onaylanan iadeler, <span className="font-medium text-foreground">ödemenin yapıldığı kartın aynısına</span>{" "}
             ve aynı para biriminde yapılır; nakit veya farklı bir hesaba iade yapılmaz. İade tutarı, talebin
-            onaylanmasından itibaren en geç 14 gün içinde iyzico ödeme altyapısı üzerinden bankanıza gönderilir.
+            onaylanmasından itibaren en geç 14 gün içinde PayTR ödeme altyapısı üzerinden bankanıza gönderilir.
             Tutarın kart ekstrenize yansıması, bankanızın işleyişine bağlı olarak ortalama 2-10 iş günü sürebilir; bu
             süre TRUGC&apos;nin kontrolünde değildir.
           </p>

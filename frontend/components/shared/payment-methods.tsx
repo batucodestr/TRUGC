@@ -2,11 +2,11 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
- * "iyzico ile Öde" + kabul edilen kart şemalarının logo bandı.
+ * "PayTR ile Öde" + kabul edilen kart şemalarının logo bandı.
  *
- * iyzico üye iş yeri başvurusu, ödeme alınan sitede iyzico logosunun ve
- * desteklenen kart şemalarının (Visa, Mastercard) görünür olmasını şart
- * koşar. Bu yüzden band hem herkese açık sayfaların altbilgisinde hem de
+ * PayTR (ve eski iyzico) üye iş yeri başvurusu, ödeme alınan sitede ödeme
+ * kuruluşu logosunun ve desteklenen kart şemalarının (Visa, Mastercard)
+ * görünür olmasını şart koşar. Bu yüzden band hem herkese açık sayfaların altbilgisinde hem de
  * ödemenin başladığı yerlerde (fiyatlandırma, marka ödeme paneli) gösterilir.
  *
  * Logolar `public/payment/` altında kendi sunucumuzdan verilir; dış kaynaktan
@@ -30,11 +30,11 @@ export function PaymentMethods({ className, showNote = true }: PaymentMethodsPro
     <div className={cn("flex flex-col gap-3", className)}>
       <div className="flex flex-wrap items-center gap-2.5">
         {/* Logolar renkli ve koyu; koyu temada kaybolmamaları için her biri
-            beyaz bir yongaya oturur (iyzico'nun logo kullanım kuralı da
-            logonun açık zemin üzerinde gösterilmesini ister). */}
+            beyaz bir yongaya oturur (logo, açık zemin üzerinde
+            gösterilmelidir). */}
         <span className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 shadow-sm">
-          <Image src="/payment/iyzico.svg" alt="iyzico" width={104} height={37} unoptimized className="h-5 w-auto" />
-          <span className="text-sm font-semibold leading-none text-[#1e64ff]">ile Öde</span>
+          <Image src="/payment/paytr.svg" alt="PayTR" width={623} height={106} unoptimized className="h-4 w-auto" />
+          <span className="text-sm font-semibold leading-none text-[#0060d9]">ile Öde</span>
         </span>
         {CARD_SCHEMES.map((logo) => (
           <span
@@ -54,8 +54,8 @@ export function PaymentMethods({ className, showNote = true }: PaymentMethodsPro
       </div>
       {showNote && (
         <p className="max-w-md text-xs leading-relaxed text-muted-foreground">
-          Tüm ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz
-          yalnızca iyzico&apos;nun ödeme sayfasına girilir ve TRUGC sunucularında saklanmaz.
+          Tüm ödemeler PayTR güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Kart bilgileriniz
+          yalnızca PayTR&apos;nin ödeme sayfasına girilir ve TRUGC sunucularında saklanmaz.
         </p>
       )}
     </div>

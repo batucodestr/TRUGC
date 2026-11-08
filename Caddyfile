@@ -69,6 +69,13 @@ www.{$DOMAIN} {
         X-Frame-Options "DENY"
         Referrer-Policy "same-origin"
     }
+
+    # PayTR iFrame akışı: ödeme bitince PayTR, iframe'i /payment/return'e
+    # yönlendirir ve sayfa iframe İÇİNDE açılır. Genel DENY bunu engellerdi;
+    # yalnızca bu yol için SAMEORIGIN (üst sayfa da bizim alan adımız) verilir.
+    # Sayfa açılınca kendini üst pencereye taşır (bkz. pos-return-view.tsx).
+    @payreturn path /payment/return /payment/return/*
+    header @payreturn X-Frame-Options "SAMEORIGIN"
 }
 
 # ================= xn--kurtarcm-ykbb.com.tr (kurtarıcım.com.tr) =================
@@ -107,7 +114,7 @@ xn--kurtarcm-ykbb.com.tr {
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "geolocation=(self), camera=(), microphone=()"
-        Content-Security-Policy "default-src 'self'; img-src 'self' data:; script-src 'self' https://www.paytr.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://xn--kurtarcm-ykbb.com.tr; frame-src https://www.paytr.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https://*.tile.openstreetmap.org; script-src 'self' https://www.paytr.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://xn--kurtarcm-ykbb.com.tr; frame-src https://www.paytr.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         -Server
     }
 
@@ -196,7 +203,7 @@ kurtaricim.com.tr {
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "geolocation=(self), camera=(), microphone=()"
-        Content-Security-Policy "default-src 'self'; img-src 'self' data:; script-src 'self' https://www.paytr.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://kurtaricim.com.tr; frame-src https://www.paytr.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        Content-Security-Policy "default-src 'self'; img-src 'self' data: https://*.tile.openstreetmap.org; script-src 'self' https://www.paytr.com; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' wss://kurtaricim.com.tr; frame-src https://www.paytr.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
         -Server
     }
 

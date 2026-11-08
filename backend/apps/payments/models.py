@@ -55,6 +55,7 @@ class Transaction(models.Model):
 class PaymentPurpose(models.TextChoices):
     BRAND_ACCESS = "brand_access", _("Brand directory access")
     CAMPAIGN_ESCROW = "campaign_escrow", _("Campaign escrow funding")
+    PACKAGE = "package", _("Membership package")
 
 
 class PosPaymentStatus(models.TextChoices):
@@ -99,6 +100,10 @@ class PosPayment(models.Model):
 
     # Marka erişim paketi satın alındığında kaç gün erişim açılacağı.
     access_days = models.PositiveIntegerField(default=0)
+    # ``package`` amacıyla başlatılan ödemelerde satın alınan paket/süre kodu
+    # (bkz. packages.py). Tutar istemciden değil katalogdan türetilir.
+    package_code = models.CharField(max_length=64, blank=True)
+    tier_code = models.CharField(max_length=32, blank=True)
     # Kampanya emanetini fonlayan bir ödemeyse ilgili emanet kaydı.
     transaction = models.ForeignKey(
         Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="pos_payments"
@@ -163,6 +168,7 @@ class Wallet(models.Model):
 class WalletEntryKind(models.TextChoices):
     ADMIN_CREDIT = "admin_credit", _("Admin tarafından yükleme")
     ADMIN_DEBIT = "admin_debit", _("Admin tarafından düşüm")
+    CARD_TOPUP = "card_topup", _("Kartla yükleme")
     PACKAGE_PURCHASE = "package_purchase", _("Paket satın alma")
     REFUND = "refund", _("İade")
 

@@ -87,12 +87,12 @@ export function bucketTransactionsByMonth(transactions: ApiTransaction[], status
 // bilgisi ne bu uygulamaya ne de TRUGC sunucusuna girer. Burada yalnızca
 // ödeme oturumu başlatılır ve durumu sunucudan yoklanır.
 
-export type PosPaymentPurpose = "brand_access" | "campaign_escrow";
+export type PosPaymentPurpose = "brand_access" | "campaign_escrow" | "package";
 
 export interface PosCheckoutResult {
   merchant_oid: string;
-  /** "redirect" → redirect_url'e git; "html" → form_html'i göm. */
-  mode: "redirect" | "html";
+  /** "redirect" → redirect_url'e git; "iframe" → redirect_url'i iframe'de göm (PayTR); "html" → form_html'i göm. */
+  mode: "redirect" | "iframe" | "html";
   redirect_url: string;
   form_html: string;
   amount: string;
@@ -127,6 +127,15 @@ export async function startBrandAccessCheckout(): Promise<PosCheckoutResult> {
 }
 
 /** Kabul edilmiş bir başvurunun emanet ödemesini sanal POS ile başlatır. */
+/** Paketi kartla satın alır (PayTR iFrame). Tutar sunucudaki katalogdan türetilir; istemci tutar göndermez. */
+export async function startPackageCheckout(packageCode: string, tierCode: string): Promise<PosCheckoutResult> {
+  return apiClient.post<PosCheckoutResult>(ENDPOINTS.posCheckout, {
+    purpose: "package",
+    package_code: packageCode,
+    tier_code: tierCode,
+  });
+}
+
 export async function startEscrowCheckout(applicationId: number | string, amount: number): Promise<PosCheckoutResult> {
   return apiClient.post<PosCheckoutResult>(ENDPOINTS.posCheckout, {
     purpose: "campaign_escrow",

@@ -45,6 +45,19 @@ export function PosReturnView() {
     }
   }, [merchantOid]);
 
+  // PayTR, ödeme bitince iframe'i merchant_ok_url / merchant_fail_url'e
+  // yönlendirir; bu sayfa iframe'in içinde açılır. Kullanıcı sonucu küçük bir
+  // çerçevede değil tam sayfada görsün diye kendimizi üst pencereye taşırız.
+  useEffect(() => {
+    try {
+      if (window.top && window.top !== window.self) {
+        window.top.location.href = window.location.href;
+      }
+    } catch {
+      // Üst pencereye erişilemezse (farklı köken) sayfa çerçevede kalır; sorun değil.
+    }
+  }, []);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -74,6 +87,8 @@ export function PosReturnView() {
   }
 
   const status = payment?.status;
+  const backHref = payment?.purpose === "package" ? "/dashboard" : "/dashboard/brand/payments";
+  const backLabel = payment?.purpose === "package" ? "Panele dön" : "Ödemelere dön";
   const waiting = !payment || status === "created" || status === "pending";
 
   return (
@@ -93,6 +108,7 @@ export function PosReturnView() {
             {payment?.purpose === "brand_access" && payment.access_days > 0
               ? ` Creator erişiminiz ${payment.access_days} gün boyunca açık.`
               : ""}
+            {payment?.purpose === "package" ? " Paketiniz hesabınıza tanımlandı." : ""}
           </p>
         </>
       ) : status === "failed" || status === "cancelled" ? (
@@ -128,7 +144,7 @@ export function PosReturnView() {
         variant={waiting ? "outline" : "default"}
         className={waiting ? "mt-6 w-full rounded-full" : "mt-6 w-full rounded-full bg-gradient-brand hover:opacity-90"}
       >
-        <Link href="/dashboard/brand/payments">Ödemelere dön</Link>
+        <Link href={backHref}>{backLabel}</Link>
       </Button>
     </Card>
   );

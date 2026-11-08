@@ -75,7 +75,7 @@ export default function MesafeliSatisSozlesmesiPage() {
             Satın alınan hizmetin adı, süresi ve toplam bedeli, ödeme adımından önce ekranda özet olarak gösterilir.
             Tüm fiyatlar Türk Lirası (TL) cinsinden ve <span className="font-medium text-foreground">KDV dahil</span>{" "}
             olarak belirtilir; ayrıca bir hizmet veya işlem bedeli alınmaz. Ödeme, Visa ve Mastercard logolu kredi ve
-            banka kartlarıyla, iyzico güvenli ödeme altyapısı üzerinden 3D Secure doğrulamasıyla tahsil edilir. Kart
+            banka kartlarıyla, PayTR güvenli ödeme altyapısı üzerinden 3D Secure doğrulamasıyla tahsil edilir. Kart
             bilgileri yalnızca ödeme kuruluşunun sayfasına girilir; TRUGC tarafından görülmez ve saklanmaz.
           </p>
           <p className="mt-3 text-muted-foreground leading-relaxed">

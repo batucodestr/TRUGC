@@ -2,6 +2,7 @@ import re
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 from django.test import SimpleTestCase, override_settings
 from django.urls import reverse
@@ -17,6 +18,7 @@ from apps.notifications.models import Notification
 
 from .models import Membership, PaymentDeclaration, PosPayment, PosPaymentStatus, TransactionStatus, Wallet
 from .packages import PACKAGES
+from .pos.paytr import _hmac_base64
 
 
 # Ödeme uçları hafta sonu (ücretsiz dönem) kapalıdır; bu sınıf ücretli dönem
@@ -1212,3 +1214,96 @@ class BrandPackageDirectoryAccessTests(APITestCase):
 
         self.brand_user.brand.refresh_from_db()
         self.assertTrue(self.brand_user.brand.paid_access_active)
+
+
+PAYTR = dict(POS_PROVIDER="paytr", PAYTR_MERCHANT_ID="1", PAYTR_MERCHANT_KEY="key", PAYTR_MERCHANT_SALT="salt")
+
+
+@override_settings(**PAID_PERIOD, **PAYTR)
+class PayTRPackagePurchaseTests(APITestCase):
+    """Kartla (PayTR iFrame) paket satın alma: katalogdan tutar, imzalı bildirim, tek seferlik etki."""
+
+    def setUp(self):
+        self.creator = User.objects.create_user(email="creator@example.com", password="StrongPass123", role=Role.CREATOR)
+        onboard(self.creator)
+        self.client.force_authenticate(self.creator)
+
+    def _checkout(self, **extra):
+        body = {"purpose": "package", "package_code": "classic-creator", "tier_code": "weekly", **extra}
+        with mock.patch(
+            "apps.payments.pos.paytr.http_post", return_value=(200, '{"status":"success","token":"tok123"}')
+        ) as post:
+            response = self.client.post(reverse("payments:pos-checkout"), body)
+        return response, post
+
+    def _callback(self, payment, *, status_value="success", total="39900"):
+        data = {
+            "merchant_oid": payment.merchant_oid,
+            "status": status_value,
+            "total_amount": total,
+            "hash": _hmac_base64(f"{payment.merchant_oid}salt{status_value}{total}", "key"),
+        }
+        return self.client.post(reverse("payments:pos-callback", args=["paytr"]), data)
+
+    def test_checkout_takes_amount_from_catalog_and_returns_iframe(self):
+        # İstemci tutar göndermeye çalışsa bile katalog fiyatı (399 TL) geçerlidir.
+        response, post = self._checkout(amount="1.00")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["mode"], "iframe")
+        self.assertEqual(response.data["redirect_url"], "https://www.paytr.com/odeme/guvenli/tok123")
+        payment = PosPayment.objects.get()
+        self.assertEqual(payment.amount, Decimal("399.00"))
+        self.assertEqual((payment.package_code, payment.tier_code), ("classic-creator", "weekly"))
+        self.assertEqual(post.call_args.args[1]["payment_amount"], 39900)
+
+    def test_package_of_other_audience_is_rejected(self):
+        response, _ = self._checkout(package_code="baslangic-marka", tier_code="monthly")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(PosPayment.objects.exists())
+
+    def test_unknown_package_is_rejected(self):
+        response, _ = self._checkout(package_code="nope")
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_signed_success_callback_credits_wallet_and_assigns_package_once(self):
+        self._checkout()
+        payment = PosPayment.objects.get()
+
+        response = self._callback(payment)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.content.decode(), "OK")
+
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, PosPaymentStatus.PAID)
+        membership = Membership.objects.get(user=self.creator)
+        self.assertEqual(membership.package_code, "classic-creator")
+        self.assertEqual(membership.tier_code, "weekly")
+        wallet = Wallet.objects.get(user=self.creator)
+        # Para önce yüklenir, paket sonra bakiyeden satılır: net bakiye 0, defterde iki satır.
+        self.assertEqual(wallet.balance, Decimal("0.00"))
+        self.assertEqual(
+            list(wallet.entries.order_by("id").values_list("kind", "amount")),
+            [("card_topup", Decimal("399.00")), ("package_purchase", Decimal("-399.00"))],
+        )
+
+        # PayTR aynı bildirimi tekrar gönderirse hiçbir şey ikinci kez uygulanmaz.
+        again = self._callback(payment)
+        self.assertEqual(again.content.decode(), "OK")
+        self.assertEqual(wallet.entries.count(), 2)
+
+    def test_failed_callback_assigns_nothing(self):
+        self._checkout()
+        payment = PosPayment.objects.get()
+        response = self._callback(payment, status_value="failed")
+        self.assertEqual(response.content.decode(), "OK")
+        payment.refresh_from_db()
+        self.assertEqual(payment.status, PosPaymentStatus.FAILED)
+        self.assertFalse(Membership.objects.get_or_create(user=self.creator)[0].is_active)
+
+    def test_validly_signed_callback_with_wrong_amount_is_not_applied(self):
+        self._checkout()
+        payment = PosPayment.objects.get()
+        self._callback(payment, total="100")
+        payment.refresh_from_db()
+        self.assertNotEqual(payment.status, PosPaymentStatus.PAID)
+        self.assertFalse(Membership.objects.get_or_create(user=self.creator)[0].is_active)

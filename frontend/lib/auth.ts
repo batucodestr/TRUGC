@@ -9,7 +9,7 @@
 // tarafından ayarlanan httpOnly bir cookie'de yaşar ve JS tarafından asla
 // okunamaz.
 
-import { apiClient, ApiError } from "@/lib/api";
+import { apiClient, ApiError, refreshAccessToken } from "@/lib/api";
 import { AUTH_ENDPOINTS, ENDPOINTS } from "@/lib/endpoints";
 import { getAccessToken, setAccessToken } from "@/lib/token-store";
 import type { AuthSession, AuthUser, BrandRegisterPayload, CreatorRegisterPayload, LoginPayload } from "@/types/auth";
@@ -57,15 +57,15 @@ export async function restoreSession(): Promise<AuthSession | null> {
   if (!match) return null;
 
   try {
-    const res = await fetch("/api/auth/refresh", { method: "POST", credentials: "include" });
-    if (!res.ok) {
+    // Ortak (tekilleştirilmiş) yenileme: aynı anda başka bir bileşenin API
+    // çağrısı da 401 alıp yenileme başlatırsa ikisi tek isteği paylaşır.
+    if (!(await refreshAccessToken())) {
       clearSessionCookie();
       return null;
     }
-    const data = await res.json();
-    setAccessToken(data.access ?? null);
+    const token = getAccessToken();
     const parsed = JSON.parse(decodeURIComponent(match[1])) as { user: AuthUser };
-    return { token: data.access, user: parsed.user };
+    return { token: token ?? "", user: parsed.user };
   } catch {
     clearSessionCookie();
     return null;
@@ -87,12 +87,17 @@ export async function login(payload: LoginPayload): Promise<AuthSession> {
   // bir rol seçici bulunmuyor. Sunucunun kendi rolü (data.user.role) tek
   // gerçek kaynaktır ve çağıranlar DASHBOARD_PATH_BY_ROLE[role] üzerinden yönlendirilir.
   setAccessToken(data.access);
+  // Üst barda e-posta yerine kişinin adı ve fotoğrafı görünsün. Profil
+  // okunamazsa giriş yine de tamamlanır, ad olarak e-posta kalır.
+  const me = await apiClient
+    .get<{ profile?: { full_name?: string; avatar?: string | null } }>(AUTH_ENDPOINTS.me)
+    .catch(() => null);
   const user: AuthUser = {
     id: String(data.user.id),
-    name: data.user.email,
+    name: me?.profile?.full_name || data.user.email,
     email: data.user.email,
     role: data.user.role,
-    avatarUrl: "",
+    avatarUrl: me?.profile?.avatar ?? "",
     isStaff: Boolean(data.user.isStaff),
     isSuperuser: Boolean(data.user.isSuperuser),
   };
@@ -124,7 +129,11 @@ export async function registerCreator(payload: CreatorRegisterPayload): Promise<
   const categoryId = await resolveCategoryId(payload.category);
   await apiClient.patch(ENDPOINTS.myCreator, { display_name: payload.fullName, category_ids: categoryId ? [categoryId] : [] });
 
-  return { ...session, user: { ...session.user, name: payload.fullName } };
+  // Üst bardaki ad sayfa yenilendiğinde cookie'den okunur; güncellenmezse
+  // kayıttan sonra ad yerine e-posta görünür.
+  const named = { ...session, user: { ...session.user, name: payload.fullName } };
+  setSessionCookie(named);
+  return named;
 }
 
 export async function registerBrand(payload: BrandRegisterPayload): Promise<AuthSession> {
@@ -142,7 +151,11 @@ export async function registerBrand(payload: BrandRegisterPayload): Promise<Auth
 
   await apiClient.patch(ENDPOINTS.myBrand, { company_name: payload.companyName, website: payload.website ?? "" });
 
-  return { ...session, user: { ...session.user, name: payload.companyName } };
+  // Üst bardaki ad sayfa yenilendiğinde cookie'den okunur; güncellenmezse
+  // kayıttan sonra ad yerine e-posta görünür.
+  const named = { ...session, user: { ...session.user, name: payload.companyName } };
+  setSessionCookie(named);
+  return named;
 }
 
 export function logout(): void {

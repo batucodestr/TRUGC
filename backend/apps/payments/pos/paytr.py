@@ -90,7 +90,7 @@ class PayTRProvider(PosProvider):
 
         token = body["token"]
         return CheckoutSession(
-            mode="redirect",
+            mode="iframe",
             url=PAYMENT_URL.format(token=token),
             provider_reference=token,
             raw={"status": body.get("status")},

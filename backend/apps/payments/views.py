@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import transaction as db_transaction
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.decorators import method_decorator
@@ -215,6 +216,8 @@ class PosCheckoutView(APIView):
             currency=pricing.currency(),
             provider=provider.name,
             access_days=data.get("access_days", 0),
+            package_code=data["package"].code if data.get("package") else "",
+            tier_code=data["tier"].code if data.get("tier") else "",
             transaction=escrow_transaction,
             client_ip=_client_ip(request),
         )
@@ -225,7 +228,9 @@ class PosCheckoutView(APIView):
             "email": request.user.email,
             "name": getattr(getattr(request.user, "profile", None), "full_name", "") or "",
             "product_name": (
-                "TRUGC creator erişim paketi"
+                f"TRUGC {data['package'].name} · {data['tier'].label}"
+                if data["purpose"] == PaymentPurpose.PACKAGE
+                else "TRUGC creator erişim paketi"
                 if data["purpose"] == PaymentPurpose.BRAND_ACCESS
                 else "TRUGC kampanya ödemesi"
             ),
@@ -280,7 +285,37 @@ def _apply_successful_payment(payment: PosPayment):
     payment.failure_reason = ""
     payment.save(update_fields=["status", "paid_at", "failure_reason", "updated_at"])
 
-    if payment.purpose == PaymentPurpose.BRAND_ACCESS:
+    if payment.purpose == PaymentPurpose.PACKAGE:
+        # Kartla alınan para ÖNCE cüzdana yüklenir, paket SONRA bu bakiyeden
+        # satılır — havale akışındaki (declarations.approve_declaration) defter
+        # düzeniyle birebir aynı: "şu kadar para geldi, şu pakete gitti".
+        # Her ikisi de çağıran atomic bloktadır; biri patlarsa ikisi de geri
+        # alınır ve PayTR bildirimi tekrar denenir.
+        resolved = packages.resolve(payment.package_code, payment.tier_code)
+        if resolved is None:
+            raise wallet_service.WalletError("Ödemedeki paket kataloğda bulunamadı.")
+        package, tier = resolved
+        wallet_service.adjust_balance(
+            payment.user,
+            payment.amount,
+            kind=WalletEntryKind.CARD_TOPUP,
+            note=f"Kartla ödeme · {package.name} · {tier.label} · {payment.merchant_oid}",
+        )
+        wallet_service.assign_membership(
+            payment.user,
+            package.code,
+            tier.code,
+            charge_wallet=True,
+            note=f"{package.name} · {tier.label} (kart)",
+        )
+        notify_user(
+            user=payment.user,
+            title="Ödemeniz alındı",
+            body=f"{package.name} · {tier.label} paketiniz hesabınıza tanımlandı.",
+            notification_type=NotificationType.PAYMENT,
+            link="/dashboard",
+        )
+    elif payment.purpose == PaymentPurpose.BRAND_ACCESS:
         brand = getattr(payment.user, "brand", None)
         if brand is not None:
             until = brand.grant_paid_access(payment.access_days or pricing.brand_access_days())
@@ -340,7 +375,7 @@ class PosCallbackView(APIView):
 
             if payment.status == PosPaymentStatus.PAID:
                 # Yinelenen bildirim: yan etkiler tekrar uygulanmaz.
-                return Response(provider_response("OK"), content_type="text/plain")
+                return HttpResponse(provider_response("OK"), content_type="text/plain")
 
             try:
                 result = provider.handle_callback(payment, data)
@@ -366,7 +401,7 @@ class PosCallbackView(APIView):
                     escrow.status = TransactionStatus.FAILED
                     escrow.save(update_fields=["status", "updated_at"])
 
-        return Response(provider_response(result.response_body), content_type="text/plain")
+        return HttpResponse(provider_response(result.response_body), content_type="text/plain")
 
 
 def provider_response(body: str) -> str:

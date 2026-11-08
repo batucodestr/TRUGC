@@ -101,7 +101,7 @@ export function Footer() {
         <div className="mt-12 flex flex-col gap-5 border-t border-border/60 pt-8 sm:flex-row sm:items-center sm:justify-between">
           <PaymentMethods showNote={false} />
           <p className="max-w-xs text-xs leading-relaxed text-muted-foreground sm:text-right">
-            Ödemeleriniz iyzico güvenli ödeme altyapısı üzerinden 3D Secure ile alınır. Kart bilgileriniz TRUGC
+            Ödemeleriniz PayTR güvenli ödeme altyapısı üzerinden 3D Secure ile alınır. Kart bilgileriniz TRUGC
             sunucularında saklanmaz.
           </p>
         </div>

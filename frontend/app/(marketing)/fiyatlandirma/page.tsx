@@ -54,7 +54,7 @@ const BILLING_FAQS = [
     id: "billing-4",
     question: "Ödeme yöntemleri nelerdir?",
     answer:
-      `Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler iyzico güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Dilerseniz şirket hesabımıza havale/EFT ile de ödeyebilir, kurumsal hesaplar için fatura karşılığı ödeme talep edebilirsiniz. ${PAYMENT_APPROVAL_NOTICE}`,
+      `Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Ödemeler PayTR güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır; kart bilgileriniz TRUGC sunucularında saklanmaz. Dilerseniz şirket hesabımıza havale/EFT ile de ödeyebilir, kurumsal hesaplar için fatura karşılığı ödeme talep edebilirsiniz. ${PAYMENT_APPROVAL_NOTICE}`,
   },
   {
     id: "billing-6",
@@ -123,7 +123,7 @@ export default function FiyatlandirmaPage() {
               <div>
                 <h2 className="text-base font-semibold">Güvenli ödeme</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler iyzico
+                  Visa ve Mastercard logolu kredi ve banka kartlarıyla ödeme yapabilirsiniz. Tüm işlemler PayTR
                   güvenli ödeme altyapısı üzerinden, 3D Secure doğrulamasıyla alınır. Fiyatlar Türk Lirası cinsinden
                   ve KDV dahildir. Ödemeniz ortalama {PAYMENT_APPROVAL_MINUTES} dakika içinde onaylanır.{" "}
                   <Link href="/teslimat-ve-iade" className="font-medium text-foreground underline underline-offset-4">

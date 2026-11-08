@@ -15,7 +15,7 @@ from .models import (
     Wallet,
     WalletEntry,
 )
-from .packages import resolve
+from .packages import audience_for_user, resolve
 
 
 class TransactionSerializer(serializers.ModelSerializer):
@@ -82,6 +82,8 @@ class PosPaymentSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
             "status",
             "provider",
             "access_days",
+            "package_code",
+            "tier_code",
             "failure_reason",
             "created_at",
             "paid_at",
@@ -103,10 +105,29 @@ class PosCheckoutSerializer(serializers.Serializer):
     purpose = serializers.ChoiceField(choices=PaymentPurpose.choices)
     application_id = serializers.IntegerField(required=False)
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, min_value=Decimal("0.01"))
+    package_code = serializers.CharField(required=False)
+    tier_code = serializers.CharField(required=False)
 
     def validate(self, attrs):
         request = self.context["request"]
         purpose = attrs["purpose"]
+
+        if purpose == PaymentPurpose.PACKAGE:
+            # Tutar ASLA istemciden alınmaz: paket ve süre koduna göre sunucudaki
+            # katalogdan (packages.py) türetilir.
+            resolved = resolve(attrs.get("package_code", ""), attrs.get("tier_code", ""))
+            if resolved is None:
+                raise serializers.ValidationError("Geçersiz paket veya süre.")
+            package, tier = resolved
+            audience = audience_for_user(request.user)
+            if audience is not None and package.audience != audience:
+                raise serializers.ValidationError(f"{package.name} paketi hesabınızın türüne uygun değil.")
+            attrs["amount"] = tier.price
+            attrs["access_days"] = tier.days
+            attrs["application"] = None
+            attrs["package"] = package
+            attrs["tier"] = tier
+            return attrs
 
         if purpose == PaymentPurpose.BRAND_ACCESS:
             if getattr(request.user, "role", None) != "brand" or not hasattr(request.user, "brand"):

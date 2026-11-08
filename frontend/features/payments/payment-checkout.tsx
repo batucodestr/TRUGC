@@ -24,7 +24,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowRight, Banknote, Check, CheckCircle2, Clock, Info, Loader2, Timer } from "lucide-react";
+import { ArrowRight, Banknote, Check, CheckCircle2, Clock, CreditCard, Info, Loader2, Timer } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -33,6 +33,7 @@ import { Label } from "@/components/ui/label";
 import { CopyField } from "@/components/shared/copy-field";
 import { PaymentMethods } from "@/components/shared/payment-methods";
 import { PaymentFlowSteps } from "@/components/shared/payment-flow-steps";
+import { PaytrFrame } from "@/components/shared/paytr-frame";
 import {
   BANK_ACCOUNT,
   COMPANY,
@@ -43,6 +44,7 @@ import {
 import { checkoutPackages, type PackageAudience } from "@/lib/content/packages";
 import { declarePayment, listDeclarations, type PaymentDeclaration } from "@/lib/api/declarations";
 import { getMyWallet, type MyWallet } from "@/lib/api/wallet";
+import { startPackageCheckout } from "@/lib/api/finance";
 import { getErrorMessage } from "@/lib/error-message";
 import { formatTryPrice } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -102,6 +104,9 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   // Aktif paketi olan kullanıcı normalde ödeme formunu görmez; paketini
   // yenilemek veya yükseltmek isterse bu bayrakla formu açar.
   const [renewing, setRenewing] = useState(false);
+  // Kartla ödeme: PayTR iframe adresi dolunca form ekranda açılır.
+  const [cardStarting, setCardStarting] = useState(false);
+  const [cardFrameUrl, setCardFrameUrl] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [walletData, declarations] = await Promise.all([
@@ -143,6 +148,23 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
     }
   }
 
+  async function payByCard() {
+    setCardStarting(true);
+    try {
+      // Tutar gönderilmez; sunucu paket ve süre koduna göre katalogdan türetir.
+      const checkout = await startPackageCheckout(selectedPackage.code, selectedTier.code);
+      if (checkout.redirect_url) {
+        setCardFrameUrl(checkout.redirect_url);
+      } else {
+        toast.error("Ödeme formu açılamadı", { description: "Lütfen birazdan tekrar deneyin." });
+      }
+    } catch (err) {
+      toast.error("Kartla ödeme başlatılamadı", { description: getErrorMessage(err) });
+    } finally {
+      setCardStarting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex h-72 items-center justify-center">
@@ -152,6 +174,29 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   }
 
   const hasActivePackage = wallet?.membership.isActive ?? false;
+
+  // --- Kartla ödeme: PayTR iframe ---
+  if (cardFrameUrl) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight">Kartla ödeme</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {selectedPackage.name} · {selectedTier.label} · {formatTryPrice(selectedTier.price)} (KDV dahil)
+            </p>
+          </div>
+          <Button variant="outline" className="rounded-full" onClick={() => setCardFrameUrl(null)}>
+            Vazgeç
+          </Button>
+        </div>
+        <Card className="overflow-hidden rounded-2xl border-border/70 p-2 shadow-sm sm:p-4">
+          <PaytrFrame url={cardFrameUrl} />
+        </Card>
+        <PaymentMethods />
+      </div>
+    );
+  }
 
   // --- Bildirim gönderildi ---
   if (step === "done") {
@@ -349,14 +394,46 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
         )}
       </Card>
 
-      {/* 2. Ödeme */}
+      {/* 2. Kartla ödeme (PayTR) */}
+      <Card className="rounded-2xl border-border/70 p-6 shadow-sm">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
+            <CreditCard className="size-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold">{hasTierChoice ? "3." : "2."} Kredi / banka kartı ile ödeyin</h2>
+            <p className="text-xs text-muted-foreground">Ödeme anında alınır, paketiniz otomatik tanımlanır.</p>
+          </div>
+        </div>
+        <div className="mt-5 flex items-baseline justify-between gap-3 rounded-2xl border border-border/60 bg-muted/40 px-5 py-4">
+          <div>
+            <p className="text-sm font-medium">
+              {selectedPackage.name} · {selectedTier.label}
+            </p>
+            <p className="text-xs text-muted-foreground">{selectedTier.note} · KDV dahil</p>
+          </div>
+          <p className="text-2xl font-semibold tracking-tight">{formatTryPrice(selectedTier.price)}</p>
+        </div>
+        <Button
+          className="mt-5 w-full gap-2 rounded-full bg-gradient-brand hover:opacity-90"
+          size="lg"
+          onClick={payByCard}
+          disabled={cardStarting}
+        >
+          {cardStarting ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
+          Kartla öde · {formatTryPrice(selectedTier.price)}
+        </Button>
+        <PaymentMethods className="mt-4" showNote={false} />
+      </Card>
+
+      {/* 3. Havale / EFT */}
       <Card className="rounded-2xl border-border/70 p-6 shadow-sm">
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
             <Banknote className="size-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold">{hasTierChoice ? "3." : "2."} Havale / EFT ile ödeyin</h2>
+            <h2 className="text-sm font-semibold">{hasTierChoice ? "4." : "3."} Ya da havale / EFT ile ödeyin</h2>
             <p className="text-xs text-muted-foreground">Ödemeniz {PAYMENT_APPROVAL_BADGE}.</p>
           </div>
         </div>
@@ -422,8 +499,7 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
         <div className="mt-5 flex flex-col gap-3 border-t border-border/60 pt-4">
           <PaymentMethods showNote={false} />
           <p className="text-xs leading-relaxed text-muted-foreground">
-            Kredi/banka kartıyla ödeme altyapımız kurulum aşamasındadır; tamamlandığında ödemeler iyzico 3D Secure
-            ile bu ekrandan alınacaktır.{" "}
+            Kredi/banka kartı ödemeleri PayTR güvenli ödeme altyapısı üzerinden 3D Secure ile alınır.{" "}
             <Link href="/mesafeli-satis-sozlesmesi" className="underline underline-offset-4 hover:text-foreground">
               Mesafeli satış sözleşmesi
             </Link>{" "}

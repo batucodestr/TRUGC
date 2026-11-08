@@ -38,7 +38,7 @@ export function BrandAccessPurchase() {
     setStarting(true);
     try {
       const checkout = await startBrandAccessCheckout();
-      if (checkout.mode === "redirect" && checkout.redirect_url) {
+      if ((checkout.mode === "redirect" || checkout.mode === "iframe") && checkout.redirect_url) {
         // Kart bilgileri yalnızca sağlayıcının 3D Secure sayfasında girilir.
         window.location.assign(checkout.redirect_url);
         return;
