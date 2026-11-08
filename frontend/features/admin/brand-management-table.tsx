@@ -1,5 +1,6 @@
 "use client";
 
+import { industryLabel } from "@/lib/industry";
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -123,7 +124,7 @@ export function BrandManagementTable() {
                         <span className="max-w-[180px] truncate font-medium hover:text-violet-600">{brand.name}</span>
                       </Link>
                     </TableCell>
-                    <TableCell className="text-muted-foreground">{brand.industry || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{brand.industry ? industryLabel(brand.industry) : "—"}</TableCell>
                     <TableCell className="max-w-[200px] truncate text-muted-foreground">{brand.website || "—"}</TableCell>
                     <TableCell>
                       {brand.verified ? (

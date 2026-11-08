@@ -3,6 +3,7 @@ import Image from "next/image";
 import { BadgeCheck, Briefcase, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format";
+import { industryLabel } from "@/lib/industry";
 import type { Brand } from "@/types";
 
 export function BrandCard({ brand }: { brand: Brand }) {
@@ -21,7 +22,7 @@ export function BrandCard({ brand }: { brand: Brand }) {
           )}
         </div>
         <div className="-mt-8 flex flex-col items-center px-5 pb-5 text-center">
-          {brand.logoUrl && (
+          {brand.logoUrl ? (
             <Image
               src={brand.logoUrl}
               alt={brand.name}
@@ -29,12 +30,16 @@ export function BrandCard({ brand }: { brand: Brand }) {
               height={56}
               className="h-14 w-14 rounded-2xl border-4 border-background bg-background object-cover shadow-sm"
             />
+          ) : (
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border-4 border-background bg-violet-100 text-lg font-semibold text-violet-700 shadow-sm">
+              {brand.name.trim().charAt(0).toLocaleUpperCase("tr-TR")}
+            </div>
           )}
-          <p className="mt-2 flex items-center gap-1 font-semibold">
+          <p className="mt-2 flex items-center gap-1 text-center font-semibold leading-tight">
             {brand.name}
             {brand.verified && <BadgeCheck className="h-4 w-4 fill-violet-500 text-white" />}
           </p>
-          <p className="text-xs text-muted-foreground">{brand.industry}</p>
+          <p className="text-xs text-muted-foreground">{industryLabel(brand.industry)}</p>
 
           {(brand.activeCampaigns != null || brand.rating != null || brand.totalSpent != null) && (
             <div className="mt-4 flex w-full items-center justify-around border-t border-border/70 pt-3 text-xs text-muted-foreground">
@@ -43,7 +48,7 @@ export function BrandCard({ brand }: { brand: Brand }) {
                   <span className="flex items-center gap-1 font-medium text-foreground">
                     <Briefcase className="h-3.5 w-3.5" /> {brand.activeCampaigns}
                   </span>
-                  Active
+                  Aktif
                 </div>
               )}
               {brand.rating != null && (
@@ -51,13 +56,13 @@ export function BrandCard({ brand }: { brand: Brand }) {
                   <span className="flex items-center gap-1 font-medium text-foreground">
                     <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" /> {brand.rating}
                   </span>
-                  Rating
+                  Puan
                 </div>
               )}
               {brand.totalSpent != null && (
                 <div className="flex flex-col items-center gap-0.5">
                   <span className="font-medium text-foreground">{formatCurrency(brand.totalSpent, { compact: true })}</span>
-                  Spent
+                  Harcama
                 </div>
               )}
             </div>

@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { industryLabel } from "@/lib/industry";
 import { notFound } from "next/navigation";
 import { BadgeCheck, Briefcase, Calendar, Globe2, MapPin, Star } from "lucide-react";
 import { Card } from "@/components/ui/card";
@@ -47,7 +48,7 @@ export default async function BrandProfilePage({ params }: { params: Promise<{ s
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{brand.name}</h1>
                 {brand.verified && <BadgeCheck className="h-6 w-6 fill-violet-600 text-white" />}
               </div>
-              <p className="text-muted-foreground">{brand.industry}</p>
+              <p className="text-muted-foreground">{industryLabel(brand.industry)}</p>
             </div>
           </div>
           {brand.website && (
