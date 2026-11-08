@@ -14,6 +14,7 @@ from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 
+from apps.brands.models import Brand
 from apps.creators.models import Creator
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
@@ -284,6 +285,8 @@ class VerificationReviewView(APIView):
         if decision == "approve":
             verification.user.is_verified = True
             verification.user.save(update_fields=["is_verified"])
+            Creator.objects.filter(user=verification.user).update(is_verified=True)
+            Brand.objects.filter(user=verification.user).update(is_verified=True)
             notify_user(
                 user=verification.user,
                 title="Verification approved",
@@ -335,10 +338,12 @@ class UserAdminActionView(APIView):
             # one, not User.is_verified, so both must be kept in sync or the
             # admin action silently has no visible effect on that screen.
             Creator.objects.filter(user=user).update(is_verified=True)
+            Brand.objects.filter(user=user).update(is_verified=True)
         elif op == "unverify":
             user.is_verified = False
             user.save(update_fields=["is_verified"])
             Creator.objects.filter(user=user).update(is_verified=False)
+            Brand.objects.filter(user=user).update(is_verified=False)
         elif op == "suspend":
             user.is_active = False
             user.save(update_fields=["is_active"])
@@ -399,6 +404,7 @@ class UserBulkActionView(APIView):
         elif op == "verify":
             users.update(is_verified=True)
             Creator.objects.filter(user_id__in=ids).update(is_verified=True)
+            Brand.objects.filter(user_id__in=ids).update(is_verified=True)
         elif op == "change_role":
             new_role = request.data.get("role")
             if new_role not in Role.values:
