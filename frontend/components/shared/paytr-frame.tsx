@@ -32,7 +32,9 @@ export function PaytrFrame({ url }: { url: string }) {
       <Script
         src="https://www.paytr.com/js/iframeResizer.min.js"
         strategy="afterInteractive"
-        onReady={() => window.iFrameResize?.({}, "#paytriframe")}
+        onReady={() => {
+          window.iFrameResize?.({}, "#paytriframe");
+        }}
       />
     </>
   );

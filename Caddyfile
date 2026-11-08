@@ -75,7 +75,7 @@ www.{$DOMAIN} {
     # yalnızca bu yol için SAMEORIGIN (üst sayfa da bizim alan adımız) verilir.
     # Sayfa açılınca kendini üst pencereye taşır (bkz. pos-return-view.tsx).
     @payreturn path /payment/return /payment/return/*
-    header @payreturn X-Frame-Options "SAMEORIGIN"
+    header @payreturn >X-Frame-Options "SAMEORIGIN"
 }
 
 # ================= xn--kurtarcm-ykbb.com.tr (kurtarıcım.com.tr) =================
