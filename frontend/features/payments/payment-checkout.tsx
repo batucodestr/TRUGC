@@ -28,6 +28,7 @@ import { ArrowRight, Banknote, Check, CheckCircle2, Clock, CreditCard, Info, Loa
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyField } from "@/components/shared/copy-field";
@@ -107,6 +108,8 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   // Kartla ödeme: PayTR iframe adresi dolunca form ekranda açılır.
   const [cardStarting, setCardStarting] = useState(false);
   const [cardFrameUrl, setCardFrameUrl] = useState<string | null>(null);
+  // Havale/EFT bilgileri ayrı bir pencerede açılır; kartla ödeme (iframe) akışını etkilemez.
+  const [ibanOpen, setIbanOpen] = useState(false);
 
   const load = useCallback(async () => {
     const [walletData, declarations] = await Promise.all([
@@ -139,6 +142,7 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
         senderNote,
       });
       setPending(declaration);
+      setIbanOpen(false);
       setStep("done");
       toast.success("Ödeme bildiriminiz alındı", { description: PAYMENT_APPROVAL_NOTICE });
     } catch (err) {
@@ -186,9 +190,14 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
               {selectedPackage.name} · {selectedTier.label} · {formatTryPrice(selectedTier.price)} (KDV dahil)
             </p>
           </div>
-          <Button variant="outline" className="rounded-full" onClick={() => setCardFrameUrl(null)}>
-            Vazgeç
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="rounded-full" onClick={() => setIbanOpen(true)}>
+              <Banknote className="size-4" /> Havale / EFT
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={() => setCardFrameUrl(null)}>
+              Vazgeç
+            </Button>
+          </div>
         </div>
         <Card className="overflow-hidden rounded-2xl border-border/70 p-2 shadow-sm sm:p-4">
           <PaytrFrame url={cardFrameUrl} />
@@ -401,7 +410,7 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
             <CreditCard className="size-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold">{hasTierChoice ? "3." : "2."} Kredi / banka kartı ile ödeyin</h2>
+            <h2 className="text-sm font-semibold">{hasTierChoice ? "3." : "2."} Ödeme</h2>
             <p className="text-xs text-muted-foreground">Ödeme anında alınır, paketiniz otomatik tanımlanır.</p>
           </div>
         </div>
@@ -414,26 +423,32 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
           </div>
           <p className="text-2xl font-semibold tracking-tight">{formatTryPrice(selectedTier.price)}</p>
         </div>
-        <Button
-          className="mt-5 w-full gap-2 rounded-full bg-gradient-brand hover:opacity-90"
-          size="lg"
-          onClick={payByCard}
-          disabled={cardStarting}
-        >
-          {cardStarting ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
-          Kartla öde · {formatTryPrice(selectedTier.price)}
-        </Button>
+        <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+          <Button className="flex-1 gap-2 rounded-full" size="lg" onClick={payByCard} disabled={cardStarting}>
+            {cardStarting ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
+            Kartla öde · {formatTryPrice(selectedTier.price)}
+          </Button>
+          <Button variant="outline" className="gap-2 rounded-full" size="lg" onClick={() => setIbanOpen(true)}>
+            <Banknote className="size-4" /> Havale / EFT ile öde
+          </Button>
+        </div>
         <PaymentMethods className="mt-4" showNote={false} />
       </Card>
 
-      {/* 3. Havale / EFT */}
-      <Card className="rounded-2xl border-border/70 p-6 shadow-sm">
+      {/* Havale / EFT: ayrı pencere */}
+      <Dialog open={ibanOpen} onOpenChange={setIbanOpen}>
+        <DialogContent className="max-h-[90vh] max-w-xl overflow-y-auto">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Havale / EFT ile ödeme</DialogTitle>
+            <DialogDescription>Banka bilgileri ve ödeme bildirimi</DialogDescription>
+          </DialogHeader>
+          <div>
         <div className="flex items-center gap-2.5">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-white">
             <Banknote className="size-4" />
           </span>
           <div>
-            <h2 className="text-sm font-semibold">{hasTierChoice ? "4." : "3."} Ya da havale / EFT ile ödeyin</h2>
+            <h2 className="text-sm font-semibold">Havale / EFT ile ödeyin</h2>
             <p className="text-xs text-muted-foreground">Ödemeniz {PAYMENT_APPROVAL_BADGE}.</p>
           </div>
         </div>
@@ -509,7 +524,9 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
             </Link>
           </p>
         </div>
-      </Card>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <p className="text-center text-sm text-muted-foreground">
         Paketleri karşılaştırmak isterseniz{" "}
