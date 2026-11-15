@@ -24,5 +24,6 @@ PYCODE
 python manage.py migrate --noinput
 python manage.py collectstatic --noinput
 python manage.py seed_groups
+python manage.py setup_schedules
 
 exec "$@"

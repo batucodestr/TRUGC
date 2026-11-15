@@ -12,7 +12,7 @@ import { MagneticButton } from "@/components/Motion/MagneticButton";
 import { NotificationBell } from "@/components/shared/notification-bell";
 import { AvatarMenu } from "@/components/shared/avatar-menu";
 import { useAuth } from "@/components/Auth/AuthProvider";
-import { NAV_LINKS } from "@/lib/constants";
+import { NavLinks, entriesFor } from "@/components/Navbar/nav-links";
 import { listNotifications, markNotificationRead } from "@/lib/api/notifications";
 import { cn } from "@/lib/utils";
 import type { Notification } from "@/types";
@@ -28,10 +28,9 @@ export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Creator'lar için "İçerik Üreticileri Keşfet" bağlantısı gizlenir — o akış
-  // markaların creator bulması içindir, bir creator'ın kendi iş akışıyla
-  // ilgisi yoktur.
-  const navLinks = session?.user.role === "creator" ? NAV_LINKS.filter((link) => link.href !== "/creators") : NAV_LINKS;
+  // Creator'lar için "İçerik Üreticilerini Keşfet" bağlantısı gizlenir — o akış
+  // markaların creator bulması içindir (bkz. nav-links.tsx hideFor).
+  const role = session?.user.role;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > SCROLL_THRESHOLD);
@@ -68,7 +67,7 @@ export function Navbar() {
     <header
       className={cn(
         "sticky top-0 z-50 border-b transition-colors duration-500",
-        scrolled ? "border-border/60 bg-background/75 backdrop-blur-xl shadow-sm" : "border-transparent bg-transparent",
+        scrolled ? "border-border bg-background/80 shadow-sm backdrop-blur-xl" : "border-border/60 bg-background/40 backdrop-blur-md",
       )}
     >
       <motion.div
@@ -80,31 +79,9 @@ export function Navbar() {
           <Logo />
         </motion.div>
 
-        <nav className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={cn(
-                "group relative rounded-full px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-                pathname === link.href && "text-foreground",
-              )}
-            >
-              {link.label}
-              {pathname === link.href ? (
-                <motion.span
-                  layoutId="navbar-underline"
-                  className="absolute inset-x-3 -bottom-0.5 h-px bg-violet-600"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                />
-              ) : (
-                <span className="absolute inset-x-3 -bottom-0.5 h-px origin-center scale-x-0 bg-violet-600/60 transition-transform duration-300 group-hover:scale-x-100" />
-              )}
-            </Link>
-          ))}
-        </nav>
+        <NavLinks role={role} className="hidden lg:flex" />
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           {!loading && session ? (
             <>
               <NotificationBell notifications={notifications} onOpenNotification={handleOpenNotification} />
@@ -112,11 +89,11 @@ export function Navbar() {
             </>
           ) : (
             <>
-              <Button variant="ghost" className="rounded-full" asChild>
+              <Button variant="outline" asChild>
                 <Link href="/login">Giriş Yap</Link>
               </Button>
               <MagneticButton strength={0.3}>
-                <Button className="rounded-full bg-gradient-brand shadow-sm shadow-violet-600/30 hover:opacity-90" asChild>
+                <Button asChild>
                   <Link href="/register">Kayıt Ol</Link>
                 </Button>
               </MagneticButton>
@@ -126,7 +103,7 @@ export function Navbar() {
 
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="md:hidden">
+            <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Menüyü aç">
               <Menu className="h-5 w-5" />
             </Button>
           </SheetTrigger>
@@ -137,7 +114,11 @@ export function Navbar() {
               </SheetTitle>
             </SheetHeader>
             <div className="flex flex-col gap-1 px-4">
-              {navLinks.map((link) => (
+              {entriesFor(role).flatMap((entry) =>
+                entry.children
+                  ? entry.children.map((child) => ({ label: child.label, href: child.href }))
+                  : [{ label: entry.label, href: entry.href! }],
+              ).map((link) => (
                 <Link
                   key={link.href}
                   href={link.href}
@@ -161,7 +142,7 @@ export function Navbar() {
                   <Link href="/login" onClick={() => setOpen(false)} className="rounded-xl px-3 py-2.5 text-sm font-medium hover:bg-muted">
                     Giriş Yap
                   </Link>
-                  <Button className="mt-2 rounded-full bg-gradient-brand" asChild>
+                  <Button className="mt-2" asChild>
                     <Link href="/register" onClick={() => setOpen(false)}>
                       Kayıt Ol
                     </Link>

@@ -11,6 +11,11 @@ export interface BrandDashboard {
   accepted_applicants: number;
   total_budget_committed: number;
   average_rating: number;
+  estimated_reach: number;
+  reach_series: { date: string; reach: number }[];
+  applicants_trend_pct: number | null;
+  accepted_trend_pct: number | null;
+  active_campaigns_delta: number;
 }
 
 export interface CreatorDashboard {
@@ -21,6 +26,13 @@ export interface CreatorDashboard {
   total_followers: number;
   average_engagement_rate: number;
   average_rating: number;
+  active_collaborations: number;
+  total_reach: number;
+  earnings_this_month: number;
+  earnings_trend_pct: number | null;
+  monthly_earnings: { month: string; total: number }[];
+  applications_trend_pct: number | null;
+  profile_completion: { percent: number; basic: boolean; social: boolean; portfolio: boolean; stats: boolean };
 }
 
 export interface AdminDashboard {

@@ -38,6 +38,10 @@ www.{$DOMAIN} {
     }
 
     handle_path /media/* {
+        # Özel dosyalar (mesaj ekleri, içerik teslimleri) herkese açık sunulmaz;
+        # yalnızca API'nin ürettiği süreli imzalı adresle erişilir (/api/v1/files/<token>/).
+        @private path /message_attachments/* /collab_submissions/*
+        respond @private 404
         root * /srv/media
         file_server
     }

@@ -24,11 +24,18 @@ class ReviewTests(APITestCase):
             deadline=timezone.now() + timezone.timedelta(days=30),
             status=CampaignStatus.PUBLISHED,
         )
-        Application.objects.create(
+        self.application = Application.objects.create(
             creator=self.creator_user.creator, campaign=self.campaign, message="hi", status=ApplicationStatus.ACCEPTED
         )
 
     def test_brand_can_review_accepted_creator(self):
+        # Marka yalnızca iş bittikten (içerik onaylandıktan) sonra puanlayabilir.
+        from apps.collaborations.models import Collaboration, CollaborationStatus
+
+        Collaboration.objects.create(
+            application=self.application, campaign=self.campaign, brand=self.campaign.brand,
+            creator=self.creator_user.creator, status=CollaborationStatus.APPROVED,
+        )
         self.client.force_authenticate(self.brand_user)
         url = reverse("reviews:review-list")
         response = self.client.post(

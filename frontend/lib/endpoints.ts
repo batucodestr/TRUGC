@@ -60,6 +60,14 @@ export const ENDPOINTS = {
   posConfig: `${API_BASE}/payments/pos/config/`,
   posCheckout: `${API_BASE}/payments/pos/checkout/`,
   posPayments: `${API_BASE}/payments/pos/payments/`,
+  collaborations: `${API_BASE}/collaborations/`,
+  myBrandPayments: `${API_BASE}/payments/me/brand-payments/`,
+  myEarnings: `${API_BASE}/payments/me/earnings/`,
+  myPayoutProfile: `${API_BASE}/payments/me/payout-profile/`,
+  adminLedger: `${API_BASE}/payments/admin/ledger/`,
+  adminEarnings: `${API_BASE}/payments/admin/earnings/`,
+  statusLogs: `${API_BASE}/collaborations/status-logs/`,
+  blocks: `${API_BASE}/messages/blocks/`,
   verificationsPending: `${API_BASE}/auth/verifications/pending/`,
   adminConversations: `${API_BASE}/messages/admin/conversations/`,
   systemStatus: `${API_BASE}/auth/admin/system-status/`,
@@ -167,4 +175,24 @@ export function userMembership(id: string | number) {
 
 export function declarationReview(id: string | number, decision: "approve" | "reject") {
   return `${API_BASE}/payments/declarations/${id}/${decision}/`;
+}
+
+export function collaborationAction(id: string | number, action: "submit" | "approve" | "revision" | "history") {
+  return `${ENDPOINTS.collaborations}${id}/${action}/`;
+}
+
+export function socialConnect(platform: string) {
+  return `${ENDPOINTS.creators}social/${platform}/connect/`;
+}
+
+export function socialCallback(platform: string) {
+  return `${ENDPOINTS.creators}social/${platform}/callback/`;
+}
+
+export function socialDisconnect(platform: string) {
+  return `${ENDPOINTS.creators}social/${platform}/`;
+}
+
+export function campaignReview(id: string | number, decision: "approve" | "reject") {
+  return `${ENDPOINTS.campaigns}${id}/${decision}/`;
 }

@@ -12,6 +12,10 @@ export interface SocialStat {
   engagementRate: number; // percentage, e.g. 4.8
   /** Not present on the real backend's SocialAccount (only `profile_url`, mapped here when set). */
   url?: string;
+  /** Hesap resmî OAuth ile bağlandı (sahiplik platformca doğrulandı). */
+  oauthVerified?: boolean;
+  /** Yalnızca admin/moderatöre görünür: sahte/şüpheli profil kontrolünün nedeni. */
+  suspiciousReason?: string;
 }
 
 export type CreatorCategory =
@@ -112,6 +116,12 @@ export interface Creator {
   totalFollowers?: number;
   averageEngagementRate?: number;
   isAvailable?: boolean;
+  /** Güven göstergeleri: tamamlanan iş, zamanında teslim oranı (%), marka puanı ortalaması. */
+  completedJobs?: number;
+  onTimeRate?: number | null;
+  averageRating?: number | null;
+  /** Aktif Premium Creator paketi var (premium rozet). */
+  isPremium?: boolean;
 }
 
 export interface Brand {
@@ -145,7 +155,7 @@ export interface Brand {
 }
 
 // Backend CampaignStatus seçenekleri (apps/campaigns/models.py CampaignStatus).
-export type CampaignStatus = "draft" | "published" | "in_progress" | "completed" | "cancelled";
+export type CampaignStatus = "draft" | "in_review" | "published" | "in_progress" | "completed" | "cancelled";
 
 export interface CampaignDeliverable {
   id?: number;
@@ -206,6 +216,10 @@ export interface Campaign {
   /** Paketi olmayan markanın yayınlamak istediği ilan: taslak olarak bekler,
    *  ödeme onaylanınca backend kendiliğinden yayına alır. */
   awaitingPayment?: boolean;
+  /** Yalnızca Premium Creator paketi olanlara gösterilen kampanya. */
+  isPremiumOnly?: boolean;
+  /** Admin'in onay/red notu (İncelemede → Yayında / İptal). */
+  reviewNote?: string;
 }
 
 // Backend ApplicationStatus seçenekleri (apps/applications/models.py ApplicationStatus).
@@ -223,6 +237,8 @@ export interface Application {
   creatorUserId?: string;
   creatorName: string;
   creatorAvatarUrl?: string;
+  creatorFollowers?: number;
+  creatorVerified?: boolean;
   brandId: string;
   brandName?: string;
   /** Markanın kullanıcı kimliği — creator'ın markaya mesaj atabilmesi için. */

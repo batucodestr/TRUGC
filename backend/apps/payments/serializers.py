@@ -107,10 +107,35 @@ class PosCheckoutSerializer(serializers.Serializer):
     amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, min_value=Decimal("0.01"))
     package_code = serializers.CharField(required=False)
     tier_code = serializers.CharField(required=False)
+    collaboration_id = serializers.IntegerField(required=False)
 
     def validate(self, attrs):
         request = self.context["request"]
         purpose = attrs["purpose"]
+
+        if purpose == PaymentPurpose.COLLABORATION:
+            # Tutar ASLA istemciden alınmaz: anlaşılan bütçe + %10 komisyon
+            # sunucuda hesaplanır (bkz. ledger.prepare_collaboration_payment).
+            from apps.collaborations.models import Collaboration
+
+            from .ledger import CollaborationPaymentError, prepare_collaboration_payment
+
+            collab = (
+                Collaboration.objects.select_related("brand", "campaign", "creator__user")
+                .filter(pk=attrs.get("collaboration_id"))
+                .first()
+            )
+            if collab is None:
+                raise serializers.ValidationError("İş birliği bulunamadı.")
+            try:
+                cp = prepare_collaboration_payment(collab, request.user)
+            except CollaborationPaymentError as exc:
+                raise serializers.ValidationError(str(exc))
+            attrs["amount"] = cp.total_amount
+            attrs["access_days"] = 0
+            attrs["application"] = None
+            attrs["collaboration"] = collab
+            return attrs
 
         if purpose == PaymentPurpose.PACKAGE:
             # Tutar ASLA istemciden alınmaz: paket ve süre koduna göre sunucudaki
@@ -298,3 +323,68 @@ class PaymentDeclarationReviewSerializer(serializers.Serializer):
     note = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
     #: Onayda paketin de tanımlanıp tanımlanmayacağı. Varsayılan: tanımlanır.
     assign_package = serializers.BooleanField(required=False, default=True)
+
+
+# ---------------------------------------------------------------------------
+# Marka ödemeleri, creator hak edişleri, defter
+# ---------------------------------------------------------------------------
+from .models import CollaborationPayment, CreatorEarning, CreatorPayoutProfile, LedgerEntry  # noqa: E402
+
+
+class CollaborationPaymentSerializer(serializers.ModelSerializer):
+    campaign_title = serializers.CharField(source="collaboration.campaign.title", read_only=True)
+    creator_name = serializers.SerializerMethodField()
+    collaboration_status = serializers.CharField(source="collaboration.status", read_only=True)
+
+    class Meta:
+        model = CollaborationPayment
+        fields = [
+            "id", "collaboration", "campaign_title", "creator_name", "collaboration_status", "budget_amount",
+            "commission_amount", "vat_amount", "total_amount", "status", "paid_at", "refunded_at", "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_creator_name(self, obj):
+        creator = obj.collaboration.creator
+        return creator.display_name or creator.user.email
+
+
+class CreatorEarningSerializer(serializers.ModelSerializer):
+    campaign_title = serializers.CharField(source="collaboration.campaign.title", read_only=True)
+    brand_name = serializers.CharField(source="collaboration.brand.company_name", read_only=True)
+
+    class Meta:
+        model = CreatorEarning
+        fields = ["id", "collaboration", "campaign_title", "brand_name", "amount", "status", "paid_out_at", "created_at"]
+        read_only_fields = fields
+
+
+class LedgerEntrySerializer(serializers.ModelSerializer):
+    party_email = serializers.EmailField(source="party.email", read_only=True, default=None)
+    type_label = serializers.CharField(source="get_entry_type_display", read_only=True)
+
+    class Meta:
+        model = LedgerEntry
+        fields = [
+            "id", "entry_type", "type_label", "party_role", "party_email", "amount", "commission_amount",
+            "vat_amount", "currency", "order_no", "collaboration", "reverses", "status", "note", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class CreatorPayoutProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreatorPayoutProfile
+        fields = ["account_holder", "iban", "updated_at"]
+        read_only_fields = ["updated_at"]
+
+    def validate_iban(self, value):
+        iban = "".join(value.split()).upper()
+        if not (iban.startswith("TR") and len(iban) == 26 and iban[2:].isalnum()):
+            raise serializers.ValidationError("Geçerli bir TR IBAN girin (TR + 24 hane).")
+        # IBAN mod-97 sağlama toplamı
+        rearranged = iban[4:] + iban[:4]
+        numeric = "".join(str(int(ch, 36)) for ch in rearranged)
+        if int(numeric) % 97 != 1:
+            raise serializers.ValidationError("IBAN sağlama toplamı geçersiz.")
+        return iban

@@ -43,3 +43,7 @@ class SandboxProvider(PosProvider):
             provider_reference=f"sandbox-{payment.merchant_oid}",
             raw={"provider": "sandbox", "status": data.get("status", "success")},
         )
+
+    def refund(self, payment, amount) -> None:
+        """Sandbox'ta iade her zaman başarılıdır (yalnızca geliştirme/test)."""
+        self._guard()

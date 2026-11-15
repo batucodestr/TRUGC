@@ -25,7 +25,7 @@ from apps.common import pricing
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
-from . import declarations
+from . import declarations, ledger
 from . import membership as membership_rules
 from . import packages
 from . import wallet as wallet_service
@@ -216,6 +216,7 @@ class PosCheckoutView(APIView):
             currency=pricing.currency(),
             provider=provider.name,
             access_days=data.get("access_days", 0),
+            collaboration=data.get("collaboration"),
             package_code=data["package"].code if data.get("package") else "",
             tier_code=data["tier"].code if data.get("tier") else "",
             transaction=escrow_transaction,
@@ -232,6 +233,8 @@ class PosCheckoutView(APIView):
                 if data["purpose"] == PaymentPurpose.PACKAGE
                 else "TRUGC creator erişim paketi"
                 if data["purpose"] == PaymentPurpose.BRAND_ACCESS
+                else "TRUGC iş birliği ödemesi"
+                if data["purpose"] == PaymentPurpose.COLLABORATION
                 else "TRUGC kampanya ödemesi"
             ),
             "callback_url": callback_url,
@@ -306,7 +309,12 @@ def _apply_successful_payment(payment: PosPayment):
             package.code,
             tier.code,
             charge_wallet=True,
+            carry_over=True,
             note=f"{package.name} · {tier.label} (kart)",
+        )
+        ledger.record_membership_payment(
+            payment.user, payment.amount, order_no=payment.merchant_oid, pos_payment=payment,
+            note=f"{package.name} · {tier.label}",
         )
         notify_user(
             user=payment.user,
@@ -315,6 +323,8 @@ def _apply_successful_payment(payment: PosPayment):
             notification_type=NotificationType.PAYMENT,
             link="/dashboard",
         )
+    elif payment.purpose == PaymentPurpose.COLLABORATION:
+        ledger.apply_collaboration_payment_success(payment)
     elif payment.purpose == PaymentPurpose.BRAND_ACCESS:
         brand = getattr(payment.user, "brand", None)
         if brand is not None:
@@ -667,3 +677,151 @@ class PaymentDeclarationReviewView(APIView):
             f"{declaration.user.email} · {declaration.amount} TL · {note}".strip(),
         )
         return Response(PaymentDeclarationSerializer(declaration).data)
+
+
+# ---------------------------------------------------------------------------
+# Marka ödemeleri / creator kazançları / defter / iade
+# ---------------------------------------------------------------------------
+from rest_framework.pagination import PageNumberPagination  # noqa: E402
+
+from .models import (  # noqa: E402
+    CollaborationPayment,
+    CreatorEarning,
+    CreatorEarningStatus,
+    CreatorPayoutProfile,
+    LedgerEntry,
+)
+from .serializers import (  # noqa: E402
+    CollaborationPaymentSerializer,
+    CreatorEarningSerializer,
+    CreatorPayoutProfileSerializer,
+    LedgerEntrySerializer,
+)
+
+
+class MyBrandPaymentsView(APIView):
+    """Marka paneli "Ödemeler": markanın iş birliği ödemeleri ve toplamlar."""
+
+    permission_classes = [permissions.IsAuthenticated, IsBrand]
+
+    def get(self, request):
+        from django.db.models import Sum
+
+        qs = CollaborationPayment.objects.filter(brand_user=request.user).select_related(
+            "collaboration__campaign", "collaboration__creator__user"
+        )
+        paid = qs.filter(status="paid")
+        totals = paid.aggregate(total=Sum("total_amount"), commission=Sum("commission_amount"), vat=Sum("vat_amount"))
+        return Response(
+            {
+                "totals": {k: str(v or 0) for k, v in totals.items()},
+                "pending_count": qs.filter(status="pending").count(),
+                "results": CollaborationPaymentSerializer(qs[:100], many=True).data,
+            }
+        )
+
+
+class MyEarningsView(APIView):
+    """Creator paneli "Kazançlarım": hak edişler, toplamlar, aylık dağılım."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Sum
+        from django.db.models.functions import TruncMonth
+
+        qs = CreatorEarning.objects.filter(creator_user=request.user).select_related(
+            "collaboration__campaign", "collaboration__brand"
+        )
+        live = qs.exclude(status=CreatorEarningStatus.CANCELLED)
+        monthly = (
+            live.annotate(month=TruncMonth("created_at")).values("month").annotate(total=Sum("amount")).order_by("month")
+        )
+        sums = {
+            "total": live.aggregate(s=Sum("amount"))["s"] or 0,
+            "payable": qs.filter(status=CreatorEarningStatus.PAYABLE).aggregate(s=Sum("amount"))["s"] or 0,
+            "paid": qs.filter(status=CreatorEarningStatus.PAID).aggregate(s=Sum("amount"))["s"] or 0,
+        }
+        return Response(
+            {
+                "totals": {k: str(v) for k, v in sums.items()},
+                "monthly": [{"month": m["month"].strftime("%Y-%m"), "total": str(m["total"])} for m in monthly],
+                "results": CreatorEarningSerializer(qs[:100], many=True).data,
+            }
+        )
+
+
+class MyPayoutProfileView(APIView):
+    """Creator'ın IBAN / hesap sahibi bilgisi (hak ediş ödemesi için)."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        profile = getattr(request.user, "payout_profile", None)
+        return Response(CreatorPayoutProfileSerializer(profile).data if profile else None)
+
+    def put(self, request):
+        profile = getattr(request.user, "payout_profile", None)
+        serializer = CreatorPayoutProfileSerializer(profile, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save(user=request.user)
+        return Response(serializer.data)
+
+
+class AdminLedgerView(generics.ListAPIView):
+    """Admin: muhasebe defteri (salt okunur)."""
+
+    serializer_class = LedgerEntrySerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    filterset_fields = ["entry_type", "party_role", "order_no", "collaboration"]
+
+    def get_queryset(self):
+        return LedgerEntry.objects.select_related("party")
+
+
+class AdminEarningPayoutView(APIView):
+    """Admin: hak edişin PayTR pazaryerinden creator'a ödendiğini işaretler."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def post(self, request, pk):
+        earning = get_object_or_404(CreatorEarning, pk=pk)
+        try:
+            earning = ledger.mark_earning_paid(earning, actor=request.user, reference=str(request.data.get("reference", "")))
+        except ledger.CollaborationPaymentError as exc:
+            return error_response("PAYOUT_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+        log_admin_action(request.user, "earning.payout", "earning", earning.pk, str(earning.amount))
+        return Response(CreatorEarningSerializer(earning).data)
+
+
+class AdminRefundView(APIView):
+    """Admin: iş birliği veya üyelik ödemesini iade eder (sağlayıcı iadesi + ters kayıt)."""
+
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+
+    def post(self, request, kind, pk):
+        reason = str(request.data.get("reason", ""))[:255]
+        try:
+            if kind == "collaboration":
+                from apps.collaborations.models import Collaboration
+
+                ledger.refund_collaboration_payment(
+                    get_object_or_404(Collaboration, pk=pk), actor=request.user, reason=reason
+                )
+            else:
+                ledger.refund_membership_payment(get_object_or_404(PosPayment, pk=pk), actor=request.user, reason=reason)
+        except (ledger.CollaborationPaymentError, PosError) as exc:
+            return error_response("REFUND_ERROR", str(exc), status.HTTP_400_BAD_REQUEST)
+        log_admin_action(request.user, f"refund.{kind}", kind, pk, reason)
+        return Response({"refunded": True})
+
+
+class AdminEarningListView(generics.ListAPIView):
+    """Admin: ödenmeyi bekleyen / ödenmiş creator hak edişleri."""
+
+    serializer_class = CreatorEarningSerializer
+    permission_classes = [permissions.IsAuthenticated, IsAdminRole]
+    filterset_fields = ["status"]
+
+    def get_queryset(self):
+        return CreatorEarning.objects.select_related("collaboration__campaign", "collaboration__brand", "creator_user")

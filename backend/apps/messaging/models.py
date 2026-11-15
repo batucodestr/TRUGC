@@ -57,3 +57,28 @@ class Attachment(models.Model):
 
     def __str__(self):
         return self.file_name or self.file.name
+
+
+class UserBlock(models.Model):
+    """``blocker``, ``blocked`` kullanıcıdan mesaj almak istemiyor."""
+
+    blocker = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocks_made")
+    blocked = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="blocks_received")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "messaging_user_block"
+        constraints = [models.UniqueConstraint(fields=["blocker", "blocked"], name="uniq_user_block")]
+
+    def __str__(self):
+        return f"Block<{self.blocker_id}->{self.blocked_id}>"
+
+
+def is_blocked_between(user, others) -> bool:
+    """``user`` ile ``others`` arasında (iki yönden biri) engel var mı?"""
+    ids = [o.pk for o in others]
+    if not ids:
+        return False
+    return UserBlock.objects.filter(
+        models.Q(blocker=user, blocked_id__in=ids) | models.Q(blocker_id__in=ids, blocked=user)
+    ).exists()

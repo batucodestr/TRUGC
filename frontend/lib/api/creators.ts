@@ -40,6 +40,10 @@ interface ApiSocialAccount {
   followers_count: number;
   engagement_rate: number;
   is_verified: boolean;
+  oauth_verified?: boolean;
+  /** Yalnızca staff isteğinde döner. */
+  is_suspicious?: boolean;
+  flag_reason?: string;
 }
 
 interface ApiPortfolioItem {
@@ -82,6 +86,11 @@ interface ApiCreator {
   packages: ApiPackage[];
   total_followers: number;
   average_engagement_rate: number;
+  completed_jobs?: number;
+  on_time_rate?: number | null;
+  average_rating?: number | null;
+  review_count?: number;
+  is_premium?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -93,6 +102,8 @@ function normalizeSocial(acc: ApiSocialAccount): SocialStat {
     followers: acc.followers_count,
     engagementRate: Number(acc.engagement_rate),
     url: acc.profile_url || undefined,
+    oauthVerified: acc.oauth_verified ?? false,
+    suspiciousReason: acc.is_suspicious ? acc.flag_reason || "Şüpheli veri" : undefined,
   };
 }
 
@@ -145,6 +156,11 @@ export function normalizeCreator(api: ApiCreator): Creator {
     totalFollowers: api.total_followers,
     averageEngagementRate: api.average_engagement_rate,
     isAvailable: api.is_available,
+    completedJobs: api.completed_jobs ?? 0,
+    onTimeRate: api.on_time_rate ?? null,
+    averageRating: api.average_rating ?? null,
+    reviewCount: api.review_count ?? 0,
+    isPremium: api.is_premium ?? false,
   };
 }
 

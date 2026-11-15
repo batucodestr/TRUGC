@@ -38,6 +38,8 @@ class ApplicationSerializer(FreePeriodPricingMixin, serializers.ModelSerializer)
     creator_user_id = serializers.IntegerField(source="creator.user_id", read_only=True)
     creator_avatar = serializers.ImageField(source="creator.user.profile.avatar", read_only=True)
     brand_user_id = serializers.IntegerField(source="campaign.brand.user_id", read_only=True)
+    creator_followers = serializers.IntegerField(source="creator.total_followers", read_only=True)
+    creator_verified = serializers.BooleanField(source="creator.is_verified", read_only=True)
 
     class Meta:
         model = Application
@@ -47,6 +49,8 @@ class ApplicationSerializer(FreePeriodPricingMixin, serializers.ModelSerializer)
             "creator_user_id",
             "creator_name",
             "creator_avatar",
+            "creator_followers",
+            "creator_verified",
             "campaign",
             "campaign_id",
             "campaign_title",

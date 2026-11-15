@@ -14,12 +14,16 @@ DOCUMENT_EXTENSIONS = ["pdf", "jpg", "jpeg", "png", "webp"]
 ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS + ["pdf", "mp4", "mov", "zip", "doc", "docx", "ppt", "pptx"]
 # Mesaj ekleri, ürün spesifikasyonu gereği genel kampanya medyası/portföy
 # eklerinden (yalnızca görsel + PDF) bilinçli olarak daha sıkı kapsamlıdır.
-MESSAGE_ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS + ["pdf"]
+VIDEO_EXTENSIONS = ["mp4", "mov", "webm"]
+# Mesajlaşmada fotoğraf, video ve belge gönderilebilir (macro içerebilecek
+# eski Office biçimleri ve çalıştırılabilir dosyalar bilinçli olarak yok).
+MESSAGE_ATTACHMENT_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + ["pdf", "docx", "xlsx", "pptx", "txt", "zip"]
 
 MAX_IMAGE_SIZE_BYTES = 5 * 1024 * 1024
 MAX_DOCUMENT_SIZE_BYTES = 10 * 1024 * 1024
 MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 MAX_MESSAGE_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+MAX_MESSAGE_VIDEO_SIZE_BYTES = 50 * 1024 * 1024
 
 
 def _validate_max_size(value, max_bytes):
@@ -39,8 +43,39 @@ def validate_attachment_size(value):
     _validate_max_size(value, MAX_ATTACHMENT_SIZE_BYTES)
 
 
+def _magic_ok(ext: str, head: bytes) -> bool:
+    """Dosya içeriğinin uzantıyla uyumlu olduğunu imza baytlarından doğrular."""
+    if ext in ("jpg", "jpeg"):
+        return head.startswith(b"\xff\xd8\xff")
+    if ext == "png":
+        return head.startswith(b"\x89PNG\r\n\x1a\n")
+    if ext == "gif":
+        return head[:6] in (b"GIF87a", b"GIF89a")
+    if ext == "webp":
+        return head[:4] == b"RIFF" and head[8:12] == b"WEBP"
+    if ext == "pdf":
+        return head.startswith(b"%PDF")
+    if ext in ("mp4", "mov"):
+        return head[4:8] == b"ftyp"
+    if ext == "webm":
+        return head.startswith(b"\x1a\x45\xdf\xa3")
+    if ext in ("docx", "xlsx", "pptx", "zip"):
+        return head.startswith(b"PK")
+    return True  # txt vb.: imza yok
+
+
 def validate_message_attachment_size(value):
-    _validate_max_size(value, MAX_MESSAGE_ATTACHMENT_SIZE_BYTES)
+    """Boyut + içerik imzası kontrolü (sunucu tarafında; istemciye güvenilmez)."""
+    ext = value.name.rsplit(".", 1)[-1].lower() if "." in value.name else ""
+    limit = MAX_MESSAGE_VIDEO_SIZE_BYTES if ext in VIDEO_EXTENSIONS else MAX_MESSAGE_ATTACHMENT_SIZE_BYTES
+    _validate_max_size(value, limit)
+    try:
+        head = value.read(16)
+        value.seek(0)
+    except Exception:  # noqa: BLE001
+        return
+    if not _magic_ok(ext, head):
+        raise ValidationError("Dosya içeriği uzantısıyla uyuşmuyor.")
 
 
 image_extension_validator = FileExtensionValidator(allowed_extensions=IMAGE_EXTENSIONS)

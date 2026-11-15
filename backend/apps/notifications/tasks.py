@@ -39,3 +39,19 @@ def send_notification_email(notification_id):
         recipient_list=[notification.user.email],
         fail_silently=True,
     )
+
+
+@shared_task
+def expire_memberships_task():
+    """Süresi dolan üyelikleri sonlandırır (celery beat, 15 dakikada bir)."""
+    from apps.payments.membership import expire_memberships
+
+    return expire_memberships()
+
+
+@shared_task
+def refresh_social_accounts_task():
+    """Bağlı sosyal hesapların takipçi/erişim verisini resmî API'den günceller (günlük)."""
+    from apps.creators.social.sync import refresh_all
+
+    return refresh_all()

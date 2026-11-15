@@ -131,6 +131,9 @@ export function CreatorManagementTable() {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{(creator.totalFollowers ?? 0).toLocaleString("tr-TR")}</TableCell>
                     <TableCell>
+                      {creator.socials.some((x) => x.suspiciousReason) && (
+                        <Badge variant="premium" className="mb-1 mr-1" title={creator.socials.find((x) => x.suspiciousReason)?.suspiciousReason}>⚠ Şüpheli</Badge>
+                      )}
                       {creator.verified ? (
                         <Badge className="rounded-full border-none bg-emerald-100 font-normal text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400">Doğrulandı</Badge>
                       ) : (

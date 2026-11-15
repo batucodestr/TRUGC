@@ -87,8 +87,10 @@ export function PosReturnView() {
   }
 
   const status = payment?.status;
-  const backHref = payment?.purpose === "package" ? "/dashboard" : "/dashboard/brand/payments";
-  const backLabel = payment?.purpose === "package" ? "Panele dön" : "Ödemelere dön";
+  const backHref =
+    payment?.purpose === "package" ? "/dashboard" : payment?.purpose === "collaboration" ? "/dashboard/brand/collaborations" : "/dashboard/brand/payments";
+  const backLabel =
+    payment?.purpose === "package" ? "Panele dön" : payment?.purpose === "collaboration" ? "İş birliklerine dön" : "Ödemelere dön";
   const waiting = !payment || status === "created" || status === "pending";
 
   return (
@@ -109,6 +111,7 @@ export function PosReturnView() {
               ? ` Creator erişiminiz ${payment.access_days} gün boyunca açık.`
               : ""}
             {payment?.purpose === "package" ? " Paketiniz hesabınıza tanımlandı." : ""}
+            {payment?.purpose === "collaboration" ? " Creator hak edişi oluşturuldu." : ""}
           </p>
         </>
       ) : status === "failed" || status === "cancelled" ? (

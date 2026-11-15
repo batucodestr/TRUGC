@@ -10,12 +10,15 @@ import { Testimonials } from "@/features/marketing/testimonials";
 import { ShareCampaignSection } from "@/features/marketing/share-campaign";
 import { Pricing } from "@/features/marketing/pricing";
 import { Faq } from "@/features/marketing/faq";
-import { Cta } from "@/features/marketing/cta";
+import { FeatureStrip } from "@/features/marketing/feature-strip";
+import { CtaBanner } from "@/features/marketing/cta-banner";
 
 export default function HomePage() {
   return (
     <>
       <Hero />
+      <FeatureStrip />
+      <CtaBanner />
       <LogoMarquee />
       <VideoFeed />
       <FeaturedCreators />
@@ -27,7 +30,6 @@ export default function HomePage() {
       <ShareCampaignSection />
       <Pricing />
       <Faq />
-      <Cta />
     </>
   );
 }

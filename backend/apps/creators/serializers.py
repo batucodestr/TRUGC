@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.utils import timezone
+
 from rest_framework import serializers
 
 from apps.common import pricing
@@ -15,6 +17,15 @@ class CategorySerializer(serializers.ModelSerializer):
 
 
 class SocialAccountSerializer(serializers.ModelSerializer):
+    """Sosyal hesap.
+
+    OAuth ile bağlanmış hesapların (``oauth_verified``) takipçi/etkileşim
+    değerleri **yalnızca resmî API'den** gelir; creator bunları elle
+    değiştiremez. Elle eklenen hesaplar doğrulanmamış sayılır.
+    """
+
+    oauth_verified = serializers.SerializerMethodField()
+
     class Meta:
         model = SocialAccount
         fields = [
@@ -24,9 +35,31 @@ class SocialAccountSerializer(serializers.ModelSerializer):
             "profile_url",
             "followers_count",
             "engagement_rate",
+            "reach_count",
             "is_verified",
+            "oauth_verified",
+            "last_synced_at",
         ]
-        read_only_fields = ["id", "is_verified"]
+        read_only_fields = ["id", "is_verified", "reach_count", "last_synced_at"]
+
+    def get_oauth_verified(self, obj):
+        return bool(obj.provider_user_id)
+
+    def validate(self, attrs):
+        if self.instance is not None and self.instance.provider_user_id:
+            for locked in ("followers_count", "engagement_rate", "handle", "platform"):
+                attrs.pop(locked, None)
+        return attrs
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        is_staff = bool(user and user.is_authenticated and (user.is_staff or getattr(user, "role", "") in ("admin", "moderator")))
+        if is_staff:
+            data["is_suspicious"] = instance.is_suspicious
+            data["flag_reason"] = instance.flag_reason
+        return data
 
 
 class PortfolioItemSerializer(serializers.ModelSerializer):
@@ -76,6 +109,47 @@ class CreatorSerializer(serializers.ModelSerializer):
     packages = CreatorPackageSerializer(many=True, read_only=True)
     total_followers = serializers.IntegerField(read_only=True)
     average_engagement_rate = serializers.FloatField(read_only=True)
+    # Güven göstergeleri: tamamlanan iş, zamanında teslim oranı, marka puanı.
+    completed_jobs = serializers.SerializerMethodField()
+    on_time_rate = serializers.SerializerMethodField()
+    average_rating = serializers.SerializerMethodField()
+    review_count = serializers.SerializerMethodField()
+    is_premium = serializers.SerializerMethodField()
+
+    def _stats(self, obj):
+        cache = self.context.setdefault("_creator_stats", {})
+        if obj.pk not in cache:
+            from django.db.models import Avg
+
+            from apps.collaborations.services import creator_stats
+            from apps.reviews.models import Review
+
+            stats = creator_stats(obj)
+            agg = Review.objects.filter(reviewee_id=obj.user_id).aggregate(avg=Avg("rating"))
+            stats["average_rating"] = round(agg["avg"], 2) if agg["avg"] else None
+            stats["review_count"] = Review.objects.filter(reviewee_id=obj.user_id).count()
+            cache[obj.pk] = stats
+        return cache[obj.pk]
+
+    def get_completed_jobs(self, obj):
+        return self._stats(obj)["completed_jobs"]
+
+    def get_on_time_rate(self, obj):
+        return self._stats(obj)["on_time_rate"]
+
+    def get_average_rating(self, obj):
+        return self._stats(obj)["average_rating"]
+
+    def get_review_count(self, obj):
+        return self._stats(obj)["review_count"]
+
+    def get_is_premium(self, obj):
+        from apps.payments.membership import PREMIUM_CREATOR_CODE
+        from apps.payments.models import Membership
+
+        return Membership.objects.filter(user_id=obj.user_id, package_code=PREMIUM_CREATOR_CODE).exclude(
+            expires_at__isnull=True
+        ).filter(expires_at__gt=timezone.now()).exists()
 
     class Meta:
         model = Creator
@@ -96,6 +170,11 @@ class CreatorSerializer(serializers.ModelSerializer):
             "packages",
             "total_followers",
             "average_engagement_rate",
+            "completed_jobs",
+            "on_time_rate",
+            "average_rating",
+            "review_count",
+            "is_premium",
             "created_at",
             "updated_at",
         ]

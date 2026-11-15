@@ -30,6 +30,7 @@ EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 import tempfile  # noqa: E402
 
 MEDIA_ROOT = tempfile.mkdtemp(prefix="trugc-test-media-")
+CAMPAIGN_REQUIRES_APPROVAL = False
 
 # Hafta sonu/hafta içi mantığı takvime bağlı olduğu için, ücretlendirmeye
 # dokunan testler günün hangi gün olduğundan bağımsız olmalıdır: varsayılan

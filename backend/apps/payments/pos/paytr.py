@@ -27,6 +27,7 @@ from .base import CallbackResult, CheckoutSession, PosError, PosProvider, amount
 
 TOKEN_URL = "https://www.paytr.com/odeme/api/get-token"
 PAYMENT_URL = "https://www.paytr.com/odeme/guvenli/{token}"
+REFUND_URL = "https://www.paytr.com/odeme/iade"
 
 
 def _hmac_base64(message: str, key: str) -> str:
@@ -136,3 +137,30 @@ class PayTRProvider(PosProvider):
             },
             response_body="OK",
         )
+
+
+    def refund(self, payment, amount) -> None:
+        """PayTR iade servisi (tam veya kısmi). Başarısızsa ``PosError`` yükseltir.
+
+        İmza: base64(HMAC-SHA256(merchant_id + merchant_oid + return_amount + salt, key)).
+        Alan adları PayTR "İade API" dokümanına göredir; canlıya almadan önce
+        PayTR panelindeki güncel dokümanla bir test iadesiyle doğrulayın.
+        """
+        self.ensure_configured()
+        return_amount = f"{amount:.2f}"
+        token = _hmac_base64(
+            f"{settings.PAYTR_MERCHANT_ID}{payment.merchant_oid}{return_amount}{settings.PAYTR_MERCHANT_SALT}",
+            settings.PAYTR_MERCHANT_KEY,
+        )
+        status, text = http_post(
+            REFUND_URL,
+            {
+                "merchant_id": settings.PAYTR_MERCHANT_ID,
+                "merchant_oid": payment.merchant_oid,
+                "return_amount": return_amount,
+                "paytr_token": token,
+            },
+        )
+        result = parse_json(text)
+        if status != 200 or result.get("status") != "success":
+            raise PosError(f"PayTR iadesi başarısız: {result.get('err_msg') or text[:120]}")

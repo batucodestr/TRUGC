@@ -56,6 +56,7 @@ class PaymentPurpose(models.TextChoices):
     BRAND_ACCESS = "brand_access", _("Brand directory access")
     CAMPAIGN_ESCROW = "campaign_escrow", _("Campaign escrow funding")
     PACKAGE = "package", _("Membership package")
+    COLLABORATION = "collaboration", _("Collaboration payment")
 
 
 class PosPaymentStatus(models.TextChoices):
@@ -104,6 +105,10 @@ class PosPayment(models.Model):
     # (bkz. packages.py). Tutar istemciden değil katalogdan türetilir.
     package_code = models.CharField(max_length=64, blank=True)
     tier_code = models.CharField(max_length=32, blank=True)
+    # ``collaboration`` amacıyla başlatılan ödemelerde ödenen iş birliği.
+    collaboration = models.ForeignKey(
+        "collaborations.Collaboration", on_delete=models.PROTECT, null=True, blank=True, related_name="pos_payments"
+    )
     # Kampanya emanetini fonlayan bir ödemeyse ilgili emanet kaydı.
     transaction = models.ForeignKey(
         Transaction, on_delete=models.SET_NULL, null=True, blank=True, related_name="pos_payments"
@@ -340,3 +345,157 @@ class PaymentDeclaration(models.Model):
 
     def __str__(self):
         return f"PaymentDeclaration<{self.user_id}:{self.amount}:{self.status}>"
+
+
+# ---------------------------------------------------------------------------
+# Marka ödemesi, creator hak edişi ve muhasebe defteri (ledger)
+# ---------------------------------------------------------------------------
+# İki para akışı bilerek AYRI tablolardadır:
+#   1. Creator'ın üyelik ödemesi      → PosPayment(purpose=package) + LedgerEntry
+#   2. Markanın iş birliği ödemesi    → CollaborationPayment (marka tarafı)
+#      Creator'a yapılacak ödeme      → CreatorEarning       (creator tarafı)
+# Para tutma/dağıtma PayTR pazaryeri altyapısındadır; bu tablolar yalnızca
+# platformun kendi kayıtlarıdır, kendi hesabımızda emanet tutmayız.
+
+
+class LedgerEntryType(models.TextChoices):
+    MEMBERSHIP_PAYMENT = "membership_payment", _("Üyelik ödemesi")
+    CAMPAIGN_CHARGE = "campaign_charge", _("Marka iş birliği tahsilatı")
+    PLATFORM_COMMISSION = "platform_commission", _("Platform komisyonu")
+    CREATOR_EARNING = "creator_earning", _("Creator hak edişi")
+    CREATOR_PAYOUT = "creator_payout", _("Creator ödemesi")
+
+
+class LedgerQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        raise ValueError("Defter kayıtları değiştirilemez; ters kayıt açın.")
+
+    def delete(self):
+        raise ValueError("Defter kayıtları silinemez; ters kayıt açın.")
+
+
+class LedgerEntry(models.Model):
+    """Muhasebe defteri satırı. Silinmez, değiştirilmez; düzeltme ters kayıtla yapılır.
+
+    ``amount`` işaretlidir: orijinal kayıt pozitif, ters kayıt (``reverses``
+    dolu) aynı tutarın negatifidir; böylece toplam her zaman net etkiyi verir.
+    Tutarlar KDV dahildir; ``vat_amount`` bunun içindeki KDV payını gösterir.
+    """
+
+    entry_type = models.CharField(max_length=32, choices=LedgerEntryType.choices, db_index=True)
+    party = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="ledger_entries"
+    )
+    #: brand | creator | platform
+    party_role = models.CharField(max_length=16, db_index=True)
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    commission_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    currency = models.CharField(max_length=3, default="TRY")
+    order_no = models.CharField(max_length=64, blank=True, db_index=True, help_text="PayTR merchant_oid veya iç referans.")
+    collaboration = models.ForeignKey(
+        "collaborations.Collaboration", on_delete=models.PROTECT, null=True, blank=True, related_name="ledger_entries"
+    )
+    pos_payment = models.ForeignKey(PosPayment, on_delete=models.PROTECT, null=True, blank=True, related_name="ledger_entries")
+    reverses = models.OneToOneField(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="reversed_by"
+    )
+    status = models.CharField(max_length=16, default="posted")
+    note = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    objects = LedgerQuerySet.as_manager()
+
+    class Meta:
+        db_table = "payments_ledger_entry"
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["party", "entry_type"])]
+
+    def __str__(self):
+        return f"Ledger<{self.entry_type}:{self.amount}:{self.order_no}>"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValueError("Defter kayıtları değiştirilemez; ters kayıt açın.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Defter kayıtları silinemez; ters kayıt açın.")
+
+
+class CollaborationPaymentStatus(models.TextChoices):
+    PENDING = "pending", _("Ödeme bekleniyor")
+    PAID = "paid", _("Ödendi")
+    REFUNDED = "refunded", _("İade edildi")
+    FAILED = "failed", _("Başarısız")
+
+
+class CollaborationPayment(models.Model):
+    """Marka tarafı: bir iş birliği için markanın ödediği tutar."""
+
+    collaboration = models.ForeignKey("collaborations.Collaboration", on_delete=models.PROTECT, related_name="brand_payments")
+    brand_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="brand_payments")
+    #: Creator'a gidecek bütçe.
+    budget_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    #: Markaya eklenen %10 platform komisyonu (creator kazancından kesilmez).
+    commission_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    #: Markadan tahsil edilen toplam (KDV dahil) = bütçe + komisyon.
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    status = models.CharField(
+        max_length=16, choices=CollaborationPaymentStatus.choices, default=CollaborationPaymentStatus.PENDING, db_index=True
+    )
+    pos_payment = models.OneToOneField(PosPayment, on_delete=models.PROTECT, null=True, blank=True, related_name="collaboration_payment")
+    paid_at = models.DateTimeField(null=True, blank=True)
+    refunded_at = models.DateTimeField(null=True, blank=True)
+    refund_reason = models.CharField(max_length=255, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "payments_collaboration_payment"
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["collaboration"],
+                condition=models.Q(status__in=["pending", "paid"]),
+                name="uniq_live_collaboration_payment",
+            )
+        ]
+
+
+class CreatorEarningStatus(models.TextChoices):
+    PAYABLE = "payable", _("Ödenebilir")
+    PAID = "paid", _("Ödendi")
+    CANCELLED = "cancelled", _("İptal / iade")
+
+
+class CreatorEarning(models.Model):
+    """Creator tarafı: bir iş birliğinden creator'ın hak edişi. Marka ödemesi başarıyla alınınca doğar."""
+
+    collaboration = models.OneToOneField("collaborations.Collaboration", on_delete=models.PROTECT, related_name="earning")
+    creator_user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="earnings")
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(
+        max_length=16, choices=CreatorEarningStatus.choices, default=CreatorEarningStatus.PAYABLE, db_index=True
+    )
+    payout_reference = models.CharField(max_length=128, blank=True)
+    paid_out_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "payments_creator_earning"
+        ordering = ["-created_at"]
+
+
+class CreatorPayoutProfile(models.Model):
+    """Creator'ın hak ediş ödemesi için IBAN / PayTR alt üye işyeri bilgisi."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="payout_profile")
+    account_holder = models.CharField(max_length=150)
+    iban = models.CharField(max_length=34)
+    #: PayTR pazaryeri alt üye işyeri kodu (platform transfer açıldığında doldurulur).
+    paytr_submerchant_id = models.CharField(max_length=64, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = "payments_creator_payout_profile"

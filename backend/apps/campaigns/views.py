@@ -1,4 +1,7 @@
+from django.conf import settings
+from django.db import transaction
 from django.db.models import Count, Q
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
@@ -8,11 +11,29 @@ from rest_framework.response import Response
 from apps.accounts.exceptions import error_response
 from apps.accounts.models import log_admin_action
 from apps.accounts.permissions import IsAdminRole, IsBrand, IsModerator, IsOnboarded
+from apps.collaborations.logging import log_status_change
+from apps.collaborations.models import StatusLog
+from apps.notifications.models import NotificationType
+from apps.notifications.services import notify_user
 from apps.payments import membership as membership_rules
 
 from .models import Campaign, CampaignMedia, CampaignRequirement, CampaignStatus
 from .permissions import IsCampaignOwnerOrStaff
 from .serializers import CampaignMediaSerializer, CampaignRequirementSerializer, CampaignSerializer
+
+
+def _is_staff(user) -> bool:
+    return user.is_authenticated and (user.is_staff or getattr(user, "role", "") in ("admin", "moderator"))
+
+
+#: Marka (staff olmayan) kendi kampanyasını yalnızca bu durumlara çekebilir.
+#: "İncelemede" ve "Devam Ediyor" yalnızca sunucu tarafından atanır.
+BRAND_SETTABLE_STATUSES = {
+    CampaignStatus.DRAFT,
+    CampaignStatus.PUBLISHED,
+    CampaignStatus.CANCELLED,
+    CampaignStatus.COMPLETED,
+}
 
 
 class CampaignViewSet(viewsets.ModelViewSet):
@@ -49,9 +70,18 @@ class CampaignViewSet(viewsets.ModelViewSet):
 
         if user.is_authenticated and (user.is_staff or user.role == "moderator" or user.role == "admin"):
             return queryset
+        # Premium kampanyalar yalnızca aktif Premium Creator paketi olanlara
+        # (ve sahibi markaya) görünür; anonim/Classic kullanıcılar listede
+        # göremez ve detaya da ulaşamaz.
+        public = Q(status=CampaignStatus.PUBLISHED)
+        if not (user.is_authenticated and user.role == "creator" and membership_rules.is_premium_creator(user)):
+            public &= Q(is_premium_only=False)
         if user.is_authenticated and user.role == "brand":
-            return queryset.filter(Q(status=CampaignStatus.PUBLISHED) | Q(brand__user=user))
-        return queryset.filter(status=CampaignStatus.PUBLISHED)
+            return queryset.filter(public | Q(brand__user=user))
+        if user.is_authenticated and user.role == "creator":
+            # Başvuru yaptığı kampanya, sonradan "Devam Ediyor" olsa da görünür kalır.
+            return queryset.filter(public | Q(applications__creator__user=user, applications__awaiting_payment=False)).distinct()
+        return queryset.filter(public)
 
     def get_permissions(self):
         # "İş verme" yolundaki her yazma işlemi, zorunlu kullanıcı akışının
@@ -61,8 +91,10 @@ class CampaignViewSet(viewsets.ModelViewSet):
             return [permissions.IsAuthenticated(), IsBrand(), IsOnboarded()]
         if self.action in ("update", "partial_update", "destroy"):
             return [permissions.IsAuthenticated(), IsCampaignOwnerOrStaff(), IsOnboarded()]
-        if self.action == "bulk":
+        if self.action in ("bulk", "approve", "reject"):
             return [permissions.IsAuthenticated(), (IsAdminRole | IsModerator)()]
+        if self.action == "recommended":
+            return [permissions.IsAuthenticated()]
         return [permissions.AllowAny()]
 
     def create(self, request, *args, **kwargs):
@@ -92,9 +124,24 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if not hasattr(self.request.user, "brand"):
             raise PermissionDenied("Only brands with a company profile can create campaigns.")
         if getattr(self, "_hold_for_payment", False):
-            serializer.save(status=CampaignStatus.DRAFT, awaiting_payment=True)
-            return
-        serializer.save()
+            campaign = serializer.save(status=CampaignStatus.DRAFT, awaiting_payment=True)
+        else:
+            requested = serializer.validated_data.get("status", CampaignStatus.DRAFT)
+            if requested not in BRAND_SETTABLE_STATUSES:
+                requested = CampaignStatus.DRAFT
+            campaign = serializer.save(status=self._publication_status(self.request.user, requested))
+        log_status_change(StatusLog.ENTITY_CAMPAIGN, campaign, "", campaign.status, actor=self.request.user)
+
+    @staticmethod
+    def _publication_status(user, requested):
+        """Yayınlanmak istenen ilan, onay açıksa önce "İncelemede" olur (admin kendisi yayınlayabilir)."""
+        if (
+            requested == CampaignStatus.PUBLISHED
+            and getattr(settings, "CAMPAIGN_REQUIRES_APPROVAL", False)
+            and not _is_staff(user)
+        ):
+            return CampaignStatus.IN_REVIEW
+        return requested
 
     def update(self, request, *args, **kwargs):
         """Taslağı yayına almak da yeni ilan vermek sayılır: aynı paket kuralı.
@@ -114,11 +161,24 @@ class CampaignViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
     def perform_update(self, serializer):
+        user = self.request.user
+        old_status = serializer.instance.status
+        if "status" in serializer.validated_data and not _is_staff(user):
+            requested = serializer.validated_data["status"]
+            if requested not in BRAND_SETTABLE_STATUSES and requested != old_status:
+                raise PermissionDenied("Bu durum yalnızca sistem tarafından atanabilir.")
+            # İncelemedeki ilanı marka kendisi yayına alamaz; onay admin'dedir.
+            if old_status == CampaignStatus.IN_REVIEW and requested == CampaignStatus.PUBLISHED:
+                requested = CampaignStatus.IN_REVIEW
+            elif requested == CampaignStatus.PUBLISHED and old_status != CampaignStatus.PUBLISHED:
+                requested = self._publication_status(user, requested)
+            serializer.validated_data["status"] = requested
         # Marka ilanı kendisi kapatır veya yayına alırsa artık ödeme sonrası
         # otomatik yayına girecek bir ilan değildir.
         if "status" in serializer.validated_data and serializer.instance.awaiting_payment:
             serializer.validated_data["awaiting_payment"] = False
         campaign = serializer.save()
+        log_status_change(StatusLog.ENTITY_CAMPAIGN, campaign, old_status, campaign.status, actor=user)
         if self.request.user.is_staff or self.request.user.role in ("admin", "moderator"):
             log_admin_action(
                 self.request.user, "campaign.update", "campaign", campaign.id, f"status={campaign.status}"
@@ -128,6 +188,50 @@ class CampaignViewSet(viewsets.ModelViewSet):
         if self.request.user.is_staff or self.request.user.role in ("admin", "moderator"):
             log_admin_action(self.request.user, "campaign.delete", "campaign", instance.id, instance.title)
         instance.delete()
+
+    def _review(self, request, new_status, title, body_tpl):
+        campaign = self.get_object()
+        if campaign.status != CampaignStatus.IN_REVIEW:
+            return error_response("NOT_IN_REVIEW", "Kampanya incelemede değil.", status.HTTP_400_BAD_REQUEST)
+        note = str(request.data.get("note", ""))[:255]
+        if new_status == CampaignStatus.CANCELLED and not note:
+            return error_response("NOTE_REQUIRED", "Red gerekçesi yazın.", status.HTTP_400_BAD_REQUEST)
+        old = campaign.status
+        campaign.status = new_status
+        campaign.review_note = note
+        campaign.save(update_fields=["status", "review_note", "updated_at"])
+        log_status_change(StatusLog.ENTITY_CAMPAIGN, campaign, old, new_status, actor=request.user, note=note)
+        log_admin_action(request.user, f"campaign.{'approve' if new_status == CampaignStatus.PUBLISHED else 'reject'}",
+                         "campaign", campaign.id, note)
+        notify_user(user=campaign.brand.user, title=title, body=body_tpl.format(title=campaign.title, note=note),
+                    notification_type=NotificationType.CAMPAIGN, link="/dashboard/brand/campaigns")
+        return Response(self.get_serializer(campaign).data)
+
+    @action(detail=True, methods=["post"])
+    def approve(self, request, pk=None):
+        """Admin/moderatör: İncelemede → Yayında."""
+        return self._review(request, CampaignStatus.PUBLISHED, "Kampanyanız onaylandı",
+                            '"{title}" kampanyanız yayına alındı ve creator\'lara gösteriliyor.')
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        """Admin/moderatör: İncelemede → İptal (gerekçe zorunlu)."""
+        return self._review(request, CampaignStatus.CANCELLED, "Kampanyanız reddedildi",
+                            '"{title}" kampanyanız onaylanmadı. Gerekçe: {note}')
+
+    @action(detail=False, methods=["get"])
+    def recommended(self, request):
+        """Creator'a uygun kampanyalar: kategori veya platform eşleşmesi (premium kuralı queryset'te)."""
+        creator = getattr(request.user, "creator", None)
+        queryset = self.get_queryset().filter(status=CampaignStatus.PUBLISHED)
+        if creator is not None:
+            platforms = list(creator.social_accounts.values_list("platform", flat=True))
+            category_ids = list(creator.categories.values_list("id", flat=True))
+            queryset = queryset.exclude(applications__creator=creator)
+            matched = queryset.filter(Q(categories__in=category_ids) | Q(platform__in=platforms)).distinct()
+            if matched.exists():
+                queryset = matched
+        return Response(self.get_serializer(queryset[:8], many=True).data)
 
     @action(detail=False, methods=["post"])
     def bulk(self, request):

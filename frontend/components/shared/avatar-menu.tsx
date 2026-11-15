@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LayoutDashboard, LogOut, Settings, User } from "lucide-react";
+import { ChevronDown, LayoutDashboard, LogOut, Settings, User } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,12 +56,16 @@ export function AvatarMenu({ name, avatarUrl, role }: AvatarMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-10 gap-2 rounded-full pl-1 pr-3">
-          <Avatar className="h-8 w-8">
+        <Button variant="ghost" className="h-12 gap-3 rounded-2xl border border-border bg-white/[0.03] pl-1.5 pr-3 hover:bg-white/[0.07]">
+          <Avatar className="h-9 w-9">
             <AvatarImage src={avatarUrl} alt={name} />
-            <AvatarFallback>{initials}</AvatarFallback>
+            <AvatarFallback className="bg-gradient-brand font-bold text-white">{initials}</AvatarFallback>
           </Avatar>
-          <span className="hidden text-sm font-medium sm:inline">{name}</span>
+          <span className="hidden flex-col items-start text-left leading-tight sm:flex">
+            <span className="max-w-[140px] truncate text-sm font-bold">{name}</span>
+            <span className="text-xs font-normal text-text-soft">{ROLE_LABEL_TR[role]}</span>
+          </span>
+          <ChevronDown className="hidden h-4 w-4 text-text-soft sm:block" aria-hidden />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">

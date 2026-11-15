@@ -37,7 +37,7 @@ export function BrandCard({ brand }: { brand: Brand }) {
           )}
           <p className="mt-2 flex items-center gap-1 text-center font-semibold leading-tight">
             {brand.name}
-            {brand.verified && <BadgeCheck className="h-4 w-4 fill-violet-500 text-white" />}
+            {brand.verified && <BadgeCheck className="h-4 w-4 fill-verified text-white" />}
           </p>
           <p className="text-xs text-muted-foreground">{industryLabel(brand.industry)}</p>
 

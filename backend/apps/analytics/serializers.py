@@ -8,6 +8,12 @@ class BrandDashboardSerializer(serializers.Serializer):
     accepted_applicants = serializers.IntegerField()
     total_budget_committed = serializers.FloatField()
     average_rating = serializers.FloatField()
+    # Panel grafiği ve değişim yüzdeleri (son 30 gün / önceki 30 gün).
+    estimated_reach = serializers.IntegerField()
+    reach_series = serializers.ListField(child=serializers.DictField())
+    applicants_trend_pct = serializers.IntegerField(allow_null=True)
+    accepted_trend_pct = serializers.IntegerField(allow_null=True)
+    active_campaigns_delta = serializers.IntegerField()
 
 
 class CreatorDashboardSerializer(serializers.Serializer):
@@ -18,6 +24,13 @@ class CreatorDashboardSerializer(serializers.Serializer):
     total_followers = serializers.IntegerField()
     average_engagement_rate = serializers.FloatField()
     average_rating = serializers.FloatField()
+    active_collaborations = serializers.IntegerField()
+    total_reach = serializers.IntegerField()
+    earnings_this_month = serializers.FloatField()
+    earnings_trend_pct = serializers.IntegerField(allow_null=True)
+    monthly_earnings = serializers.ListField(child=serializers.DictField())
+    applications_trend_pct = serializers.IntegerField(allow_null=True)
+    profile_completion = serializers.DictField()
 
 
 class AdminDashboardSerializer(serializers.Serializer):

@@ -32,6 +32,14 @@ urlpatterns = [
         views.PaymentDeclarationReviewView.as_view(),
         name="declaration-review",
     ),
+    # Marka ödemeleri / creator kazançları / defter / iade
+    path("me/brand-payments/", views.MyBrandPaymentsView.as_view(), name="my-brand-payments"),
+    path("me/earnings/", views.MyEarningsView.as_view(), name="my-earnings"),
+    path("me/payout-profile/", views.MyPayoutProfileView.as_view(), name="my-payout-profile"),
+    path("admin/earnings/", views.AdminEarningListView.as_view(), name="admin-earning-list"),
+    path("admin/ledger/", views.AdminLedgerView.as_view(), name="admin-ledger"),
+    path("admin/earnings/<int:pk>/payout/", views.AdminEarningPayoutView.as_view(), name="admin-earning-payout"),
+    re_path(r"^admin/refund/(?P<kind>collaboration|membership)/(?P<pk>\d+)/$", views.AdminRefundView.as_view(), name="admin-refund"),
     path("pos/<str:merchant_oid>/", views.PosPaymentDetailView.as_view(), name="pos-payment-detail"),
     *router.urls,
 ]

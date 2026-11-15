@@ -46,7 +46,7 @@ export default async function BrandProfilePage({ params }: { params: Promise<{ s
             <div className="pb-1">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{brand.name}</h1>
-                {brand.verified && <BadgeCheck className="h-6 w-6 fill-violet-600 text-white" />}
+                {brand.verified && <BadgeCheck className="h-6 w-6 fill-verified text-white" />}
               </div>
               <p className="text-muted-foreground">{industryLabel(brand.industry)}</p>
             </div>

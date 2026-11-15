@@ -14,6 +14,13 @@ export function formatCompactNumber(value: number): string {
   );
 }
 
+/** Tasarımdaki kısa gösterim: 120K, 2.4M (tr-TR'nin "B/Mn" kısaltmaları yerine). */
+export function formatShortNumber(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1).replace(/\.0$/, "")}K`;
+  return String(Math.round(value));
+}
+
 export function formatCurrency(value: number, opts?: { compact?: boolean }): string {
   if (opts?.compact) {
     return new Intl.NumberFormat("tr-TR", {

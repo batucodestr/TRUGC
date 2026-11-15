@@ -15,7 +15,9 @@ import { CampaignStatusBadge } from "@/features/campaigns/campaign-status-badge"
 import { EmptyState } from "@/components/shared/empty-state";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { PaginationControls } from "@/components/shared/pagination-controls";
-import { listCampaignsPaginated, bulkCampaignAction } from "@/lib/api/campaigns";
+import { listCampaignsPaginated, bulkCampaignAction, reviewCampaign } from "@/lib/api/campaigns";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { getErrorMessage } from "@/lib/error-message";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import { formatBudgetRange, formatCurrency, formatDate } from "@/lib/format";
@@ -31,6 +33,20 @@ export function CampaignManagementTable() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<"all" | CampaignStatus>("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [rejecting, setRejecting] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
+
+  async function decide(id: string, decision: "approve" | "reject", note = "") {
+    try {
+      await reviewCampaign(id, decision, note);
+      toast.success(decision === "approve" ? "Kampanya yayına alındı" : "Kampanya reddedildi");
+      setRejecting(null);
+      setRejectNote("");
+      await load();
+    } catch (err) {
+      toast.error("İşlem başarısız", { description: getErrorMessage(err) });
+    }
+  }
   const [confirm, setConfirm] = useState<{ action: "unpublish" | "close" | "delete"; ids: string[] } | null>(null);
   const [confirmLoading, setConfirmLoading] = useState(false);
 
@@ -104,6 +120,7 @@ export function CampaignManagementTable() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Tüm durumlar</SelectItem>
+            <SelectItem value="in_review">İncelemede</SelectItem>
             <SelectItem value="draft">Taslak</SelectItem>
             <SelectItem value="published">Yayında</SelectItem>
             <SelectItem value="in_progress">Devam ediyor</SelectItem>
@@ -147,12 +164,13 @@ export function CampaignManagementTable() {
                   <TableHead>Bütçe</TableHead>
                   <TableHead>Başvuranlar</TableHead>
                   <TableHead>Oluşturulma</TableHead>
+                  <TableHead className="text-right">İşlem</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></TableCell>
+                    <TableCell colSpan={8} className="py-10 text-center"><Loader2 className="mx-auto h-5 w-5 animate-spin text-muted-foreground" /></TableCell>
                   </TableRow>
                 ) : (
                   campaigns.map((campaign) => (
@@ -177,6 +195,14 @@ export function CampaignManagementTable() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{campaign.applicantsCount ?? "—"}</TableCell>
                       <TableCell className="text-muted-foreground">{formatDate(campaign.createdAt)}</TableCell>
+                      <TableCell className="text-right">
+                        {campaign.status === "in_review" && (
+                          <div className="flex justify-end gap-2">
+                            <Button size="sm" onClick={() => decide(campaign.id, "approve")}>Onayla</Button>
+                            <Button size="sm" variant="outline" onClick={() => setRejecting(campaign.id)}>Reddet</Button>
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}
@@ -186,6 +212,19 @@ export function CampaignManagementTable() {
           <PaginationControls page={page} pageSize={PAGE_SIZE} totalCount={count} onPageChange={setPage} />
         </Card>
       )}
+
+      <Dialog open={rejecting !== null} onOpenChange={(o) => !o && setRejecting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Kampanyayı reddet</DialogTitle>
+            <DialogDescription>Gerekçe markaya bildirim olarak iletilir.</DialogDescription>
+          </DialogHeader>
+          <Textarea rows={3} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="Red gerekçesi" />
+          <DialogFooter>
+            <Button disabled={!rejectNote.trim()} onClick={() => rejecting && decide(rejecting, "reject", rejectNote)}>Reddet</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirm !== null}

@@ -14,7 +14,7 @@ from apps.payments import membership as membership_rules
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 
-from .models import Conversation, Message
+from .models import Conversation, Message, UserBlock, is_blocked_between
 from .permissions import IsConversationParticipant
 from .serializers import AdminConversationSerializer, ConversationSerializer, MessageSerializer
 
@@ -45,6 +45,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
             membership_rules.check_messaging(request.user, others)
         except membership_rules.MembershipRequired as exc:
             return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        if is_blocked_between(request.user, others):
+            return error_response("BLOCKED", "Bu kullanıcıyla mesajlaşamazsınız.", status.HTTP_403_FORBIDDEN)
         return super().create(request, *args, **kwargs)
 
 
@@ -74,6 +76,8 @@ class MessageViewSet(viewsets.ModelViewSet):
             membership_rules.check_messaging(request.user, conversation.participants.exclude(pk=request.user.pk))
         except membership_rules.MembershipRequired as exc:
             return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        if is_blocked_between(request.user, conversation.participants.exclude(pk=request.user.pk)):
+            return error_response("BLOCKED", "Bu kullanıcıyla mesajlaşamazsınız.", status.HTTP_403_FORBIDDEN)
         return super().create(request, *args, **kwargs)
 
     def perform_create(self, serializer):
@@ -149,4 +153,29 @@ class AdminMessageActionView(APIView):
         message = get_object_or_404(Message, pk=pk)
         log_admin_action(request.user, "message.delete", "message", pk, message.body[:100])
         message.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BlockListView(APIView):
+    """Engellenen kullanıcılar: listele / engelle (POST {user_id})."""
+
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        ids = UserBlock.objects.filter(blocker=request.user).values_list("blocked_id", flat=True)
+        return Response({"blocked_user_ids": list(ids)})
+
+    def post(self, request):
+        target = get_object_or_404(User, pk=request.data.get("user_id") or 0)
+        if target.pk == request.user.pk:
+            return error_response("VALIDATION_ERROR", "Kendinizi engelleyemezsiniz.", status.HTTP_400_BAD_REQUEST)
+        UserBlock.objects.get_or_create(blocker=request.user, blocked=target)
+        return Response({"blocked": True}, status=status.HTTP_201_CREATED)
+
+
+class BlockDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, user_id):
+        UserBlock.objects.filter(blocker=request.user, blocked_id=user_id).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

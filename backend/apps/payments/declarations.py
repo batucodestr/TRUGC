@@ -186,7 +186,14 @@ def approve_declaration(declaration: PaymentDeclaration, *, actor, note="", assi
             declaration.tier_code,
             actor=actor,
             charge_wallet=True,
+            carry_over=True,
             note=f"{declaration.package_name} · {declaration.tier_label}",
+        )
+        from .ledger import record_membership_payment
+
+        record_membership_payment(
+            declaration.user, declaration.amount, order_no=f"DECL{declaration.pk}",
+            note=f"{declaration.package_name} · {declaration.tier_label} (havale/EFT)",
         )
 
     declaration.status = PaymentDeclarationStatus.APPROVED

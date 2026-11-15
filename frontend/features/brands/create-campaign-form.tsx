@@ -60,6 +60,7 @@ export function CreateCampaignForm() {
   // söylemek için durum sunucudan okunur; okunamazsa uyarı gösterilmez,
   // akış yine sunucunun yanıtına göre yürür.
   const [needsPayment, setNeedsPayment] = useState(false);
+  const [premiumOnly, setPremiumOnly] = useState(false);
 
   useEffect(() => {
     getMyWallet().then((wallet) => setNeedsPayment(Boolean(wallet?.gates.campaignNeedsPayment)));
@@ -89,6 +90,7 @@ export function CreateCampaignForm() {
         requirements,
         deadline: new Date(deadline).toISOString(),
         status: "published",
+        isPremiumOnly: premiumOnly,
       });
       if (created.awaitingPayment) {
         // İlan kaydedildi ama paket yok: ödeme ekranına geçilir, ödeme
@@ -99,7 +101,12 @@ export function CreateCampaignForm() {
         router.push(`/dashboard/brand/odeme?campaign=${encodeURIComponent(title)}`);
         return;
       }
-      toast.success("Kampanya oluşturuldu!", { description: `"${title}" artık yayında ve başvuru kabul ediyor.` });
+      if (created.status === "in_review") {
+        // Admin onayı açık: ilan önce "İncelemede" olur, onaylanınca yayına girer.
+        toast.success("Kampanyanız incelemeye gönderildi", { description: "Onaylandığında yayına alınacak ve size bildirim gelecek." });
+      } else {
+        toast.success("Kampanya oluşturuldu!", { description: `"${title}" artık yayında ve başvuru kabul ediyor.` });
+      }
       router.push("/dashboard/brand/campaigns");
     } catch (err) {
       // 402 = paket var ama aktif kampanya limiti dolu.
@@ -218,7 +225,14 @@ export function CreateCampaignForm() {
             </div>
           </div>
           <Separator className="my-5" />
-          <Button type="submit" size="lg" disabled={!isValid || submitting} className="w-full gap-2 rounded-full bg-gradient-brand hover:opacity-90">
+          <label className="mb-4 flex cursor-pointer items-start gap-2.5 text-sm">
+            <input type="checkbox" checked={premiumOnly} onChange={(e) => setPremiumOnly(e.target.checked)} className="mt-0.5 size-4 accent-[#8b3dff]" />
+            <span>
+              <span className="font-semibold text-white">Yalnızca Premium Creator&apos;lara göster</span>
+              <span className="block text-xs text-text-soft">Premium paketi olan creator&apos;lar başvurabilir.</span>
+            </span>
+          </label>
+          <Button type="submit" size="lg" disabled={!isValid || submitting} className="w-full gap-2">
             <Rocket className="h-4 w-4" />{" "}
             {submitting ? "Gönderiliyor..." : needsPayment ? "Kaydet ve ödemeye geç" : "Kampanyayı yayınla"}
           </Button>

@@ -87,7 +87,7 @@ export function bucketTransactionsByMonth(transactions: ApiTransaction[], status
 // bilgisi ne bu uygulamaya ne de TRUGC sunucusuna girer. Burada yalnızca
 // ödeme oturumu başlatılır ve durumu sunucudan yoklanır.
 
-export type PosPaymentPurpose = "brand_access" | "campaign_escrow" | "package";
+export type PosPaymentPurpose = "brand_access" | "campaign_escrow" | "package" | "collaboration";
 
 export interface PosCheckoutResult {
   merchant_oid: string;
@@ -151,4 +151,87 @@ export async function getPosPayment(merchantOid: string): Promise<PosPaymentReco
 
 export async function listPosPayments(): Promise<PosPaymentRecord[]> {
   return apiClient.get<PosPaymentRecord[]>(ENDPOINTS.posPayments);
+}
+
+
+/** Markanın onayladığı iş birliği için ödemeyi başlatır. Tutar (bütçe + %10 komisyon) sunucuda hesaplanır. */
+export async function startCollaborationCheckout(collaborationId: number | string): Promise<PosCheckoutResult> {
+  return apiClient.post<PosCheckoutResult>(ENDPOINTS.posCheckout, {
+    purpose: "collaboration",
+    collaboration_id: Number(collaborationId),
+  });
+}
+
+// --- Marka ödemeleri / creator kazançları (ayrı tablolar) ---
+
+export interface BrandPaymentRow {
+  id: number;
+  collaboration: number;
+  campaign_title: string;
+  creator_name: string;
+  collaboration_status: string;
+  budget_amount: string;
+  commission_amount: string;
+  vat_amount: string;
+  total_amount: string;
+  status: "pending" | "paid" | "refunded" | "failed";
+  paid_at: string | null;
+  created_at: string;
+}
+
+export interface BrandPayments {
+  totals: { total: string; commission: string; vat: string };
+  pending_count: number;
+  results: BrandPaymentRow[];
+}
+
+export const BRAND_PAYMENT_STATUS_TR: Record<BrandPaymentRow["status"], string> = {
+  pending: "Ödeme bekleniyor",
+  paid: "Ödendi",
+  refunded: "İade edildi",
+  failed: "Başarısız",
+};
+
+export async function getMyBrandPayments(): Promise<BrandPayments> {
+  return apiClient.get<BrandPayments>(ENDPOINTS.myBrandPayments);
+}
+
+export interface EarningRow {
+  id: number;
+  collaboration: number;
+  campaign_title: string;
+  brand_name: string;
+  amount: string;
+  status: "payable" | "paid" | "cancelled";
+  paid_out_at: string | null;
+  created_at: string;
+}
+
+export interface MyEarnings {
+  totals: { total: string; payable: string; paid: string };
+  monthly: { month: string; total: string }[];
+  results: EarningRow[];
+}
+
+export const EARNING_STATUS_TR: Record<EarningRow["status"], string> = {
+  payable: "Ödeme bekliyor",
+  paid: "Hesabınıza aktarıldı",
+  cancelled: "İptal / iade",
+};
+
+export async function getMyEarnings(): Promise<MyEarnings> {
+  return apiClient.get<MyEarnings>(ENDPOINTS.myEarnings);
+}
+
+export interface PayoutProfile {
+  account_holder: string;
+  iban: string;
+}
+
+export async function getMyPayoutProfile(): Promise<PayoutProfile | null> {
+  return apiClient.get<PayoutProfile | null>(ENDPOINTS.myPayoutProfile);
+}
+
+export async function saveMyPayoutProfile(input: PayoutProfile): Promise<PayoutProfile> {
+  return apiClient.put<PayoutProfile>(ENDPOINTS.myPayoutProfile, input);
 }

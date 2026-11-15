@@ -22,6 +22,26 @@ from .models import Event, EventType
 from .serializers import AdminDashboardSerializer, BrandDashboardSerializer, CreatorDashboardSerializer
 
 
+def _trend_pct(current: int, previous: int):
+    """Önceki döneme göre yüzde değişim; önceki dönem 0 ise anlamlı bir yüzde yoktur (None)."""
+    if previous <= 0:
+        return None
+    return round((current - previous) * 100 / previous)
+
+
+def _brand_reach(brand, since=None, until=None) -> int:
+    """Kabul edilen creator'ların toplam takipçisi (tahmini erişim)."""
+    qs = Application.objects.filter(campaign__brand=brand, status=ApplicationStatus.ACCEPTED, awaiting_payment=False)
+    if since is not None:
+        qs = qs.filter(reviewed_at__gte=since)
+    if until is not None:
+        qs = qs.filter(reviewed_at__lt=until)
+    total = 0
+    for app in qs.select_related("creator").prefetch_related("creator__social_accounts"):
+        total += app.creator.total_followers
+    return total
+
+
 class BrandDashboardView(APIView):
     permission_classes = [IsAuthenticated, IsBrand]
 
@@ -34,7 +54,35 @@ class BrandDashboardView(APIView):
             total=Sum("budget_max")
         )["total"] or 0
 
+        now = timezone.now()
+        d30, d60 = now - datetime.timedelta(days=30), now - datetime.timedelta(days=60)
+        recent_apps = applications.filter(created_at__gte=d30).count()
+        prev_apps = applications.filter(created_at__gte=d60, created_at__lt=d30).count()
+        recent_acc = applications.filter(status=ApplicationStatus.ACCEPTED, reviewed_at__gte=d30).count()
+        prev_acc = applications.filter(status=ApplicationStatus.ACCEPTED, reviewed_at__gte=d60, reviewed_at__lt=d30).count()
+        # Günlük birikimli tahmini erişim (son 30 gün): her gün o güne kadar kabul edilenlerin takipçi toplamı.
+        accepted = list(
+            applications.filter(status=ApplicationStatus.ACCEPTED, reviewed_at__isnull=False)
+            .select_related("creator")
+            .prefetch_related("creator__social_accounts")
+        )
+        base = sum(a.creator.total_followers for a in accepted if a.reviewed_at < d30)
+        by_day = {}
+        for a in accepted:
+            if a.reviewed_at >= d30:
+                by_day[a.reviewed_at.date()] = by_day.get(a.reviewed_at.date(), 0) + a.creator.total_followers
+        series, running = [], base
+        for offset in range(29, -1, -1):
+            day = (now - datetime.timedelta(days=offset)).date()
+            running += by_day.get(day, 0)
+            series.append({"date": day.isoformat(), "reach": running})
+
         data = {
+            "estimated_reach": running,
+            "reach_series": series,
+            "applicants_trend_pct": _trend_pct(recent_apps, prev_apps),
+            "accepted_trend_pct": _trend_pct(recent_acc, prev_acc),
+            "active_campaigns_delta": campaigns.filter(status=CampaignStatus.PUBLISHED, created_at__gte=d30).count(),
             "active_campaigns": campaigns.filter(status=CampaignStatus.PUBLISHED).count(),
             "total_campaigns": campaigns.count(),
             "total_applicants": applications.count(),
@@ -59,11 +107,48 @@ class CreatorDashboardView(APIView):
             event_type=EventType.PROFILE_VIEW, target_content_type="creator", target_id=creator.id
         ).count()
 
+        from apps.collaborations.models import Collaboration, CollaborationStatus
+        from apps.payments.models import CreatorEarning, CreatorEarningStatus
+
+        now = timezone.now()
+        d30, d60 = now - datetime.timedelta(days=30), now - datetime.timedelta(days=60)
+        live = CreatorEarning.objects.filter(creator_user=request.user).exclude(status=CreatorEarningStatus.CANCELLED)
+        new_earnings = live.aggregate(total=Sum("amount"))["total"] or 0
+        this_month = live.filter(created_at__gte=d30).aggregate(total=Sum("amount"))["total"] or 0
+        prev_month = live.filter(created_at__gte=d60, created_at__lt=d30).aggregate(total=Sum("amount"))["total"] or 0
+        monthly = []
+        for back in range(5, -1, -1):
+            first = (now.replace(day=1, hour=0, minute=0, second=0, microsecond=0) - datetime.timedelta(days=30 * back)).replace(day=1)
+            nxt = (first + datetime.timedelta(days=32)).replace(day=1)
+            total = live.filter(created_at__gte=first, created_at__lt=nxt).aggregate(t=Sum("amount"))["t"] or 0
+            monthly.append({"month": first.strftime("%Y-%m"), "total": float(total)})
+        accounts = list(creator.social_accounts.all())
+        reach = sum(a.reach_count for a in accounts) or creator.total_followers
+        profile = request.user.profile
+        checks = {
+            "basic": bool(creator.display_name and creator.bio and getattr(profile, "avatar", None)),
+            "social": bool(accounts),
+            "portfolio": creator.portfolio_items.count() >= 3,
+            "stats": any(a.provider_user_id for a in accounts),
+        }
+        completion = {"percent": 25 * sum(checks.values()), **checks}
+        recent_apps = applications.filter(created_at__gte=d30).count()
+        prev_apps = applications.filter(created_at__gte=d60, created_at__lt=d30).count()
+
         data = {
+            "active_collaborations": Collaboration.objects.filter(creator=creator).exclude(
+                status__in=[CollaborationStatus.PAID, CollaborationStatus.CANCELLED]
+            ).count(),
+            "total_reach": reach,
+            "earnings_this_month": float(this_month),
+            "earnings_trend_pct": _trend_pct(int(this_month), int(prev_month)),
+            "monthly_earnings": monthly,
+            "applications_trend_pct": _trend_pct(recent_apps, prev_apps),
+            "profile_completion": completion,
             "collaborations": applications.filter(status=ApplicationStatus.ACCEPTED).count(),
             "total_applications_sent": applications.count(),
             "profile_views": profile_views,
-            "earnings": float(earnings),
+            "earnings": float(earnings) + float(new_earnings),
             "total_followers": creator.total_followers,
             "average_engagement_rate": creator.average_engagement_rate,
             "average_rating": round(avg_rating, 2),

@@ -1,82 +1,58 @@
-import { CreditCard, Wallet } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { CreditCard, Percent, Wallet } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StatsCard } from "@/components/Cards/StatsCard";
-import { AnalyticsChart } from "@/components/shared/analytics-chart";
-import { EmptyState } from "@/components/shared/empty-state";
-import { listTransactions, bucketTransactionsByMonth, TRANSACTION_STATUS_LABEL_TR, TRANSACTION_STATUS_STYLE } from "@/lib/api/finance";
-import { formatCurrency, formatDate } from "@/lib/format";
-import { FreePeriodBanner, PaidPeriodNotice } from "@/components/shared/free-period-banner";
 import { BrandAccessPurchase } from "@/features/brands/brand-access-purchase";
-import { cn } from "@/lib/utils";
+import { getMyBrandPayments, BRAND_PAYMENT_STATUS_TR, type BrandPaymentRow } from "@/lib/api/finance";
+import { formatCurrency, formatDate } from "@/lib/format";
 
+const VARIANT: Record<BrandPaymentRow["status"], "success" | "info" | "neutral" | "premium"> = {
+  paid: "success", pending: "info", refunded: "neutral", failed: "premium",
+};
+
+/** Marka "Ödemeler": iş birliği ödemeleri (bütçe + %10 komisyon, KDV dahil). Creator hak edişlerinden ayrı tablodur. */
 export default async function BrandPaymentsPage() {
-  const transactions = await listTransactions();
-  const totalSpent = transactions.reduce((s, t) => s + parseFloat(t.amount), 0);
-  const pending = transactions
-    .filter((t) => t.status === "pending" || t.status === "held_in_escrow")
-    .reduce((s, t) => s + parseFloat(t.amount), 0);
-  const monthlySpend = bucketTransactionsByMonth(transactions);
-
+  const data = await getMyBrandPayments();
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Ödemeler</h1>
-        <p className="text-muted-foreground">Kampanya bütçelerinizi ve ödeme geçmişinizi yönetin.</p>
-        <PaidPeriodNotice className="mt-1" />
+        <h1 className="text-3xl font-extrabold tracking-tight text-white">Ödemeler</h1>
+        <p className="mt-1 text-text-soft">İş birliği ödemeleriniz: creator bütçesi + %10 platform komisyonu (tutarlar KDV dahildir).</p>
       </div>
 
-      {/* Hafta sonu ücretsiz dönemde ödeme akışı tamamen kapalıdır; bu afiş
-          yalnızca o dönemde görünür (bkz. components/Pricing/PricingProvider). */}
-      <FreePeriodBanner />
-
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatsCard label="Toplam harcama" value={formatCurrency(totalSpent, { compact: true })} icon={Wallet} />
-        <StatsCard label="Bekleyen ödemeler" value={formatCurrency(pending, { compact: true })} icon={CreditCard} />
-        {/* Eskiden burada sabit kodlanmış, hiçbir şeye bağlı olmayan bir
-            "Visa •••• 4242" kartı duruyordu. Yerine gerçek sanal POS satın
-            alma akışı geldi (bkz. features/brands/brand-access-purchase.tsx). */}
+        <StatsCard label="Toplam Ödenen" value={formatCurrency(Number(data.totals.total))} icon={Wallet} />
+        <StatsCard label="Platform Komisyonu" value={formatCurrency(Number(data.totals.commission))} icon={Percent} />
         <BrandAccessPurchase />
       </div>
 
-      <Card className="rounded-2xl border-border/70">
-        <CardHeader>
-          <CardTitle className="text-base">Zaman içinde harcama</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {monthlySpend.length > 0 ? (
-            <AnalyticsChart data={monthlySpend} className="h-56 w-full" />
-          ) : (
-            <EmptyState title="Yeterli veri yok" description="Harcama grafiği için henüz yeterli işlem geçmişi bulunmuyor." className="h-56" />
-          )}
-        </CardContent>
-      </Card>
+      {data.pending_count > 0 && (
+        <Card className="border-brand-light/40">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-5">
+            <p className="flex items-center gap-2 text-white"><CreditCard className="h-5 w-5 text-brand-light" aria-hidden /> Ödeme bekleyen {data.pending_count} iş birliğiniz var.</p>
+            <Button asChild><Link href="/dashboard/brand/collaborations">İş Birliklerine Git</Link></Button>
+          </div>
+        </Card>
+      )}
 
-      <Card className="overflow-hidden rounded-2xl border-border/70 p-0">
+      <Card className="p-0">
         <div className="overflow-x-auto">
           <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Alıcı</TableHead>
-                <TableHead>Tarih</TableHead>
-                <TableHead>Durum</TableHead>
-                <TableHead className="text-right">Tutar</TableHead>
-              </TableRow>
-            </TableHeader>
+            <TableHeader><TableRow><TableHead>Kampanya</TableHead><TableHead>Creator</TableHead><TableHead>Tarih</TableHead><TableHead>Durum</TableHead><TableHead className="text-right">Bütçe</TableHead><TableHead className="text-right">Komisyon</TableHead><TableHead className="text-right">Toplam</TableHead></TableRow></TableHeader>
             <TableBody>
-              {transactions.slice(0, 14).map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.payee_email}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(t.created_at)}</TableCell>
-                  <TableCell>
-                    <Badge className={cn("border-none font-medium", TRANSACTION_STATUS_STYLE[t.status])}>
-                      {TRANSACTION_STATUS_LABEL_TR[t.status]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-medium text-foreground">
-                    {formatCurrency(parseFloat(t.amount))}
-                  </TableCell>
+              {data.results.length === 0 && <TableRow><TableCell colSpan={7} className="py-8 text-center text-text-soft">Henüz ödeme yok.</TableCell></TableRow>}
+              {data.results.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell className="font-medium">{p.campaign_title}</TableCell>
+                  <TableCell className="text-text-soft">{p.creator_name}</TableCell>
+                  <TableCell className="text-text-soft">{formatDate(p.paid_at ?? p.created_at)}</TableCell>
+                  <TableCell><Badge variant={VARIANT[p.status]}>{BRAND_PAYMENT_STATUS_TR[p.status]}</Badge></TableCell>
+                  <TableCell className="text-right">{formatCurrency(Number(p.budget_amount))}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(Number(p.commission_amount))}</TableCell>
+                  <TableCell className="text-right font-bold">{formatCurrency(Number(p.total_amount))}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -41,9 +41,21 @@ class ReviewSerializer(serializers.ModelSerializer):
         has_accepted_application = Application.objects.filter(
             campaign=campaign, status=ApplicationStatus.ACCEPTED
         )
+        if Review.objects.filter(campaign=campaign, reviewer=reviewer, reviewee=reviewee).exists():
+            raise serializers.ValidationError("Bu iş için zaten değerlendirme yaptınız.")
+
         if is_brand_owner:
             if not has_accepted_application.filter(creator__user=reviewee).exists():
                 raise serializers.ValidationError("You may only review creators accepted into this campaign.")
+            # Marka, creator'ı yalnızca iş bittikten (içerik onaylandıktan) sonra puanlayabilir.
+            from apps.collaborations.models import Collaboration, CollaborationStatus
+
+            if not Collaboration.objects.filter(
+                campaign=campaign,
+                creator__user=reviewee,
+                status__in=[CollaborationStatus.APPROVED, CollaborationStatus.PAID],
+            ).exists():
+                raise serializers.ValidationError("Creator'ı değerlendirmek için içerik teslimini onaylamalısınız.")
         else:
             if not has_accepted_application.filter(creator__user=reviewer).exists():
                 raise serializers.ValidationError("You were not an accepted creator on this campaign.")

@@ -111,6 +111,7 @@ def assign_membership(
     *,
     actor=None,
     charge_wallet: bool = False,
+    carry_over: bool = False,
     note: str = "",
 ) -> Membership:
     """Kullanıcıya paket tanımlar (veya mevcut paketini değiştirir).
@@ -120,8 +121,17 @@ def assign_membership(
     satmak, admin panelindeki normal akıştır. Bakiye yetmezse işlemin tamamı
     geri alınır ve paket tanımlanmaz.
 
-    Süre her zaman **şu andan** başlar: kalan gün devretmez. Bu bilinçli bir
-    sadeleştirmedir; devir kuralı istendiğinde burada tek yerde değişir.
+    ``carry_over=False`` (admin elle atama): süre **şu andan** başlar, sayaç
+    sıfırlanır, kalan hak/gün devretmez.
+
+    ``carry_over=True`` (self-servis satın alma: yükseltme / yenileme) kuralı:
+
+    * **Kalan başvuru hakları** yeni paketin hakkına eklenir (kayıp yok).
+    * **Yenileme** (aynı paket, süre dolmadan): yeni süre mevcut bitişin
+      *üzerine* eklenir — ödenen gün kaybolmaz.
+    * **Yükseltme/değişiklik** (farklı paket): süre yeni paketin süresiyle
+      şu andan başlar (ör. Classic 3 gün → Premium haftalık = 7 gün).
+    * Sınırsız hak (``None``) devredilmez; yeni paketin hakkı geçerlidir.
 
     Marka paketlerinde creator dizinine erişim de bu adımda açılır (bkz.
     ``_grant_brand_directory_access``).
@@ -143,16 +153,26 @@ def assign_membership(
             actor=actor,
         )
 
+    carried = 0
+    expires_base = now
+    if carry_over and membership.is_active:
+        leftover = membership.remaining_applications
+        if leftover:
+            carried = leftover
+        if membership.package_code == package.code and membership.expires_at and membership.expires_at > now:
+            expires_base = membership.expires_at
+
     membership.package_code = package.code
     membership.package_name = package.name
     membership.tier_code = tier.code
     membership.tier_label = tier.label
-    membership.application_quota = tier.applications
+    membership.application_quota = None if tier.applications is None else tier.applications + carried
     membership.campaign_quota = tier.active_campaigns
-    # Yeni paket, başvuru sayacını sıfırlar: kullanıcı yeni hakkını baştan alır.
+    # Yeni paket, başvuru sayacını sıfırlar: kullanıcı yeni hakkını baştan alır
+    # (devreden haklar yukarıda kotaya eklendi).
     membership.applications_used = 0
     membership.starts_at = now
-    membership.expires_at = now + timedelta(days=tier.days)
+    membership.expires_at = expires_base + timedelta(days=tier.days)
     membership.assigned_by = actor if getattr(actor, "is_authenticated", False) else None
     membership.save()
 

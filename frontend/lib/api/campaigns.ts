@@ -1,6 +1,6 @@
 // Kampanyalar için API katmanı. Gerçek Django `CampaignViewSet`'ini (`/api/v1/campaigns/`) okur/yazar.
 import { apiClient, ApiError } from "@/lib/api";
-import { ENDPOINTS, campaignDetail, campaignMedia } from "@/lib/endpoints";
+import { ENDPOINTS, campaignDetail, campaignMedia, campaignReview } from "@/lib/endpoints";
 import type { Campaign, CampaignDeliverable, CampaignMediaItem, CampaignStatus, SocialPlatform } from "@/types";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +32,10 @@ interface RawCampaign {
   id: number;
   brand_id: number;
   brand_name: string;
+  brand_logo?: string | null;
+  brand_verified?: boolean;
+  is_premium_only?: boolean;
+  review_note?: string;
   title: string;
   description: string;
   categories: RawCategory[];
@@ -85,8 +89,10 @@ function normalizeCampaign(raw: RawCampaign): Campaign {
     title: raw.title,
     brandId: String(raw.brand_id),
     brandName: raw.brand_name,
-    brandLogoUrl: undefined,
-    brandVerified: undefined,
+    brandLogoUrl: raw.brand_logo ?? undefined,
+    brandVerified: raw.brand_verified ?? false,
+    isPremiumOnly: raw.is_premium_only ?? false,
+    reviewNote: raw.review_note ?? "",
     coverUrl: media[0]?.url,
     status: raw.status as CampaignStatus,
     categories: (raw.categories ?? []).map((c) => c.name),
@@ -150,6 +156,12 @@ export async function getCampaign(id: string): Promise<Campaign | undefined> {
   }
 }
 
+/** Creator'a uygun (kategori/platform eşleşen) kampanyalar; premium kampanyalar yalnızca Premium creator'a gelir. */
+export async function listRecommendedCampaigns(): Promise<Campaign[]> {
+  const data = await apiClient.get<RawCampaign[]>(`${ENDPOINTS.campaigns}recommended/`);
+  return unwrap(data).map(normalizeCampaign);
+}
+
 export async function listActiveCampaigns(count?: number): Promise<Campaign[]> {
   const results = await listCampaigns({ status: "published" });
   return count ? results.slice(0, count) : results;
@@ -187,6 +199,7 @@ export interface CampaignInput {
   startDate?: string;
   deadline: string;
   status?: CampaignStatus;
+  isPremiumOnly?: boolean;
 }
 
 function toPayload(input: Partial<CampaignInput>) {
@@ -201,6 +214,7 @@ function toPayload(input: Partial<CampaignInput>) {
   if (input.startDate !== undefined) payload.start_date = input.startDate || null;
   if (input.deadline !== undefined) payload.deadline = input.deadline;
   if (input.status !== undefined) payload.status = input.status;
+  if (input.isPremiumOnly !== undefined) payload.is_premium_only = input.isPremiumOnly;
   return payload;
 }
 
@@ -242,4 +256,10 @@ export async function bulkCampaignAction(
   action: "unpublish" | "close" | "delete",
 ): Promise<{ updated: number }> {
   return apiClient.post(ENDPOINTS.campaignBulkAction, { action, ids: ids.map(Number) });
+}
+
+/** Admin/moderatör: İncelemedeki kampanyayı onayla (Yayında) veya reddet (İptal, gerekçe zorunlu). */
+export async function reviewCampaign(id: string, decision: "approve" | "reject", note = ""): Promise<Campaign> {
+  const raw = await apiClient.post<RawCampaign>(campaignReview(id, decision), { note });
+  return normalizeCampaign(raw);
 }

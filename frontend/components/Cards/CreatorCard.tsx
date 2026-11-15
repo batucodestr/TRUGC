@@ -80,7 +80,7 @@ export function CreatorCard({ creator }: { creator: Creator }) {
                 <div>
                   <p className="flex items-center gap-1 text-sm font-semibold leading-tight">
                     {creator.name}
-                    {creator.verified && <BadgeCheck className="h-3.5 w-3.5 fill-violet-500 text-white" />}
+                    {creator.verified && <BadgeCheck className="h-3.5 w-3.5 fill-verified text-white" />}
                   </p>
                   {(creator.city ?? creator.country) && (
                     <p className="flex items-center gap-1 text-xs text-white/80">

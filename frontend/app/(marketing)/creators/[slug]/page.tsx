@@ -83,7 +83,7 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
             <div className="pb-1">
               <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">{creator.name}</h1>
-                {creator.verified && <BadgeCheck className="h-6 w-6 fill-violet-600 text-white" />}
+                {creator.verified && <BadgeCheck className="h-6 w-6 fill-verified text-white" />}
               </div>
               {creator.username && <p className="text-muted-foreground">@{creator.username}</p>}
               <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -103,6 +103,14 @@ export default async function CreatorProfilePage({ params }: { params: Promise<{
                     <Clock className="h-3.5 w-3.5" /> Yanıt süresi: {creator.responseTime.toLowerCase()}
                   </span>
                 )}
+              </div>
+              {/* Güven göstergeleri — hepsi sunucu kayıtlarından hesaplanır */}
+              <div className="mt-3 flex flex-wrap gap-2">
+                {creator.isPremium && <Badge variant="premium">👑 Premium Creator</Badge>}
+                {creator.socials.some((x) => x.oauthVerified) && <Badge variant="info">✓ Hesaplar API ile doğrulandı</Badge>}
+                <Badge variant="neutral">{creator.completedJobs ?? 0} tamamlanan iş</Badge>
+                {creator.onTimeRate != null && <Badge variant="success">%{creator.onTimeRate} zamanında teslim</Badge>}
+                {creator.averageRating != null && <Badge variant="premium">★ {creator.averageRating} ({creator.reviewCount ?? 0})</Badge>}
               </div>
             </div>
           </div>

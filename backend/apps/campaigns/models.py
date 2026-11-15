@@ -11,6 +11,7 @@ from apps.creators.models import Category, Platform
 
 class CampaignStatus(models.TextChoices):
     DRAFT = "draft", _("Draft")
+    IN_REVIEW = "in_review", _("In review")
     PUBLISHED = "published", _("Published")
     IN_PROGRESS = "in_progress", _("In progress")
     COMPLETED = "completed", _("Completed")
@@ -38,6 +39,10 @@ class Campaign(models.Model):
     deadline = models.DateTimeField(help_text="Final deadline for deliverables (end of the campaign timeline).")
 
     status = models.CharField(max_length=20, choices=CampaignStatus.choices, default=CampaignStatus.DRAFT, db_index=True)
+    is_premium_only = models.BooleanField(
+        default=False, db_index=True, help_text="Yalnızca Premium Creator paketi olanlara gösterilir."
+    )
+    review_note = models.CharField(max_length=255, blank=True, help_text="Admin'in red/onay notu.")
     awaiting_payment = models.BooleanField(
         default=False,
         db_index=True,

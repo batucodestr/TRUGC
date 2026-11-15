@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Check, CheckCheck, File as FileIcon, MoreVertical, Paperclip, Pencil, Send, Trash2, X } from "lucide-react";
+import { Check, CheckCheck, File as FileIcon, Flag, MoreVertical, Paperclip, Pencil, Send, ShieldBan, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -13,13 +13,20 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ReportDialog } from "@/components/shared/report-dialog";
+import { apiClient } from "@/lib/api";
+import { ENDPOINTS } from "@/lib/endpoints";
+import { getErrorMessage } from "@/lib/error-message";
 import { formatRelativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { ChatMessage, Conversation } from "@/types";
 
 // backend/apps/common/validators.py MESSAGE_ATTACHMENT_EXTENSIONS / MAX_MESSAGE_ATTACHMENT_SIZE_BYTES ile eşleşir.
-const ATTACHMENT_ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
+// Fotoğraf, video (50 MB'a kadar) ve belge gönderilebilir; tür ve boyut sunucuda da doğrulanır.
+const ATTACHMENT_ACCEPT =
+  "image/jpeg,image/png,image/webp,image/gif,application/pdf,video/mp4,video/quicktime,video/webm,.docx,.xlsx,.pptx,.txt,.zip";
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 50 * 1024 * 1024;
 
 interface ChatWindowProps {
   conversation: Conversation;
@@ -86,8 +93,9 @@ export function ChatWindow({
   }
 
   function handleFileSelect(file: File) {
-    if (file.size > MAX_ATTACHMENT_BYTES) {
-      toast.error("Dosya çok büyük. En fazla 10MB yükleyebilirsiniz.");
+    const limit = file.type.startsWith("video/") ? MAX_VIDEO_BYTES : MAX_ATTACHMENT_BYTES;
+    if (file.size > limit) {
+      toast.error(`Dosya çok büyük. En fazla ${limit / 1024 / 1024}MB yükleyebilirsiniz.`);
       return;
     }
     setPendingFile(file);
@@ -123,6 +131,19 @@ export function ChatWindow({
     }
   }
 
+  async function handleBlock() {
+    if (!window.confirm(`${conversation.participantName} kullanıcısını engellemek istiyor musunuz? Birbirinize mesaj gönderemezsiniz.`)) return;
+    try {
+      await apiClient.post(ENDPOINTS.blocks, { user_id: Number(conversation.participantId) });
+      toast.success("Kullanıcı engellendi.");
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  }
+
+  // Şikâyet, karşı tarafın en son mesajına bağlanır (moderatör bağlamı görsün diye).
+  const lastPeerMessage = [...messages].reverse().find((m) => !m.isOwn);
+
   function handleDeleteConversation() {
     if (window.confirm(`${conversation.participantName} ile olan tüm sohbeti silmek istediğinize emin misiniz? Bu işlem geri alınamaz.`)) {
       onDeleteConversation?.(conversation.id);
@@ -149,17 +170,35 @@ export function ChatWindow({
             )
           )}
         </div>
-        {onDeleteConversation && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="ml-auto h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
-            onClick={handleDeleteConversation}
-            title="Sohbeti sil"
-          >
-            <Trash2 className="h-4 w-4" />
+        <div className="ml-auto flex items-center gap-1">
+          {lastPeerMessage && (
+            <ReportDialog
+              targetType="message"
+              targetId={lastPeerMessage.id}
+              targetLabel="karşı tarafın son mesajı"
+              trigger={
+                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive" title="Şikâyet et" aria-label="Şikâyet et">
+                  <Flag className="h-4 w-4" />
+                </Button>
+              }
+            />
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive" onClick={handleBlock} title="Engelle" aria-label="Engelle">
+            <ShieldBan className="h-4 w-4" />
           </Button>
-        )}
+          {onDeleteConversation && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 shrink-0 rounded-full text-muted-foreground hover:text-destructive"
+              onClick={handleDeleteConversation}
+              title="Sohbeti sil"
+              aria-label="Sohbeti sil"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <ScrollArea className="flex-1 px-5">
@@ -237,16 +276,24 @@ export function ChatWindow({
                 </div>
 
                 {msg.attachments?.map((att) => (
-                  <div
-                    key={att.id}
-                    className={cn(
-                      "flex items-center gap-2 rounded-xl border border-border/70 bg-card px-3 py-2 text-xs",
-                      msg.isOwn && "flex-row-reverse",
+                  <div key={att.id} className={cn("max-w-full overflow-hidden rounded-xl border border-border bg-card text-xs", msg.isOwn && "ml-auto")}>
+                    {att.type === "image" && att.url && (
+                      <a href={att.url} target="_blank" rel="noopener noreferrer">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={att.url} alt={att.name} className="max-h-56 w-auto max-w-full object-cover" />
+                      </a>
                     )}
-                  >
-                    <FileIcon className="h-4 w-4 text-violet-600" />
-                    <span className="font-medium">{att.name}</span>
-                    {att.size && <span className="text-muted-foreground">{att.size}</span>}
+                    {att.type === "video" && att.url && <video src={att.url} controls preload="metadata" className="max-h-64 w-full bg-black" />}
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={cn("flex items-center gap-2 px-3 py-2 hover:bg-white/5", msg.isOwn && "flex-row-reverse")}
+                    >
+                      <FileIcon className="h-4 w-4 text-brand-light" aria-hidden />
+                      <span className="font-medium">{att.name}</span>
+                      {att.size && <span className="text-muted-foreground">{att.size}</span>}
+                    </a>
                   </div>
                 ))}
 

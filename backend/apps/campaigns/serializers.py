@@ -37,6 +37,8 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
 
     brand_name = serializers.CharField(source="brand.company_name", read_only=True)
     brand_id = serializers.IntegerField(source="brand.id", read_only=True)
+    brand_logo = serializers.ImageField(source="brand.logo", read_only=True)
+    brand_verified = serializers.BooleanField(source="brand.is_verified", read_only=True)
     # Ücretsiz dönemde zorunlu olmamaları gerektiği için açıkça required=False;
     # ücretli dönemde zorunluluk aşağıdaki validate() içinde uygulanır.
     budget_min = serializers.DecimalField(max_digits=10, decimal_places=2, required=False, allow_null=True)
@@ -59,6 +61,8 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
             "id",
             "brand_id",
             "brand_name",
+            "brand_logo",
+            "brand_verified",
             "title",
             "description",
             "categories",
@@ -73,6 +77,8 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
             "status",
             "is_open",
             "awaiting_payment",
+            "is_premium_only",
+            "review_note",
             "applications_count",
             "media_files",
             "created_at",
@@ -80,7 +86,7 @@ class CampaignSerializer(FreePeriodPricingMixin, serializers.ModelSerializer):
         ]
         # awaiting_payment yalnızca sunucuda değişir: ilan ödeme beklerken
         # kaydedilir, ödeme onaylanınca yayına alınırken temizlenir.
-        read_only_fields = ["id", "awaiting_payment", "created_at", "updated_at"]
+        read_only_fields = ["id", "awaiting_payment", "review_note", "created_at", "updated_at"]
 
     def get_applications_count(self, obj):
         """Başvuru sayısı.

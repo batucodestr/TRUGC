@@ -9,7 +9,7 @@ import { AUTH_ENDPOINTS } from "@/lib/endpoints";
 // IsAdminRole|IsModerator değil, yalnızca IsAdminRole'dür; bu yüzden onları
 // burada gizlemek, kenar çubuğunun bir moderatörün gerçekten neye
 // ulaşabildiği konusunda dürüst kalmasını sağlar.
-const SUPERUSER_ONLY_HREFS = ["/manage/system", "/manage/roles", "/manage/logs"];
+const SUPERUSER_ONLY_HREFS = ["/manage/system", "/manage/roles", "/manage/logs", "/manage/finance"];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const [notifications, me] = await Promise.all([

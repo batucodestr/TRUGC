@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { PlatformIcon } from "@/components/shared/platform-icon";
+import { SocialConnectCard } from "@/features/creators/social-connect-card";
+import { PortfolioManager } from "@/features/creators/portfolio-manager";
 import { ImageUpload } from "@/components/upload/image-upload";
 import { CATEGORIES, CATEGORY_LABEL_TR, PLATFORM_LABEL } from "@/lib/constants";
 import { AUTH_ENDPOINTS, ENDPOINTS } from "@/lib/endpoints";
@@ -26,7 +27,9 @@ interface MyCreator {
   cover: string | null;
   avatar: string | null;
   categories: { id: number; name: string }[];
-  social_accounts: { platform: SocialPlatform; handle: string; followers_count: number }[];
+  is_verified?: boolean;
+  social_accounts: { platform: SocialPlatform; handle: string; followers_count: number; oauth_verified?: boolean; last_synced_at?: string | null }[];
+  portfolio_items?: { id: number; title: string; media: string | null; external_url: string }[];
 }
 
 export default function CreatorProfileSettingsPage() {
@@ -163,34 +166,8 @@ export default function CreatorProfileSettingsPage() {
         </div>
       </Card>
 
-      <Card className="rounded-2xl border-border/70 p-6">
-        <h2 className="text-base font-semibold">Bağlı hesaplar</h2>
-        <div className="mt-4 space-y-3">
-          {(creator?.social_accounts ?? []).length === 0 && (
-            <p className="text-sm text-muted-foreground">Henüz bağlı bir sosyal medya hesabınız yok.</p>
-          )}
-          {(creator?.social_accounts ?? []).map((s) => (
-            <div key={s.platform} className="flex items-center justify-between rounded-xl border border-border/70 p-4">
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-muted">
-                  <PlatformIcon platform={s.platform} className="h-4.5 w-4.5" />
-                </span>
-                <div>
-                  <p className="text-sm font-medium">{PLATFORM_LABEL[s.platform]}</p>
-                  <p className="text-xs text-muted-foreground">{s.handle}</p>
-                </div>
-              </div>
-              <Badge variant="secondary" className="rounded-full font-normal">
-                {formatCompactNumber(s.followers_count)} takipçi
-              </Badge>
-            </div>
-          ))}
-        </div>
-        <Separator className="my-5" />
-        <Button variant="outline" className="rounded-full">
-          + Başka bir hesap bağla
-        </Button>
-      </Card>
+      <SocialConnectCard accounts={creator?.social_accounts ?? []} isVerified={creator?.is_verified ?? false} />
+      <PortfolioManager items={creator?.portfolio_items ?? []} />
     </div>
   );
 }

@@ -66,6 +66,15 @@ def _membership(user) -> Membership:
     return get_membership(user)
 
 
+PREMIUM_CREATOR_CODE = "premium-creator"
+
+
+def is_premium_creator(user) -> bool:
+    """Aktif Premium Creator paketi var mı? (premium kampanya erişimi / rozet)."""
+    membership = get_membership(user) if getattr(user, "is_authenticated", False) else None
+    return bool(membership and membership.is_active and membership.package_code == PREMIUM_CREATOR_CODE)
+
+
 def active_membership(user) -> Membership | None:
     """Kullanıcının **aktif** paketi; yoksa ``None``."""
     membership = _membership(user)
@@ -242,16 +251,20 @@ def release_awaiting_campaigns(user) -> list:
     if not awaiting:
         return []
 
-    Campaign.objects.filter(pk__in=[c.pk for c in awaiting]).update(
-        status=CampaignStatus.PUBLISHED, awaiting_payment=False
-    )
+    # Admin onayı açıksa ödeme sonrası ilan "İncelemede" olur, kapalıysa yayına girer.
+    target = CampaignStatus.IN_REVIEW if getattr(settings, "CAMPAIGN_REQUIRES_APPROVAL", False) else CampaignStatus.PUBLISHED
+    Campaign.objects.filter(pk__in=[c.pk for c in awaiting]).update(status=target, awaiting_payment=False)
     for campaign in awaiting:
-        campaign.status = CampaignStatus.PUBLISHED
+        campaign.status = target
         campaign.awaiting_payment = False
         notify_user(
             user=user,
-            title="İlanınız yayında",
-            body=f'Ödemeniz onaylandı, "{campaign.title}" kampanyanız yayına alındı ve başvuru kabul ediyor.',
+            title="İlanınız yayında" if target == CampaignStatus.PUBLISHED else "İlanınız incelemede",
+            body=(
+                f'Ödemeniz onaylandı, "{campaign.title}" kampanyanız yayına alındı ve başvuru kabul ediyor.'
+                if target == CampaignStatus.PUBLISHED
+                else f'Ödemeniz onaylandı, "{campaign.title}" kampanyanız yönetici onayına gönderildi.'
+            ),
             notification_type=NotificationType.CAMPAIGN,
             link="/dashboard/brand/campaigns",
         )
@@ -288,3 +301,38 @@ def check_campaign_slot(user) -> None:
             f"({active} kampanyanız yayında). Yeni kampanya için bir kampanyayı kapatın "
             "veya paketinizi yükseltin."
         )
+
+
+# ---------------------------------------------------------------------------
+# Süre sonu
+# ---------------------------------------------------------------------------
+def expire_memberships(now=None) -> int:
+    """Süresi dolan paketleri sonlandırır (zamanlanmış görev + her istekte ``is_active`` kontrolü).
+
+    Satır silinmez; ``package_code`` boşaltılır ve kullanıcıya bildirim gider.
+    Sunucu her istekte ``expires_at``'ı ayrıca kontrol ettiği için görev
+    gecikse bile süresi dolmuş paket hak vermez.
+    """
+    from django.utils import timezone
+
+    from apps.notifications.models import NotificationType
+    from apps.notifications.services import notify_user
+
+    now = now or timezone.now()
+    expired = list(
+        Membership.objects.exclude(package_code="").filter(expires_at__isnull=False, expires_at__lte=now).select_related("user")
+    )
+    for membership in expired:
+        name = f"{membership.package_name} · {membership.tier_label}"
+        Membership.objects.filter(pk=membership.pk, expires_at__lte=now).update(
+            package_code="", package_name="", tier_code="", tier_label="", application_quota=None,
+            campaign_quota=0, applications_used=0,
+        )
+        notify_user(
+            user=membership.user,
+            title="Üyeliğiniz sona erdi",
+            body=f"{name} paketinizin süresi doldu. Devam etmek için paketinizi yenileyin.",
+            notification_type=NotificationType.PAYMENT,
+            link="/dashboard",
+        )
+    return len(expired)

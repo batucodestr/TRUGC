@@ -15,6 +15,8 @@ interface RawApplication {
   creator_user_id: number | null;
   creator_name: string;
   creator_avatar: string | null;
+  creator_followers?: number;
+  creator_verified?: boolean;
   /** Kampanya kimliği (okuma). `campaign_id` yazma amaçlıdır, okumada dönmez. */
   campaign: number | null;
   campaign_title: string;
@@ -52,6 +54,8 @@ function normalizeApplication(raw: RawApplication): Application {
     creatorUserId: raw.creator_user_id != null ? String(raw.creator_user_id) : undefined,
     creatorName: raw.creator_name,
     creatorAvatarUrl: raw.creator_avatar ?? undefined,
+    creatorFollowers: raw.creator_followers ?? 0,
+    creatorVerified: raw.creator_verified ?? false,
     brandId: String(raw.brand_id),
     brandName: raw.brand_name ?? undefined,
     brandUserId: raw.brand_user_id != null ? String(raw.brand_user_id) : undefined,

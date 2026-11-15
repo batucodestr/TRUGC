@@ -67,6 +67,10 @@ class Creator(models.Model):
         return sum(acc.followers_count for acc in self.social_accounts.all())
 
     @property
+    def has_oauth_verified_account(self):
+        return any(acc.provider_user_id for acc in self.social_accounts.all())
+
+    @property
     def average_engagement_rate(self):
         accounts = list(self.social_accounts.all())
         if not accounts:
@@ -84,6 +88,20 @@ class SocialAccount(models.Model):
     followers_count = models.PositiveIntegerField(default=0)
     engagement_rate = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     is_verified = models.BooleanField(default=False)
+
+    # --- OAuth ile doğrulama (apps/creators/social/) ---
+    #: Platformun kendi kullanıcı kimliği; hesabın OAuth ile bağlandığının kanıtı.
+    provider_user_id = models.CharField(max_length=128, blank=True)
+    #: Şifreli (Fernet) OAuth token'ları. Düz metin saklanmaz, API'de dönmez.
+    access_token_enc = models.TextField(blank=True)
+    refresh_token_enc = models.TextField(blank=True)
+    token_expires_at = models.DateTimeField(null=True, blank=True)
+    last_synced_at = models.DateTimeField(null=True, blank=True)
+    #: Platformun verdiği toplam erişim/etkileşim sinyali (YouTube: görüntülenme, TikTok: beğeni, Instagram: son gönderilerin beğeni+yorumu).
+    reach_count = models.PositiveBigIntegerField(default=0)
+    #: Sahte/şüpheli profil kontrolü: admin panelinde işaretli görünür.
+    is_suspicious = models.BooleanField(default=False, db_index=True)
+    flag_reason = models.CharField(max_length=255, blank=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

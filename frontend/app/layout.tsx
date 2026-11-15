@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { MotionProvider } from "@/components/Motion/MotionProvider";
@@ -19,14 +19,17 @@ import "./globals.css";
 // erişimi olmayan Docker build'leri için önemlidir.
 export const dynamic = "force-dynamic";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
+// Plus Jakarta Sans Türkçe karakterleri (ğ ş ı İ ö ü ç) destekleyen "latin-ext"
+// alt kümesiyle yüklenir; yedek olarak Inter / sistem fontu kullanılır.
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin", "latin-ext"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin", "latin-ext"],
 });
 
 const SITE_NAME = "TRUGC";
@@ -56,7 +59,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="tr"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${jakarta.variable} ${inter.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <MotionProvider>

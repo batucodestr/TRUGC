@@ -114,7 +114,11 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
     def _messaging_denied(self):
         from apps.payments import membership as membership_rules
 
+        from .models import is_blocked_between
+
         conversation = Conversation.objects.get(pk=self.conversation_id)
+        if is_blocked_between(self.user, conversation.participants.exclude(pk=self.user.pk)):
+            return "Bu kullanıcıyla mesajlaşamazsınız."
         try:
             membership_rules.check_messaging(self.user, conversation.participants.exclude(pk=self.user.pk))
         except membership_rules.MembershipRequired as exc:

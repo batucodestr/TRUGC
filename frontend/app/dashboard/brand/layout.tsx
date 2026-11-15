@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { listNotifications } from "@/lib/api/notifications";
 import { getOnboardingStatusSafe } from "@/lib/api/onboarding";
+import { getNavBadges } from "@/lib/api/nav-badges";
 
 export default async function BrandLayout({ children }: { children: React.ReactNode }) {
   // Zorunlu akış (e-posta doğrulama + profil fotoğrafı) tamamlanmadan marka
@@ -10,14 +11,18 @@ export default async function BrandLayout({ children }: { children: React.ReactN
   // sınıflarıdır (apps/accounts/permissions.py::IsOnboarded). Durum okunamazsa
   // (ör. bayat access cookie'si) akış tamamlanmış sayılır — mevcut kullanıcıyı
   // bir ağ hatası yüzünden kurulum ekranına kilitlemek kabul edilemez.
-  const [notifications, onboarding] = await Promise.all([listNotifications(), getOnboardingStatusSafe()]);
+  const [notifications, onboarding, badges] = await Promise.all([
+    listNotifications(),
+    getOnboardingStatusSafe(),
+    getNavBadges("brand"),
+  ]);
 
   if (!onboarding.complete) {
     redirect("/onboarding");
   }
 
   return (
-    <DashboardShell role="brand" notifications={notifications}>
+    <DashboardShell role="brand" notifications={notifications} badges={badges}>
       {children}
     </DashboardShell>
   );

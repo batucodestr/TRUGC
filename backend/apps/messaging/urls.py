@@ -12,6 +12,8 @@ message_list = views.MessageViewSet.as_view({"get": "list", "post": "create"})
 message_detail = views.MessageViewSet.as_view({"get": "retrieve", "patch": "partial_update", "delete": "destroy"})
 
 urlpatterns = [
+    path("blocks/", views.BlockListView.as_view(), name="block-list"),
+    path("blocks/<int:user_id>/", views.BlockDetailView.as_view(), name="block-detail"),
     path("admin/conversations/", views.AdminConversationListView.as_view(), name="admin-conversation-list"),
     path(
         "admin/conversations/<int:conversation_pk>/messages/",

@@ -48,6 +48,7 @@ LOCAL_APPS = [
     "apps.reviews",
     "apps.notifications",
     "apps.analytics",
+    "apps.collaborations",
     "apps.payments",
     "apps.reports",
 ]
@@ -425,3 +426,32 @@ LOGGING = {
         "django": {"handlers": ["console"], "level": "INFO", "propagate": False},
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# İş birliği / ödeme / doğrulama (yeni)
+# ---------------------------------------------------------------------------
+# Yayınlanmak istenen kampanyalar önce "İncelemede" durumuna alınır ve admin
+# onayıyla yayına girer. Karar: kötü niyetli/yanıltıcı ilanları yayından önce
+# yakalamak sektör standardıdır; kapatmak için CAMPAIGN_REQUIRES_APPROVAL=False.
+CAMPAIGN_REQUIRES_APPROVAL = config("CAMPAIGN_REQUIRES_APPROVAL", default=True, cast=bool)
+# Fiyatlar KDV dahildir; defterde KDV payı bu orandan ayrıştırılır (yüzde).
+VAT_PERCENT = config("VAT_PERCENT", default="20")
+# Marka iş birliği ödemesinin PayTR pazaryeri (alt üye işyeri) üzerinden
+# creator'a aktarılması. Kapalıyken hak ediş "ödenebilir" kalır ve admin
+# PayTR panelinden transfer edip "ödendi" olarak işaretler.
+PAYTR_PLATFORM_TRANSFER_ENABLED = config("PAYTR_PLATFORM_TRANSFER_ENABLED", default=False, cast=bool)
+
+# Sosyal medya OAuth (resmî API). Şifre ASLA istenmez; yalnızca OAuth token'ı.
+SOCIAL_OAUTH_REDIRECT_BASE = config("SOCIAL_OAUTH_REDIRECT_BASE", default=FRONTEND_URL)
+INSTAGRAM_CLIENT_ID = config("INSTAGRAM_CLIENT_ID", default="")
+INSTAGRAM_CLIENT_SECRET = config("INSTAGRAM_CLIENT_SECRET", default="")
+TIKTOK_CLIENT_KEY = config("TIKTOK_CLIENT_KEY", default="")
+TIKTOK_CLIENT_SECRET = config("TIKTOK_CLIENT_SECRET", default="")
+GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = config("GOOGLE_CLIENT_SECRET", default="")
+# OAuth token'larını şifrelemek için Fernet anahtarı (boşsa SECRET_KEY'den türetilir).
+SOCIAL_TOKEN_ENCRYPTION_KEY = config("SOCIAL_TOKEN_ENCRYPTION_KEY", default="")
+# Şüpheli profil eşikleri (admin'e işaretlenir).
+SOCIAL_SUSPICIOUS_ENGAGEMENT_PERCENT = config("SOCIAL_SUSPICIOUS_ENGAGEMENT_PERCENT", default="25")
+SOCIAL_SUSPICIOUS_FOLLOWER_JUMP_PERCENT = config("SOCIAL_SUSPICIOUS_FOLLOWER_JUMP_PERCENT", default="100")

@@ -1,3 +1,4 @@
+from django.db import IntegrityError, transaction
 from django.db.models import Q
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import permissions, status, viewsets
@@ -7,6 +8,9 @@ from rest_framework.response import Response
 
 from apps.accounts.exceptions import error_response
 from apps.accounts.permissions import IsBrand, IsCreator, IsOnboarded
+from apps.collaborations import services as collab_services
+from apps.collaborations.logging import log_status_change
+from apps.collaborations.models import CollaborationStatus, StatusLog
 from apps.notifications.models import NotificationType
 from apps.notifications.services import notify_user
 from apps.payments import membership as membership_rules
@@ -46,7 +50,7 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Application.objects.select_related(
             "creator", "creator__user", "creator__user__profile", "campaign", "campaign__brand"
-        )
+        ).prefetch_related("creator__social_accounts")
         if user.is_staff or user.role in ("admin", "moderator"):
             return queryset
         # Ödeme bekleyen başvuru yalnızca creator'ın kendisine görünür.
@@ -85,16 +89,34 @@ class ApplicationViewSet(viewsets.ModelViewSet):
         dönülür, böylece istemci yeni mi oluştu yoksa var olan mı döndü
         ayırt edebilir.
         """
-        try:
-            membership_rules.check_application_slot(request.user)
-        except membership_rules.MembershipRequired as exc:
-            return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+        # Hak kontrolü, başvurunun oluşturulması ve hakkın düşülmesi TEK bir
+        # transaction'dadır; üyelik satırı kilitlenir. Böylece çift tıklama /
+        # eşzamanlı iki istek sıraya girer: ikincisi var olan başvuruyu görür
+        # ve hak ikinci kez düşülmez (sunucu tarafı atomik hak düşümü).
+        with transaction.atomic():
+            if getattr(request.user, "role", "") == "creator":
+                from apps.payments.models import Membership
+                from apps.payments.wallet import get_membership
 
-        existing = self._existing_application(request)
-        if existing is not None:
-            return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
+                Membership.objects.select_for_update().get(pk=get_membership(request.user).pk)
 
-        return super().create(request, *args, **kwargs)
+            existing = self._existing_application(request)
+            if existing is not None:
+                return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
+
+            try:
+                membership_rules.check_application_slot(request.user)
+            except membership_rules.MembershipRequired as exc:
+                return error_response("MEMBERSHIP_REQUIRED", str(exc), status.HTTP_402_PAYMENT_REQUIRED)
+
+            try:
+                with transaction.atomic():  # savepoint: unique(creator, campaign) çakışması dış transaction'ı bozmasın
+                    return super().create(request, *args, **kwargs)
+            except IntegrityError:
+                existing = self._existing_application(request)
+                if existing is None:
+                    raise
+                return Response(self.get_serializer(existing).data, status=status.HTTP_200_OK)
 
     def _existing_application(self, request):
         """Kullanıcının bu kampanyaya daha önce yaptığı başvuru (varsa).
@@ -124,25 +146,49 @@ class ApplicationViewSet(viewsets.ModelViewSet):
             # iletilmez; hak da paket tanımlandığında harcanır.
             serializer.save(awaiting_payment=True)
             return
-        serializer.save()
+        application = serializer.save()
+        log_status_change(StatusLog.ENTITY_APPLICATION, application, "", application.status, actor=self.request.user)
         # Hak, başvuru gerçekten oluştuktan SONRA harcanır: doğrulamaya takılan
         # bir istek kullanıcının hakkını yemez.
         membership_rules.consume_application(self.request.user)
-        notify_brand_of_application(serializer.instance)
+        notify_brand_of_application(application)
 
     def perform_destroy(self, instance):
         if instance.creator.user_id != self.request.user.id:
             raise PermissionDenied("You can only withdraw your own application.")
+        old = instance.status
         instance.status = ApplicationStatus.WITHDRAWN
         instance.save(update_fields=["status"])
+        log_status_change(StatusLog.ENTITY_APPLICATION, instance, old, instance.status, actor=self.request.user)
+        collaboration = getattr(instance, "collaboration", None)
+        if collaboration is not None and collaboration.status == CollaborationStatus.AWAITING_CONTENT:
+            collab_services.cancel(collaboration, actor=self.request.user, note="Creator başvuruyu geri çekti")
 
     def _set_status(self, request, pk, new_status):
         application = self.get_object()
         if application.campaign.brand.user_id != request.user.id and not self._is_staff_reviewer(request):
             raise PermissionDenied("You do not own this campaign.")
+        if application.awaiting_payment:
+            return error_response("APPLICATION_NOT_ACTIVE", "Bu başvuru henüz markaya iletilmedi.", status.HTTP_400_BAD_REQUEST)
+        collaboration = getattr(application, "collaboration", None)
+        if (
+            new_status == ApplicationStatus.REJECTED
+            and collaboration is not None
+            and collaboration.status != CollaborationStatus.AWAITING_CONTENT
+        ):
+            return error_response(
+                "COLLABORATION_ACTIVE", "İçerik teslimi başlamış bir iş birliği reddedilemez.", status.HTTP_400_BAD_REQUEST
+            )
+        old_status = application.status
         serializer = ApplicationStatusUpdateSerializer(application, data={"status": new_status}, partial=True)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        with transaction.atomic():
+            serializer.save()
+            log_status_change(StatusLog.ENTITY_APPLICATION, application, old_status, new_status, actor=request.user)
+            if new_status == ApplicationStatus.ACCEPTED:
+                collab_services.start_for_application(application, actor=request.user)
+            elif collaboration is not None:
+                collab_services.cancel(collaboration, actor=request.user, note="Başvuru reddedildi")
         notify_user(
             user=application.creator.user,
             title=STATUS_NOTIFICATION_TITLE_TR[new_status],

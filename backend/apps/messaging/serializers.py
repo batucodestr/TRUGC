@@ -10,6 +10,17 @@ User = get_user_model()
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
+    """Ek dosya adresi herkese açık değildir: isteyen kullanıcıya özel, 10 dakika
+    geçerli imzalı bir adres döner (bkz. apps/common/signed_files.py)."""
+
+    file = serializers.SerializerMethodField()
+
+    def get_file(self, obj):
+        from apps.common import signed_files
+
+        request = self.context.get("request")
+        return signed_files.url_for(signed_files.KIND_MESSAGE_ATTACHMENT, obj.pk, getattr(request, "user", None))
+
     class Meta:
         model = Attachment
         fields = ["id", "file", "file_name", "content_type", "uploaded_at"]

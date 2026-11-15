@@ -1,14 +1,14 @@
 import Link from "next/link";
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 
+/** Mor gradient kare içinde "T" + "TRUGC" yazısı. */
 export function Logo({ className }: { className?: string }) {
   return (
-    <Link href="/" className={cn("flex items-center gap-2 font-semibold text-lg tracking-tight", className)}>
-      <Image src="/logo-mark.png" alt="" width={32} height={32} className="h-8 w-8 shrink-0" priority />
-      <span>
-        TR<span className="text-gradient-brand">UGC</span>
+    <Link href="/" className={cn("flex items-center gap-2.5 text-xl font-extrabold tracking-tight text-white", className)}>
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-brand text-lg font-extrabold italic text-white shadow-[0_6px_18px_rgb(139_61_255/0.45)]">
+        T
       </span>
+      <span>TRUGC</span>
     </Link>
   );
 }
