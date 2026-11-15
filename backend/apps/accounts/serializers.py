@@ -231,10 +231,23 @@ class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, validators=[validate_password])
     password_confirm = serializers.CharField(write_only=True)
     role = serializers.ChoiceField(choices=[(Role.CREATOR, Role.CREATOR.label), (Role.BRAND, Role.BRAND.label)])
+    # Telefon kayıtta zorunludur; sunucuda doğrulanır ve +90XXXXXXXXXX biçimine çevrilir.
+    phone_number = serializers.CharField(write_only=True, max_length=32)
 
     class Meta:
         model = User
-        fields = ["email", "password", "password_confirm", "role"]
+        fields = ["email", "password", "password_confirm", "role", "phone_number"]
+
+    def validate_phone_number(self, value):
+        digits = "".join(ch for ch in value if ch.isdigit())
+        # 905xxxxxxxxx / 05xxxxxxxxx / 5xxxxxxxxx -> son 10 hane
+        if digits.startswith("90") and len(digits) == 12:
+            digits = digits[2:]
+        elif digits.startswith("0") and len(digits) == 11:
+            digits = digits[1:]
+        if len(digits) != 10 or not digits.startswith("5"):
+            raise serializers.ValidationError("Geçerli bir cep telefonu girin (ör. 05xx xxx xx xx).")
+        return "+90" + digits
 
     def validate(self, attrs):
         if attrs["password"] != attrs.pop("password_confirm"):
@@ -242,7 +255,11 @@ class RegisterSerializer(serializers.ModelSerializer):
         return attrs
 
     def create(self, validated_data):
-        return User.objects.create_user(**validated_data)
+        phone = validated_data.pop("phone_number")
+        user = User.objects.create_user(**validated_data)
+        user.profile.phone_number = phone
+        user.profile.save(update_fields=["phone_number"])
+        return user
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

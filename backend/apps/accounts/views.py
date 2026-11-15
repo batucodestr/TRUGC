@@ -248,7 +248,7 @@ class UserListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, (IsAdminRole | IsModerator)]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["role", "is_active", "is_verified", "is_banned"]
-    search_fields = ["email", "profile__first_name", "profile__last_name"]
+    search_fields = ["email", "profile__first_name", "profile__last_name", "profile__phone_number"]
     ordering_fields = ["date_joined", "email", "last_login"]
 
 

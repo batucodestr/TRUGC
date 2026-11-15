@@ -26,6 +26,7 @@ export interface CreatorRegisterPayload {
   username: string;
   email: string;
   password: string;
+  phoneNumber: string;
   platforms: SocialPlatform[];
   category: CreatorCategory;
 }
@@ -35,5 +36,6 @@ export interface BrandRegisterPayload {
   contactName: string;
   email: string;
   password: string;
+  phoneNumber: string;
   website?: string;
 }

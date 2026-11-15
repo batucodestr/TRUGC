@@ -344,6 +344,7 @@ export interface PlatformUser {
   lastLoginAt: string | null;
   verified: boolean;
   banReason?: string;
+  phoneNumber?: string;
 }
 
 export interface VerificationRequest {

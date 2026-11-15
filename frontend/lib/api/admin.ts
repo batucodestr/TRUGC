@@ -36,7 +36,7 @@ interface ApiUser {
   ban_reason: string;
   date_joined: string;
   last_login: string | null;
-  profile: { full_name: string; avatar: string | null };
+  profile: { full_name: string; avatar: string | null; phone_number?: string };
 }
 
 function mapUser(u: ApiUser): PlatformUser {
@@ -51,6 +51,7 @@ function mapUser(u: ApiUser): PlatformUser {
     lastLoginAt: u.last_login,
     verified: u.is_verified,
     banReason: u.ban_reason || undefined,
+    phoneNumber: u.profile.phone_number || undefined,
   };
 }
 

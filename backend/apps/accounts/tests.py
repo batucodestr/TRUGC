@@ -23,6 +23,7 @@ class RegistrationTests(APITestCase):
             "email": "creator@example.com",
             "password": "StrongPass123",
             "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
             "role": Role.CREATOR,
         }
         response = self.client.post(url, payload)
@@ -35,6 +36,7 @@ class RegistrationTests(APITestCase):
             "email": "brand@example.com",
             "password": "StrongPass123",
             "password_confirm": "Mismatch123",
+            "phone_number": "05321234567",
             "role": Role.BRAND,
         }
         response = self.client.post(url, payload)
@@ -46,6 +48,7 @@ class RegistrationTests(APITestCase):
             "email": "hacker@example.com",
             "password": "StrongPass123",
             "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
             "role": Role.ADMIN,
         }
         response = self.client.post(url, payload)
@@ -139,6 +142,7 @@ class EmailVerificationTests(APITestCase):
                 "email": "another@example.com",
                 "password": "StrongPass123",
                 "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
                 "role": Role.CREATOR,
             },
         )
@@ -154,6 +158,7 @@ class EmailVerificationTests(APITestCase):
                 "email": "instant@example.com",
                 "password": "StrongPass123",
                 "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
                 "role": Role.BRAND,
             },
         )
@@ -276,6 +281,7 @@ class EmailVerificationFlowTests(APITestCase):
                 "email": "fresh@example.com",
                 "password": "StrongPass123",
                 "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
                 "role": Role.CREATOR,
             },
         )
@@ -543,6 +549,7 @@ class ProfilePhotoAppliesToNewAccountsOnlyTests(APITestCase):
                 "email": "brand-new@example.com",
                 "password": "StrongPass123",
                 "password_confirm": "StrongPass123",
+            "phone_number": "05321234567",
                 "role": Role.BRAND,
             },
         )
@@ -566,3 +573,25 @@ class ProfilePhotoAppliesToNewAccountsOnlyTests(APITestCase):
         with self.settings(ONBOARDING_REQUIRE_PROFILE_PHOTO=False):
             response = self.client.post(reverse("campaigns:campaign-list"), self.campaign_payload)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+
+class RegisterPhoneTests(APITestCase):
+    URL = "/api/v1/auth/register/"
+
+    def _post(self, phone=None):
+        data = {"email": "ph@example.com", "password": "StrongPass123", "password_confirm": "StrongPass123", "role": "creator"}
+        if phone is not None:
+            data["phone_number"] = phone
+        return self.client.post(self.URL, data)
+
+    def test_phone_is_required(self):
+        self.assertEqual(self._post().status_code, 400)
+
+    def test_invalid_phone_rejected(self):
+        self.assertEqual(self._post("12345").status_code, 400)
+        self.assertEqual(self._post("02121234567").status_code, 400)
+
+    def test_phone_is_normalized_and_saved(self):
+        r = self._post("0532 123 45 67")
+        self.assertEqual(r.status_code, 201, r.data)
+        self.assertEqual(User.objects.get(email="ph@example.com").profile.phone_number, "+905321234567")

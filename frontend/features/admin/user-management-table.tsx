@@ -216,6 +216,7 @@ export function UserManagementTable() {
                   <Checkbox checked={allSelected} onCheckedChange={toggleAll} aria-label="Tümünü seç" />
                 </TableHead>
                 <TableHead>Kullanıcı</TableHead>
+                <TableHead>Telefon</TableHead>
                 <TableHead>Rol</TableHead>
                 <TableHead>Durum</TableHead>
                 <TableHead>Kayıt Tarihi</TableHead>
@@ -226,13 +227,13 @@ export function UserManagementTable() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                     <Loader2 className="mx-auto h-5 w-5 animate-spin" />
                   </TableCell>
                 </TableRow>
               ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-muted-foreground">
                     Kullanıcı bulunamadı
                   </TableCell>
                 </TableRow>
@@ -257,6 +258,7 @@ export function UserManagementTable() {
                         </div>
                       </button>
                     </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">{user.phoneNumber ? <a href={`tel:${user.phoneNumber}`} className="hover:text-foreground">{user.phoneNumber}</a> : "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{ROLE_LABEL_TR[user.role] ?? user.role}</TableCell>
                     <TableCell>
                       <Badge className={cn("border-none font-medium", STATUS_STYLE[user.status])}>{STATUS_LABEL_TR[user.status]}</Badge>

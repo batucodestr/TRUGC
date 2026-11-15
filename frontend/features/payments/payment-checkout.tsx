@@ -20,7 +20,7 @@
 // "para gitti mi, görüldü mü?" sorusunun cevabını destek hattını aramadan
 // görebilmelidir.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -97,8 +97,13 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   const [wallet, setWallet] = useState<MyWallet | null>(null);
   const [pending, setPending] = useState<PaymentDeclaration | null>(null);
   const [loading, setLoading] = useState(true);
-  const [packageCode, setPackageCode] = useState(packages[0]!.code);
-  const [tierId, setTierId] = useState(packages[0]!.tiers[packages[0]!.tiers.length - 1]!.id);
+  // Fiyatlandırma sayfasından gelen seçim (?package=&tier=&pay=1).
+  const wantedPackage = packages.find((p) => p.code === params.get("package")) ?? packages[0]!;
+  const wantedTier = wantedPackage.tiers.find((t) => t.code === params.get("tier")) ?? wantedPackage.tiers[wantedPackage.tiers.length - 1]!;
+  const autoPay = params.get("pay") === "1" && params.get("package") !== null;
+  const autoPayStarted = useRef(false);
+  const [packageCode, setPackageCode] = useState(wantedPackage.code);
+  const [tierId, setTierId] = useState(wantedTier.id);
   const [senderNote, setSenderNote] = useState("");
   const [step, setStep] = useState<Step>("choose");
   const [sending, setSending] = useState(false);
@@ -130,6 +135,16 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   const selectedPackage = packages.find((p) => p.code === packageCode)!;
   const selectedTier = selectedPackage.tiers.find((t) => t.id === tierId) ?? selectedPackage.tiers[0]!;
 
+  // "Paketi Seç"ten gelen kullanıcı doğrudan PayTR iframe'ine alınır. Bekleyen
+  // havale bildirimi varsa otomatik başlatılmaz (kullanıcı durumu görsün).
+  useEffect(() => {
+    if (!autoPay || loading || autoPayStarted.current || pending) return;
+    autoPayStarted.current = true;
+    setRenewing(true);
+    void payByCard(wantedTier.code);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPay, loading, pending]);
+
   async function declare() {
     setSending(true);
     try {
@@ -152,11 +167,11 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
     }
   }
 
-  async function payByCard() {
+  async function payByCard(tierCode: string = selectedTier.code) {
     setCardStarting(true);
     try {
       // Tutar gönderilmez; sunucu paket ve süre koduna göre katalogdan türetir.
-      const checkout = await startPackageCheckout(selectedPackage.code, selectedTier.code);
+      const checkout = await startPackageCheckout(selectedPackage.code, tierCode);
       if (checkout.redirect_url) {
         setCardFrameUrl(checkout.redirect_url);
       } else {
@@ -179,6 +194,17 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
 
   const hasActivePackage = wallet?.membership.isActive ?? false;
 
+  if (autoPay && !cardFrameUrl && !pending && step === "choose" && cardStarting) {
+    return (
+      <div className="flex h-72 flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 className="size-6 animate-spin" />
+        <p className="text-sm">Güvenli ödeme sayfası açılıyor…</p>
+      </div>
+    );
+  }
+
+  const hasTierChoice = selectedPackage.tiers.length > 1;
+
   // --- Kartla ödeme: PayTR iframe ---
   if (cardFrameUrl) {
     return (
@@ -199,6 +225,30 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
             </Button>
           </div>
         </div>
+        {hasTierChoice && (
+          <div className="grid grid-cols-3 gap-2">
+            {selectedPackage.tiers.map((tier) => (
+              <button
+                key={tier.id}
+                type="button"
+                disabled={cardStarting}
+                onClick={() => {
+                  setTierId(tier.id);
+                  setCardFrameUrl(null);
+                  void payByCard(tier.code);
+                }}
+                aria-pressed={tier.id === selectedTier.id}
+                className={cn(
+                  "flex flex-col items-start rounded-2xl border px-3 py-2 text-left transition-colors",
+                  tier.id === selectedTier.id ? "border-brand-light bg-brand/15" : "border-border bg-white/[0.03] hover:border-brand-light/50",
+                )}
+              >
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{tier.label}</span>
+                <span className="text-sm font-semibold">{formatTryPrice(tier.price)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         <Card className="overflow-hidden rounded-2xl border-border/70 p-2 shadow-sm sm:p-4">
           <PaytrFrame url={cardFrameUrl} />
         </Card>
@@ -305,7 +355,6 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
   }
 
   // --- Paket seçimi + ödeme bilgileri ---
-  const hasTierChoice = selectedPackage.tiers.length > 1;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -424,7 +473,7 @@ export function PaymentCheckout({ audience }: { audience: PackageAudience }) {
           <p className="text-2xl font-semibold tracking-tight">{formatTryPrice(selectedTier.price)}</p>
         </div>
         <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-          <Button className="flex-1 gap-2 rounded-full" size="lg" onClick={payByCard} disabled={cardStarting}>
+          <Button className="flex-1 gap-2 rounded-full" size="lg" onClick={() => payByCard()} disabled={cardStarting}>
             {cardStarting ? <Loader2 className="size-4 animate-spin" /> : <CreditCard className="size-4" />}
             Kartla öde · {formatTryPrice(selectedTier.price)}
           </Button>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, ArrowRight, Loader2, Lock, Mail, User } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2, Lock, Mail, Phone, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -34,6 +34,7 @@ export function CreatorRegisterForm() {
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [platforms, setPlatforms] = useState<SocialPlatform[]>([]);
   const [category, setCategory] = useState<CreatorCategory | "">("");
   const [submitting, setSubmitting] = useState(false);
@@ -42,14 +43,14 @@ export function CreatorRegisterForm() {
     setPlatforms((prev) => (prev.includes(p) ? prev.filter((x) => x !== p) : [...prev, p]));
   };
 
-  const isValid = fullName && username && email && password && platforms.length > 0 && category;
+  const isValid = fullName && username && email && password && phoneNumber && platforms.length > 0 && category;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!isValid || !category) return;
     setSubmitting(true);
     try {
-      await registerCreator({ fullName, username, email, password, platforms, category });
+      await registerCreator({ phoneNumber, fullName, username, email, password, platforms, category });
       toast.success("Hesabın oluşturuldu!", { description: "Creator panelin hazırlanıyor..." });
       router.push(DASHBOARD_PATH_BY_ROLE.creator);
     } catch (err) {
@@ -93,6 +94,14 @@ export function CreatorRegisterForm() {
             <div className="relative">
               <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input id="creator-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@mail.com" className="pl-10" required />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="creator-phone">Cep Telefonu</Label>
+            <div className="relative">
+              <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input id="creator-phone" type="tel" inputMode="tel" autoComplete="tel" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="05xx xxx xx xx" className="pl-10" required />
             </div>
           </div>
 

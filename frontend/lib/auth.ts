@@ -119,6 +119,7 @@ export async function registerCreator(payload: CreatorRegisterPayload): Promise<
     password: payload.password,
     password_confirm: payload.password,
     role: "creator",
+    phone_number: payload.phoneNumber,
   });
 
   const session = await login({ email: payload.email, password: payload.password });
@@ -142,6 +143,7 @@ export async function registerBrand(payload: BrandRegisterPayload): Promise<Auth
     password: payload.password,
     password_confirm: payload.password,
     role: "brand",
+    phone_number: payload.phoneNumber,
   });
 
   const session = await login({ email: payload.email, password: payload.password });
